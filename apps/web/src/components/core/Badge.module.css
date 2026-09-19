@@ -1,0 +1,27 @@
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 11px;
+  border-radius: var(--radius-pill);
+  font-family: var(--font-display);
+  font-size: var(--text-caption);
+  font-weight: var(--fw-bold);
+  line-height: 1.2;
+  letter-spacing: -0.005em;
+}
+
+.uppercase { text-transform: uppercase; letter-spacing: var(--ls-caps); }
+
+.lime { background: var(--accent); color: var(--ink-900); }
+.dark { background: var(--ink-900); color: var(--text-on-dark); }
+.violet { background: var(--violet-200); color: var(--violet-700); }
+.neutral { background: var(--gray-100); color: var(--text-body); }
+.onDark { background: rgba(255, 255, 255, 0.12); color: var(--text-on-dark); }
+
+/* Status tones. Text colours here all clear 4.5:1 on their tint. */
+.verified { background: var(--verified-tint); color: var(--verified); }
+.error { background: var(--error-tint); color: var(--error); }
+.notice { background: var(--notice-tint); color: var(--notice); }
+.here { background: var(--here-tint); color: var(--here); }
+.ai { background: var(--ai-tint); color: var(--ai); }

@@ -1,0 +1,123 @@
+.shell {
+  min-height: 100vh;
+  background: var(--surface-page);
+}
+
+.topbar {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+  padding: var(--space-3) var(--space-5);
+  background: var(--ink-900);
+  color: var(--text-on-dark);
+}
+
+.wordmark {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-family: var(--font-display);
+  font-weight: var(--fw-extrabold);
+  font-size: 15px;
+  letter-spacing: var(--ls-heading);
+  color: var(--text-on-dark);
+}
+
+.mark {
+  display: inline-flex;
+  width: 22px;
+  height: 22px;
+  border-radius: 7px;
+  background: var(--accent);
+  color: var(--ink-900);
+  align-items: center;
+  justify-content: center;
+}
+
+/* Lime as text is legible here because it sits on ink (13.4:1). */
+.wordmarkAccent { color: var(--text-accent-on-dark); }
+
+.topbarEnd { margin-left: auto; display: flex; align-items: center; gap: var(--space-3); }
+
+.body { display: block; }
+
+.nav { display: none; }
+
+.navList {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+}
+
+.navLink {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-4);
+  border-radius: var(--radius-sm);
+  color: var(--text-body);
+  font-size: var(--text-body-sm);
+  font-weight: var(--fw-semibold);
+  text-decoration: none;
+  transition: background-color var(--dur-base) var(--ease-out);
+}
+
+.navLink:hover { background: var(--gray-100); text-decoration: none; color: var(--ink-900); }
+
+.navLinkActive { background: var(--violet-100); color: var(--violet-700); }
+
+.navLabel { white-space: nowrap; }
+
+.locked { color: var(--text-faint); }
+
+.main {
+  padding: var(--space-5);
+  max-width: var(--container);
+  margin: 0 auto;
+}
+
+/* --- sm (< 640px): bottom navigation ------------------------------------ */
+.bottomNav {
+  position: sticky;
+  bottom: 0;
+  display: block;
+  background: var(--gray-0);
+  border-top: 1px solid var(--border-subtle);
+  padding: var(--space-2) var(--space-2) var(--space-3);
+}
+
+.bottomNav .navList { justify-content: space-around; }
+
+.bottomNav .navLink {
+  flex-direction: column;
+  gap: 4px;
+  font-size: var(--text-micro);
+  min-width: 56px;
+  text-align: center;
+}
+
+/* --- md and lg: sidebar -------------------------------------------------- */
+@media (min-width: 640px) {
+  .body { display: grid; grid-template-columns: auto 1fr; }
+  .bottomNav { display: none; }
+
+  .nav {
+    display: block;
+    padding: var(--space-4) var(--space-3);
+    border-right: 1px solid var(--border-subtle);
+    background: var(--gray-0);
+    min-height: calc(100vh - 54px);
+  }
+
+  .navList { flex-direction: column; gap: var(--space-1); }
+  .navLabel { display: none; }
+  .navLink { justify-content: center; }
+}
+
+@media (min-width: 1024px) {
+  .nav { padding: var(--space-5) var(--space-4); min-width: 210px; }
+  .navLabel { display: inline; }
+  .navLink { justify-content: flex-start; }
+  .main { padding: var(--space-7); }
+}

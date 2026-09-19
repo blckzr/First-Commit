@@ -1,0 +1,55 @@
+.page {
+  min-height: 100vh;
+  background: var(--surface-page);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-4);
+}
+
+.card {
+  width: 100%;
+  max-width: 420px;
+  background: var(--surface-card);
+  border-radius: var(--radius-panel);
+  padding: var(--pad-card);
+}
+
+.wordmark {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-family: var(--font-display);
+  font-weight: var(--fw-extrabold);
+  font-size: 16px;
+  color: var(--text-strong);
+  margin-bottom: var(--space-7);
+}
+
+.mark {
+  display: inline-flex;
+  width: 24px;
+  height: 24px;
+  border-radius: 7px;
+  background: var(--accent);
+  color: var(--ink-900);
+  align-items: center;
+  justify-content: center;
+}
+
+.title { font-size: var(--text-h2); margin-bottom: var(--space-6); }
+
+.form { display: flex; flex-direction: column; gap: var(--space-5); }
+
+.consent { font-size: var(--text-body-sm); }
+
+.footer {
+  margin-top: var(--space-6);
+  font-size: var(--text-body-sm);
+  color: var(--text-muted);
+  text-align: center;
+}
+
+@media (min-width: 640px) {
+  .card { padding: var(--pad-card-lg); }
+}

@@ -1,0 +1,32 @@
+.header {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 8px;
+  font-size: var(--text-caption);
+  font-weight: var(--fw-semibold);
+  color: var(--text-muted);
+}
+
+.value { color: var(--text-strong); }
+
+.track {
+  border-radius: var(--radius-pill);
+  overflow: hidden;
+  background: var(--progress-track);
+}
+
+.fill {
+  height: 100%;
+  border-radius: var(--radius-pill);
+  background: var(--progress-fill);
+  /* Lime on the track measures 1.08:1, so the fill carries a 1px edge to give
+     the filled portion a 3:1 boundary (WCAG 2.2 SC 1.4.11). The bar is also
+     always paired with text — design.md §7. */
+  box-shadow: inset 0 0 0 1px var(--border-accent);
+  transition: width var(--dur-slow) var(--ease-out);
+}
+
+.onDark .header { color: var(--text-on-dark-muted); }
+.onDark .value { color: var(--text-on-dark); }
+.onDark .track { background: rgba(255, 255, 255, 0.14); }
+.onDark .fill { box-shadow: none; } /* lime on ink is 13:1 — no edge needed */

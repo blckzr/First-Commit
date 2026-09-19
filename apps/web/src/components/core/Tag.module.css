@@ -1,0 +1,21 @@
+.tag {
+  padding: 7px 14px;
+  border-radius: var(--radius-pill);
+  cursor: pointer;
+  font-size: var(--text-body-sm);
+  font-weight: var(--fw-semibold);
+  font-family: var(--font-body);
+  transition: var(--transition-control);
+  border: 1px solid var(--border-control);
+  background: var(--gray-0);
+  color: var(--text-body);
+}
+
+.tag:hover:not(.selected) { background: var(--gray-100); }
+
+/* Selected is the opposite of hover: it inverts. */
+.selected {
+  background: var(--ink-900);
+  color: var(--text-on-dark);
+  border-color: transparent;
+}

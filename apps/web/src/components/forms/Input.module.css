@@ -1,0 +1,51 @@
+.field { display: block; }
+
+.label {
+  display: block;
+  margin-bottom: 7px;
+  font-size: var(--text-body-sm);
+  font-weight: var(--fw-semibold);
+  color: var(--text-strong);
+}
+
+/* Inputs are never pills — that shape is reserved for actions. */
+.shell {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: var(--gray-0);
+  border-radius: var(--radius-control);
+  transition: var(--transition-control);
+  border: 1px solid var(--border-control);
+  box-shadow: var(--shadow-inset-input);
+  color: var(--gray-500);
+}
+
+.md { padding: 13px 16px; }
+.sm { padding: 9px 14px; }
+
+.shell:focus-within {
+  border-color: var(--violet-500);
+  box-shadow: 0 0 0 3px rgba(139, 107, 224, 0.15);
+}
+
+.invalid { border-color: var(--error); }
+
+.control {
+  border: 0;
+  outline: 0;
+  background: transparent;
+  width: 100%;
+  font-family: var(--font-body);
+  font-size: var(--text-body-base);
+  color: var(--text-strong);
+}
+
+.message {
+  display: block;
+  margin-top: 6px;
+  font-size: var(--text-caption);
+  color: var(--text-muted);
+}
+
+.errorMessage { color: var(--error); }

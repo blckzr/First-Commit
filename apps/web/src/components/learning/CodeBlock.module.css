@@ -1,0 +1,45 @@
+.block {
+  background: var(--ink-900);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+  font-family: var(--font-mono);
+}
+
+.head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 16px;
+  border-bottom: 1px solid var(--border-on-dark);
+  font-size: var(--text-micro);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-on-dark-muted);
+}
+
+.pre {
+  margin: 0;
+  padding: 16px 18px;
+  font-size: var(--text-body-sm);
+  line-height: 1.7;
+  overflow-x: auto;
+}
+
+.line { display: flex; gap: 16px; }
+
+.lineNo {
+  width: 18px;
+  text-align: right;
+  color: var(--gray-700);
+  flex: 0 0 auto;
+  user-select: none;
+}
+
+.text { white-space: pre; }
+
+/* Syntax tones. All sit on ink, where lime is legible at 13.4:1. */
+.plain { color: var(--code-plain); }
+.key { color: var(--violet-300); }
+.str { color: var(--lime-400); }
+.com { color: var(--gray-500); }
+.tag { color: var(--violet-400); }

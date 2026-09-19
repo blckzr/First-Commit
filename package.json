@@ -4,7 +4,9 @@
   "private": true,
   "description": "First Commit: an AI-assisted online learning platform for aspiring programmers",
   "type": "module",
-  "engines": { "node": ">=20" },
+  "engines": {
+    "node": ">=20"
+  },
   "workspaces": [
     "apps/*",
     "packages/*"
@@ -13,6 +15,9 @@
     "check": "npm run check -w @first-commit/worker",
     "try:feedback": "npm run try:feedback -w @first-commit/worker",
     "worker": "npm run worker -w @first-commit/worker",
-    "typecheck": "npm run typecheck --workspaces --if-present"
+    "typecheck": "npm run typecheck --workspaces --if-present",
+    "dev": "npm run dev -w @first-commit/web",
+    "lint": "npm run lint --workspaces --if-present",
+    "test": "npm run test:run --workspaces --if-present"
   }
 }

@@ -1,0 +1,52 @@
+.wrapper {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  cursor: pointer;
+  padding: 7px 8px;
+  margin: 0 -8px;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  transition: background-color var(--dur-base) var(--ease-out);
+}
+
+.wrapper:hover:not(:has(.control:checked)) { background: var(--gray-100); }
+
+.control { position: absolute; opacity: 0; width: 0; height: 0; }
+
+.dot {
+  width: 18px;
+  height: 18px;
+  flex: 0 0 auto;
+  border-radius: var(--radius-pill);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: var(--transition-control);
+  background: var(--gray-100);
+  border: 1px solid var(--border-control);
+}
+
+/* A selected radio fills violet. */
+.control:checked + .dot {
+  background: var(--violet-500);
+  border-color: var(--violet-500);
+}
+
+.control:focus-visible + .dot {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 2px;
+}
+
+.pip {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--gray-0);
+  opacity: 0;
+}
+
+.control:checked + .dot .pip { opacity: 1; }
+
+.text { font-size: var(--text-body-base); color: var(--text-strong); }
+.control:checked ~ .text { font-weight: var(--fw-semibold); }

@@ -16,7 +16,6 @@ The immediate queue. Everything here is unblocked and ready to pick up.
 
 - [ ] **Port `apps/worker` to `pg`** — `config.ts:22-25` (`SUPABASE_URL`/`SUPABASE_SERVICE_ROLE_KEY` → `DATABASE_URL`), `worker.ts:7-76` (`createClient` → `Pool`, `.rpc("claim_next_ai_job")` → `select * from claim_next_ai_job()`, `.from().insert()`/`.update()` → SQL), swap the dependency, rewrite `.env.example`. Code and docs disagree until this lands.
 - [ ] **Scaffold `apps/api`** — Express + TypeScript, `pg` pool on the connection pooler, `/health`, `app.set("trust proxy", 1)`.
-- [ ] **Scaffold `apps/web`** — Vite + React + TS strict, the route tree and guards from `design.md` §13.6, `styles/tokens.css` from §13.4, the `src/` structure from §13.2.
 
 ## Decide
 
@@ -25,6 +24,7 @@ Open questions from [`../AGENT.md`](../AGENT.md) §11. Each blocks the task name
 - [!] **Email provider** — blocks auth (verification and reset links). `database-schema.md` §9.3 lists no mail config. Resend free tier is 3,000/month; Brevo 300/day.
 - [!] **API domain** — blocks deployment. `§6.3`'s `sameSite=none` makes a third-party cookie, already blocked by Safari ITP. Hosting the API at `api.<domain>` alongside the app makes it same-site.
 - [ ] **`users.role` trigger** — defense-in-depth for the table controlling the admin surface. §5 currently relies on convention alone.
+- [ ] **Replace the substituted fonts, icons, and logo** if real brand assets exist — see [design-source.md](design-source.md) §6
 - [ ] **Document the SSE trigger** — the decision (worker POSTs `/internal/events`, API sweeps as backstop) is not yet written into `database-schema.md` §8.2, §8.3, or the §9.3 environment list.
 
 ---
@@ -52,19 +52,40 @@ Nothing in the learner app can be built until an account can log in.
 - [ ] **Security tests** — a learner cannot reach another learner's data or any admin route (`project-proposal.md` §9.2)
 - [ ] **Deploy to Render** — Singapore region, env vars, health check; point the GitHub App webhook at it
 
+## Phase 1.5 — Design system ✓
+
+Ported from the prototype (see [design-source.md](design-source.md)). Needs no API, so it
+ran ahead of Phase 1.
+
+- [x] `apps/web` scaffold — Vite, React 19, TypeScript strict, React Router
+- [x] Tokens — `styles/tokens.css` and the `tokens.ts` mirror, with the contrast corrections
+- [x] 14 components as `.tsx` + `.module.css`, hover/press/focus in CSS not React state
+- [x] `LearnerShell` — sidebar at `lg`, icon rail at `md`, bottom navigation at `sm`
+- [x] Route guards and the lazily-loaded admin chunk
+- [x] Reference screens: Landing, Sign up, Learner home
+- [x] Contrast verified — 28 pairs, all passing
+- [x] Toolchain — ESLint 9 with `jsx-a11y` (a11y rules as errors), Vitest + Testing Library, axe helper. 21 tests.
+- [x] Component gallery route at `/dev/components` — every variant, live token swatches, live contrast table. Dev-only; excluded from production builds.
+- [x] Contrast gate — `contrast.test.ts` reads `tokens.css` from disk and asserts all 29 pairs, so §12 is enforced by a test, not by a one-off check
+- [ ] `AdminShell` — the grouped admin sidebar
+- [ ] Playwright, for the 360/768/1024/1440 viewport tests `design.md` §11.4 commits to
+
 ## Phase 2 — Learner core
 
 The main loop: sign up → roadmap → learn → pass.
 
-- [ ] `apps/web` scaffold *(see Now)*
-- [ ] Design tokens, base components, learner shell (sidebar / bottom nav), admin shell
-- [ ] Public pages — landing, sign up, log in, forgot/reset password
+- [x] Landing and Sign up (Phase 1.5)
+- [ ] Log in
+- [ ] **Design + build `/forgot-password` and `/reset-password`** — not in the prototype
 - [ ] Onboarding — about you, target position, placement, generating; one page per step, resumable via `onboarding_step`
 - [ ] **Roadmap chart** — React Flow, custom nodes, side panel, the `sm` stacked layout, keyboard navigation and nested-list DOM equivalent
 - [ ] Module page, lesson reading, lesson progress
 - [ ] Quiz — server-side grading, attempts, test-out
 - [ ] Coding exercise — CodeMirror, Sandpack practice, server grading via Judge0 / Vitest+jsdom, results over SSE
-- [ ] Home, My roadmaps, Explore modules, Notifications, Settings
+- [x] Home (Phase 1.5)
+- [ ] My roadmaps, Explore modules, Settings
+- [ ] **Design + build `/app/notifications`** — not in the prototype
+- [ ] Reconcile `/app/profile` vs `design.md` §4.3, which folds profile into Settings
 
 ## Phase 3 — AI components
 
@@ -89,7 +110,7 @@ The main loop: sign up → roadmap → learn → pass.
 - [ ] Worker commit polling — backstop for deliveries missed while Render wakes
 - [ ] Integrity signals — single-commit detection, similarity, `integrity_flags`
 - [ ] **Certificates** — automatic issuance on requirements met, `public_code`, name snapshot, PDF to Storage
-- [ ] **Public verification page** — `/verify/:code`, QR code, mobile-first, revoked state
+- [ ] **Design + build `/verify/:code`** — not in the prototype. QR code, mobile-first, revoked state
 
 ## Phase 5 — Resume and admin
 
@@ -101,7 +122,7 @@ The main loop: sign up → roadmap → learn → pass.
 - [ ] Capstone brief and milestone editor
 - [ ] Project reviews — repositories, commit history, integrity flags, check overrides
 - [ ] Flagged AI feedback review
-- [ ] Certificates admin — templates, lookup, revoke, reissue
+- [ ] **Design + build `/admin/certificates`** — not in the prototype. Templates, lookup, revoke, reissue
 - [ ] Analytics — journey funnel, module pass rates, milestone drop-off, technology split, AI flag rate
 - [ ] Users — search, suspend, data requests, admin accounts
 - [ ] Settings and activity log

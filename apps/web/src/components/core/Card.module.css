@@ -1,0 +1,29 @@
+.card {
+  border-radius: var(--radius-card);
+  border: 1px solid transparent;
+  transition: transform var(--dur-base) var(--ease-out),
+    box-shadow var(--dur-base) var(--ease-out);
+}
+
+.bordered { border-color: var(--border-subtle); }
+
+.padNone { padding: 0; }
+.padSm { padding: 16px; }
+.padMd { padding: var(--pad-card); }
+.padLg { padding: var(--pad-card-lg); }
+
+.white { background: var(--surface-card); color: var(--text-body); }
+.soft { background: var(--surface-card-soft); color: var(--text-body); }
+.dark { background: var(--surface-card-dark); color: var(--text-on-dark-muted); }
+.inset { background: var(--surface-inset); color: var(--text-body); }
+.lime { background: var(--accent); color: var(--ink-900); }
+
+/* Cards are flat at rest; depth is reserved for interaction. */
+.hoverLift:hover {
+  transform: translateY(-3px);
+  box-shadow: var(--shadow-md);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .hoverLift:hover { transform: none; }
+}

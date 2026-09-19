@@ -1,0 +1,26 @@
+.iconButton {
+  border-radius: var(--radius-pill);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: var(--transition-control);
+  border: 1px solid transparent;
+  padding: 0;
+}
+
+.sm { width: 32px; height: 32px; }
+.md { width: 38px; height: 38px; }
+.lg { width: 44px; height: 44px; }
+
+.soft { background: var(--gray-0); color: var(--ink-900); border-color: var(--border-control); }
+.soft:hover { background: var(--gray-100); }
+
+.lime { background: var(--accent); color: var(--ink-900); }
+.lime:hover { background: var(--accent-hover); }
+
+.dark { background: var(--ink-900); color: var(--text-on-dark); }
+.dark:hover { background: var(--ink-700); }
+
+.bare { background: transparent; color: var(--text-body); }
+.bare:hover { background: var(--gray-100); color: var(--ink-900); }

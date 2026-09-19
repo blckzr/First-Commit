@@ -1,0 +1,29 @@
+.shell {
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+  background: var(--gray-0);
+  border-radius: var(--radius-pill);
+  padding: 9px 16px;
+  transition: var(--transition-control);
+  border: 1px solid transparent;
+  box-shadow: var(--shadow-xs);
+  color: var(--gray-500);
+  width: 240px;
+  max-width: 100%;
+}
+
+.shell:focus-within {
+  border-color: var(--violet-400);
+  box-shadow: 0 0 0 3px rgba(139, 107, 224, 0.14);
+}
+
+.control {
+  border: 0;
+  outline: 0;
+  background: transparent;
+  width: 100%;
+  font-family: var(--font-body);
+  font-size: var(--text-body-sm);
+  color: var(--text-strong);
+}

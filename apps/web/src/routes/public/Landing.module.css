@@ -1,0 +1,167 @@
+.page {
+  min-height: 100vh;
+  background: var(--surface-page);
+}
+
+.container {
+  max-width: var(--container);
+  margin: 0 auto;
+  padding: var(--space-3);
+  display: flex;
+  flex-direction: column;
+  gap: var(--gutter-card);
+}
+
+.topbar {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+  padding: var(--space-4) var(--pad-card);
+  background: var(--surface-card-dark);
+  border-radius: var(--radius-panel);
+  color: var(--text-on-dark);
+}
+
+.wordmark {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-family: var(--font-display);
+  font-weight: var(--fw-extrabold);
+  font-size: 16px;
+  letter-spacing: var(--ls-heading);
+}
+
+.mark {
+  display: inline-flex;
+  width: 24px;
+  height: 24px;
+  border-radius: 7px;
+  background: var(--accent);
+  color: var(--ink-900);
+  align-items: center;
+  justify-content: center;
+}
+
+/* On ink, lime is the accent word — 13.4:1. */
+.wordmarkAccent { color: var(--text-accent-on-dark); }
+
+.topbarActions { margin-left: auto; display: flex; gap: var(--space-2); }
+
+/* --- Hero ---------------------------------------------------------------- */
+.hero {
+  background: var(--surface-hero);
+  border-radius: var(--radius-panel);
+  padding: var(--pad-card-lg);
+  display: grid;
+  gap: var(--space-7);
+}
+
+.heroTitle {
+  font-size: var(--text-display-3);
+  line-height: var(--lh-display);
+  letter-spacing: var(--ls-display);
+  margin: 0 0 var(--space-4);
+}
+
+/* The accent phrase on a LIGHT surface uses violet-700 (8.26:1), never lime,
+   which measures 1.98:1 here. See docs/design.md §3.1. */
+.accent { color: var(--text-accent); }
+
+.heroBody {
+  font-size: var(--text-body-lg);
+  color: var(--gray-700);
+  max-width: 44ch;
+  margin-bottom: var(--space-6);
+}
+
+.heroActions { display: flex; flex-wrap: wrap; gap: var(--space-3); }
+
+/* --- Roadmap preview ----------------------------------------------------- */
+.chart { display: flex; flex-direction: column; align-items: center; gap: 0; }
+
+.node {
+  background: var(--surface-card);
+  border: 2px solid var(--ink-900);
+  border-radius: var(--radius-sm);
+  padding: var(--space-3) var(--space-5);
+  font-family: var(--font-display);
+  font-weight: var(--fw-bold);
+  font-size: var(--text-body-sm);
+  color: var(--text-strong);
+  min-width: 160px;
+  text-align: center;
+}
+
+.nodeEnd { background: var(--ink-900); color: var(--text-on-dark); border-color: var(--ink-900); }
+
+.connector { width: 2px; height: 18px; background: var(--ink-900); }
+
+/* --- How it works -------------------------------------------------------- */
+.steps {
+  background: var(--surface-card);
+  border-radius: var(--radius-panel);
+  padding: var(--pad-card-lg);
+}
+
+.sectionTitle { font-size: var(--text-h2); margin-bottom: var(--space-6); }
+
+.stepGrid {
+  display: grid;
+  gap: var(--gutter-card);
+  grid-template-columns: 1fr;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  counter-reset: step;
+}
+
+.step {
+  background: var(--surface-inset);
+  border-radius: var(--radius-card);
+  padding: var(--pad-card);
+}
+
+.stepNumber {
+  display: inline-flex;
+  width: 28px;
+  height: 28px;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--radius-pill);
+  background: var(--ink-900);
+  color: var(--text-on-dark);
+  font-family: var(--font-display);
+  font-weight: var(--fw-bold);
+  font-size: var(--text-body-sm);
+  margin-bottom: var(--space-3);
+}
+
+.stepTitle { font-size: var(--text-h4); margin-bottom: var(--space-2); }
+.stepBody { font-size: var(--text-body-sm); color: var(--text-muted); }
+
+/* --- Verify -------------------------------------------------------------- */
+.verify {
+  background: var(--surface-card-dark);
+  border-radius: var(--radius-panel);
+  padding: var(--pad-card-lg);
+  color: var(--text-on-dark-muted);
+  display: grid;
+  gap: var(--space-5);
+}
+
+.verifyTitle { color: var(--text-on-dark); font-size: var(--text-h3); margin-bottom: var(--space-2); }
+.verifyForm { display: flex; flex-wrap: wrap; gap: var(--space-3); align-items: flex-end; }
+
+@media (min-width: 640px) {
+  .stepGrid { grid-template-columns: repeat(2, 1fr); }
+  .heroTitle { font-size: var(--text-display-2); }
+}
+
+@media (min-width: 1024px) {
+  .container { padding: var(--space-3) var(--space-3) var(--space-9); }
+  .hero { grid-template-columns: 1.35fr 1fr; align-items: center; }
+  .heroTitle { font-size: var(--text-display-1); }
+  .stepGrid { grid-template-columns: repeat(4, 1fr); }
+  .verify { grid-template-columns: 1.35fr 1fr; align-items: center; }
+}

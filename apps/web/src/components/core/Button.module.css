@@ -1,0 +1,63 @@
+.button {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  border: 1px solid transparent;
+  border-radius: var(--radius-button);
+  font-family: var(--font-display);
+  font-weight: var(--fw-bold);
+  letter-spacing: -0.01em;
+  cursor: pointer;
+  text-decoration: none;
+  white-space: nowrap;
+  transition: var(--transition-control);
+}
+
+.button:disabled,
+.button[aria-disabled="true"] {
+  opacity: 0.45;
+  pointer-events: none;
+}
+
+.button:active:not(:disabled) {
+  transform: scale(0.97);
+}
+
+/* Sizes */
+.sm { padding: 8px 16px; font-size: 13.5px; }
+.md { padding: 12px 22px; font-size: 15px; }
+.lg { padding: 16px 28px; font-size: 17px; }
+
+/* Variants. Lime is a fill here, never text — see tokens.css. */
+.primary {
+  background: var(--accent);
+  color: var(--text-on-lime);
+  border-color: var(--border-accent);
+  box-shadow: var(--shadow-xs);
+}
+.primary:hover:not(:disabled) { background: var(--accent-hover); }
+
+.secondary { background: var(--accent-soft); color: var(--ink-900); }
+.secondary:hover:not(:disabled) { background: var(--accent-soft-hover); }
+
+.dark { background: var(--ink-900); color: var(--text-on-dark); }
+.dark:hover:not(:disabled) { background: var(--ink-700); }
+
+.outline {
+  background: transparent;
+  color: var(--ink-900);
+  border-color: var(--border-control);
+}
+.outline:hover:not(:disabled) {
+  background: var(--gray-100);
+  border-color: var(--ink-900);
+}
+
+.ghost { background: transparent; color: var(--text-body); }
+.ghost:hover:not(:disabled) { background: var(--gray-100); color: var(--ink-900); }
+
+/* design.md §9: destructive actions exist in the component table. */
+.destructive { background: var(--error); color: var(--text-on-dark); }
+.destructive:hover:not(:disabled) { background: var(--error-press); }
+
+.fullWidth { width: 100%; justify-content: center; }

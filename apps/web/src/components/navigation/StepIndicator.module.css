@@ -1,0 +1,31 @@
+.list {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.step {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  font-size: var(--text-caption);
+  font-weight: var(--fw-semibold);
+  color: var(--text-faint);
+}
+
+.current { color: var(--text-strong); }
+
+.marker {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--gray-400);
+}
+
+.done .marker { background: var(--accent-press); }
+.current .marker { background: var(--ink-900); }
+
+.rule { width: 22px; height: 1px; background: var(--border-strong); }

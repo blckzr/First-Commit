@@ -134,89 +134,151 @@ The chart reflects First Commit's layered career paths (see the proposal, Sectio
 
 # 3. Design Tokens
 
-All tokens are defined as CSS custom properties and mirrored in a TypeScript tokens file (Section 13.4).
+All tokens are defined as CSS custom properties and mirrored in a TypeScript tokens file (Section 13.4). The system comes from the First Commit design system; its provenance, substitutions, and the corrections applied to it are recorded in [design-source.md](design-source.md).
+
+**The one-sentence version:** a light violet page carrying a mosaic of flat rounded panels — white, soft violet, and near-black — where a single acid lime is the only loud colour.
 
 ## 3.1 Color
 
-### Base Palette
+Three families plus neutrals. **Violet** is the ground: the page wash, the hero gradient, soft cards, secondary buttons, and the focus ring. **Lime** is the accent and is rationed — one lime element per panel, and only one lime *button* per panel. **Ink** is both the primary type colour and the dark-panel fill.
+
+### Lime — the single loud accent
 
 | Token | Hex | Use |
 |---|---|---|
-| `paper` | `#F4F6F5` | App background, roadmap canvas |
-| `surface` | `#FFFFFF` | Panels, nodes, lesson reading area |
-| `ink` | `#1B2733` | Primary text, skill node borders, main path |
-| `ink-muted` | `#55626E` | Secondary text, helper text |
-| `rule` | `#D3DAD7` | Borders, dividers, dashed connectors |
-| `action` | `#0E6E6A` | Primary buttons, links, focus accents |
+| `--lime-400` | `#CDE84B` | `--accent`: primary button fills, the accent phrase on ink |
+| `--lime-500` | `#C8E441` | Hover fill, progress fill |
+| `--lime-600` | `#A9C42A` | Press fill |
+| `--lime-700` | `#7F941C` | Reserved |
+| `--lime-800` | `#6B7D18` | `--border-accent`: the 1px edge on a lime fill |
 
-### Signal Colors
+### Violet — the ground and secondary
 
-| Token | Hex | Tint (node fill) | Use |
+| Token | Hex | Use |
+|---|---|---|
+| `--violet-100` | `#EDE5FB` | Soft cards, the AI panel tint |
+| `--violet-200` | `#DCD0F7` | Badge fill |
+| `--violet-300` | `#C8B6E5` | `--accent-soft`: secondary buttons |
+| `--violet-500` | `#8B6BE0` | Selected radio, focused input border |
+| `--violet-600` | `#6F4FD1` | `--focus-ring`, links |
+| `--violet-700` | `#553AA6` | `--text-accent`: the accent phrase on light surfaces; `--ai` |
+
+### Ink and neutrals
+
+| Token | Hex | Use |
+|---|---|---|
+| `--ink-900` | `#14161D` | `--text-strong`, dark panel fill |
+| `--ink-700` | `#22242D` | Dark button hover |
+| `--gray-0` | `#FFFFFF` | `--surface-card` |
+| `--gray-100` | `#F4F2F9` | `--surface-inset` |
+| `--gray-200` | `#EEEAF8` | `--surface-page` |
+| `--gray-300` | `#E3DDEF` | `--border-subtle`, progress track |
+| `--gray-500` | `#9A93AB` | `--text-faint` |
+| `--gray-600` | `#6B6878` | `--text-muted` |
+| `--gray-700` | `#4A4857` | `--text-body` |
+
+### Status colours
+
+Each status has a **text** value that clears 4.5:1 on light surfaces and a **tint** it sits on. The lighter `--*-fill` values are for icons and fills only.
+
+| Token | Text | Tint | Use |
 |---|---|---|---|
-| `here` | `#F2B705` | `#FDF1C7` | Current module (never used for text) |
-| `verified` | `#237045` | `#E2F1E7` | Passed or tested out, verified skills |
-| `error` | `#C0392B` | `#FBE7E4` | Failed tests, validation errors, destructive actions |
-| `notice` | `#8A5A00` | `#FBF0DC` | Update notices, warnings |
-| `ai` | `#5B4BB7` | `#ECE9F8` | AI-generated content label and flag controls |
+| `--here` | `#8A6100` | `#FDF1C7` | Current module — "You are here" |
+| `--verified` | `#237045` | `#E2F1E7` | Passed or tested out, verified skills |
+| `--error` | `#C0392B` | `#FBE7E4` | Failed tests, validation errors, destructive actions |
+| `--notice` | `#8A5A00` | `#FBF0DC` | Update notices, warnings |
+| `--info` | `#2B6394` | `#E4EEF7` | Informational banners |
+| `--ai` | `#553AA6` | `#EDE5FB` | AI-generated content label and flag controls |
 
-### Career Path Colors
+### Career path colours
 
 Used for path badges, "Also in" tags, and roadmap header accents.
 
 | Token | Hex | Example assignment |
 |---|---|---|
-| `path-1` | `#0E6E6A` | Junior Web Developer |
-| `path-2` | `#5B4BB7` | [Second career path] |
-| `path-3` | `#B4531A` | Future path |
-| `path-4` | `#2F6DB5` | Future path |
+| `path-1` | `#553AA6` | Junior Web Developer |
+| `path-2` | `#2B6394` | [Second career path] |
+| `path-3` | `#8A5A00` | Future path |
+| `path-4` | `#237045` | Future path |
 
-**Color rules**
-- Text colors meet WCAG AA contrast (4.5:1) on `paper`, `surface`, and all tints.
-- Status is never shown by color alone; every status also has an icon and text (Section 8).
-- `error` marks the code or input that failed, never the learner's overall progress.
+### Colour rules
+
+- **Lime is a fill colour, and a text colour only on ink.** It is never text on a light surface. Measured against white, `--lime-600` is **1.98:1** and even `--lime-700` only **3.11:1**, both below the 4.5:1 that Section 12 commits to. On ink, `--lime-400` is **13.1:1** and reads perfectly.
+- **The accent phrase follows its surface.** The design's signature move is one highlighted phrase per headline: `--text-accent` (violet-700, **8.26:1** on white) on light panels, `--text-accent-on-dark` (lime-400) on ink panels. Never more than one phrase.
+- **A lime fill carries a 1px `--border-accent` edge.** Lime on the page measures 1.38:1, so the fill alone does not give the control a 3:1 boundary (WCAG 2.2 SC 1.4.11). The edge does, at 3.88:1.
+- **Controls use `--border-control` (`#847C93`), not `--border-subtle`.** The border of an input, an unchecked box, a radio, or an outline button is the only thing identifying that control, so it needs 3:1. `--border-subtle` (1.32:1 on white) is for decorative rules — table rows, dividers, a white card on white — where nothing depends on it.
+- **Status is never shown by colour alone**; every status also has an icon and text (Section 8).
+- `--error` marks the code or input that failed, never the learner's overall progress.
+- There is no second brand hue and no third accent.
 
 ## 3.2 Typography
 
+One family does everything, with a monospace for machine values.
+
 | Role | Typeface | Reason |
 |---|---|---|
-| Interface and lessons | **Atkinson Hyperlegible Next** | Designed for high legibility with clearly distinct letterforms (l, I, 1, 0, O), which matters for beginners reading technical terms |
-| Code, test output, editor | **JetBrains Mono** | Clear distinction between similar characters and readable at small sizes |
+| Interface and lessons | **Plus Jakarta Sans** | A geometric grotesque with a tall x-height and low contrast. Its 800 weight holds up at display sizes under tight tracking, which is what makes the stacked headline blocks work. |
+| Code, test output, editor, durations | **JetBrains Mono** | Clear distinction between similar characters, readable at small sizes, and open apertures. Used for anything that reads as a machine value — code, timings, commit IDs, token names. |
 
-### Type Scale (ratio 1.25, base 16px)
+Both are Google Fonts substitutions rather than supplied brand faces; see [design-source.md](design-source.md).
 
-| Token | Size / line height | Weight | Use |
+### Type Scale
+
+| Token | Size | Weight | Use |
 |---|---|---|---|
-| `display` | 39 / 44 | 700 | Landing and onboarding headlines only |
-| `h1` | 31 / 38 | 700 | Page titles |
-| `h2` | 25 / 32 | 700 | Section titles |
-| `h3` | 20 / 28 | 600 | Panel titles, skill nodes |
-| `body` | 16 / 26 | 400 | Lessons, descriptions, module nodes |
-| `small` | 14 / 20 | 400 | Helper text, node status text |
-| `code` | 14 / 22 | 400 | Editor, inline code, test output |
+| `--text-display-1` | 64px | 800 | Landing hero only |
+| `--text-display-2` | 52px | 800 | Large headlines |
+| `--text-display-3` | 40px | 800 | Onboarding headlines |
+| `--text-h1` | 32px | 800 | Page titles |
+| `--text-h2` | 26px | 800 | Section titles |
+| `--text-h3` | 21px | 700 | Panel titles, skill nodes |
+| `--text-h4` | 17px | 700 | Card titles |
+| `--text-body-lg` | 17px | 400 | Lead paragraphs |
+| `--text-body-base` | 15px | 400 | Lessons, descriptions, module nodes |
+| `--text-body-sm` | 13.5px | 400 | Helper text, node status text |
+| `--text-caption` | 12px | 600 | Labels, badges |
+| `--text-micro` | 10.5px | 700 | Eyebrows, code block headers |
 
-Headings use sentence case with no all-caps labels. Lesson text is limited to about 70 characters per line. Heading sizes step down one level below 640px (e.g., `h1` uses 25/32).
+Line heights: `--lh-display` 1.02, `--lh-heading` 1.18, `--lh-body` 1.55, `--lh-tight` 1.3. Tracking: `--ls-display` −3.5%, `--ls-heading` −2%, `--ls-body` −0.5%, `--ls-caps` +12%.
+
+Headings use sentence case. ALL CAPS is for micro eyebrows only ("CONTINUE", "YOUR ROADMAP"), always with `--ls-caps`. Lesson text is limited to about 70 characters per line. Display sizes step down one level below 640px.
+
+> **One name collision to avoid.** The source system defined `--text-body` twice — as a colour in `colors.css` and as `15px` in `typography.css` — so whichever loaded last won and `color: var(--text-body)` silently resolved to a length. Here the size is `--text-body-base` and `--text-body` is the colour.
 
 ## 3.3 Spacing and Layout
 
-- Base unit: **4px**. Common steps: 4, 8, 12, 16, 24, 32, 48, 64.
-- Grid: 12 columns at ≥ 1024px, 8 columns at 640–1023px, 4 columns below 640px; 16–24px gutters.
-- Max content width: 1200px. Lesson reading column: max 720px.
-- All text is left-aligned, except roadmap node labels (centered within nodes) and empty states.
+- Base unit: **4px**. Steps: 4, 8, 12, 16, 20, 24, 32, 40, 48, 64, 80, 104.
+- **Panels tile on a 12px gutter (`--gutter-card`) with 24px padding inside them (`--pad-card`).** The page is a mosaic, not a stack of full-bleed bands: every section is a rounded panel with the page wash visible around it.
+- Panels are mostly asymmetric two-ups, about 1.35:1 or 1.75:1.
+- Container: 1180px (`--container`); narrow container 760px; lesson reading column 720px.
+- All text is left-aligned, except roadmap node labels (centred within nodes) and empty states.
 
 ## 3.4 Shape and Elevation
 
-| Element | Radius |
-|---|---|
-| Buttons, inputs, inline code | 6px |
-| Module nodes | 6px |
-| Skill nodes | 8px, 2px `ink` border |
-| Panels, dialogs, side panel | 10px |
-| Editor and test output frames | 4px (tool-like) |
+Radii nest: a 14px thumbnail inside a 20px card inside a 28px panel.
 
-| Elevation | Treatment | Use |
+| Element | Token | Radius |
 |---|---|---|
-| Flat | 1px `rule` border | Panels, list rows, nodes |
-| Raised | `0 4px 16px rgba(27,39,51,0.12)` | Menus, dialogs, side panel, toasts |
+| Section panels | `--radius-panel` | 28px |
+| Cards | `--radius-card` | 20px |
+| Tiles and thumbnails inside a card | `--radius-md` | 14px |
+| Inputs, selects | `--radius-control` | 12px |
+| List rows | `--radius-sm` | 10px |
+| Checkboxes | `--radius-xs` | 6px |
+| Buttons, badges, tags, progress tracks, search | `--radius-button` / `--radius-pill` | full pill |
+
+**Inputs are never pills** — that shape is reserved for actions. The one exception is the search field, which the source system shapes as a pill.
+
+| Elevation | Token | Use |
+|---|---|---|
+| Flat | — | Cards and panels at rest. Separation comes from surface colour against the page wash. |
+| Hairline | 1px `--border-subtle` | Only when a white card sits on white |
+| Resting button | `--shadow-xs` | Primary button |
+| Raised | `--shadow-md` | Hovered card, menus, side panel, toasts |
+| Floating | `--shadow-lg` | Dialogs, hero imagery |
+| Glow | `--glow-lime` | Reserved for at most two moments per screen |
+
+Cards lift **−3px** and gain `--shadow-md` on hover. Depth is reserved for interaction; nothing is elevated at rest.
 
 ---
 
@@ -1305,10 +1367,25 @@ A read-only table with date and time, admin, action (e.g., published module vers
 
 # 7. Components
 
+Components marked **built** exist in `apps/web/src/components`; the rest are specified here and not yet written. The built set was ported from the design system — see [design-source.md](design-source.md) for what was taken and what was deliberately left behind.
+
 | Component | Variants | Notes |
 |---|---|---|
-| **Button** | Primary, secondary, tertiary, destructive | One primary button per view. Labels state the action. |
-| **Input** | Text, select, radio group, chip group, checkbox | Visible labels above fields; helper text below |
+| **Button** *(built)* | Primary, secondary, dark, outline, ghost, destructive | One primary button per view. Labels state the action. A forward CTA trails `arrow-right`. |
+| **LinkButton** *(built)* | Same variants | A navigation control that looks like a button. Kept separate because a link must be an `<a>` and a button an `<button>`; nesting them is invalid and breaks keyboard behaviour. |
+| **IconButton** *(built)* | Soft, lime, dark, bare | Requires a `label` — it has no visible text |
+| **Icon** *(built)* | Outline, filled | The single swap point for the icon set |
+| **Card** *(built)* | White, soft, dark, inset, lime | Flat at rest; `hoverLift` adds −3px and `--shadow-md` |
+| **Badge** *(built)* | Lime, dark, violet, neutral, onDark, plus one per status | Status badges take an icon, never colour alone |
+| **Tag** *(built)* | Default, selected | Filter chip. Selected inverts to ink rather than tinting. |
+| **Input** *(built)* | Text, password, email; sm and md | Visible labels above fields; helper text below; errors linked with `aria-describedby` |
+| **Select** *(built)* | — | Native `<select>` in a styled shell |
+| **Checkbox** *(built)* | — | Native input drives the visual box through CSS, so space and form submission work |
+| **RadioOption** *(built)* | — | Group inside a `<fieldset>` with a `<legend>` |
+| **SearchField** *(built)* | — | The one input the system shapes as a pill |
+| **ProgressBar** *(built)* | Light, onDark | Always paired with text ("6 of 16 passed") |
+| **CodeBlock** *(built)* | — | Read-only code display. The editable exercise surface is CodeMirror 6. |
+| **StepIndicator** *(built)* | — | Used only for true sequences |
 | **Roadmap canvas** | Learner (read-only), admin (editable) | Pan, zoom, fit; opens at current module |
 | **Skill node** | Core, concept, complete, in progress, locked | 2px `ink` border, `h3` text; concept skills show "(concept)" |
 | **Module node** | Passed, tested out, current, available, locked, update available, archived | Icon and status text inside node; technology modules show a technology badge |
@@ -1319,8 +1396,6 @@ A read-only table with date and time, admin, action (e.g., published module vers
 | **Node side panel** | One per node type (Section 5.7) | Raised; slides in from the right on wide screens, up from the bottom on narrow screens |
 | **Technology badge** | One per technology option | Small label with the technology name; never color alone |
 | **Option card** | Technology option, project brief | Comparison details, optional "Recommended" label, primary choose action |
-| **Progress bar** | Roadmap, skill, quiz, capstone | Always paired with text ("6 of 16 passed") |
-| **Step indicator** | Onboarding, capstone stages | Used only for true sequences |
 | **AI panel** | Roadmap rationale, technology recommendation, code feedback, milestone review, resume text | `ai` left border, "AI" label, flag control |
 | **Check result row** | Passed, failed, running | Icon, check name, detail; used for milestone checks |
 | **Commit row** | Latest push, push history | Short commit ID in `code`, message, relative time |
@@ -1331,17 +1406,18 @@ A read-only table with date and time, admin, action (e.g., published module vers
 | **Dialog** | Confirm, impact preview, destructive | Primary action on the right |
 | **Toast** | Success, error | Uses the same verb as the triggering action |
 | **Empty state** | Per screen | One sentence and one action |
-| **Code editor** | Exercise, admin reference solution | JetBrains Mono, line numbers |
+| **Code editor** | Exercise, admin reference solution | CodeMirror 6, JetBrains Mono, line numbers |
 
 ## 7.1 Button States
 
 | State | Treatment |
 |---|---|
-| Default | `action` background, white text |
-| Hover | 8% darker background |
-| Focus | 2px `ink` outline with 2px offset |
-| Disabled | `rule` background, `ink-muted` text, reason shown nearby |
-| Loading | Label changes to progress text (e.g., "Running tests…"), width stays fixed |
+| Default | `--accent` fill, ink label, 1px `--border-accent` edge |
+| Hover | Fill steps one shade toward more contrast (lime 400 to 500) |
+| Focus | 2px `--focus-ring` outline with 2px offset, on `:focus-visible` |
+| Disabled | 45% opacity, pointer events off, reason shown nearby |
+| Loading | Label changes to progress text (e.g., "Running tests…"), `aria-busy` set, width stays fixed |
+| Press | `scale(.97)` over 120ms, no colour change |
 
 ---
 
@@ -1351,26 +1427,26 @@ Every status uses an icon, text, and color together.
 
 | Status | Node treatment | Status text |
 |---|---|---|
-| Passed | `verified` tint fill, ✓ icon | "Passed, 88%" |
-| Tested out | `verified` tint fill, ✓ icon | "Tested out" |
-| Current | `here` tint fill, 2px `here` border, ◉ icon | "You are here" |
-| Available | `surface` fill, ○ icon | "Not started" |
-| Locked | `paper` fill, dashed border, 🔒 icon, `ink-muted` text | "Needs JS basics" |
-| Update available | Existing status plus ⓘ badge in `notice` | "Updated content available" |
-| Archived | Dashed border, `ink-muted` text | "No longer offered. Your credit stays." |
+| Passed | `--verified-tint` fill, `--verified` text, ✓ icon | "Passed, 88%" |
+| Tested out | `--verified-tint` fill, `--verified` text, ✓ icon | "Tested out" |
+| Current | `--here-tint` fill, `--here` text, ◉ icon | "You are here" |
+| Available | `--surface-card` fill, ○ icon | "Not started" |
+| Locked | `--surface-page` fill, dashed border, 🔒 icon, `--text-muted` | "Needs JS basics" |
+| Update available | Existing status plus ⓘ badge in `--notice` | "Updated content available" |
+| Archived | Dashed border, `--text-muted` | "No longer offered. Your credit stays." |
 | Shared | Path-colored tag below node | "Also in: [path]" |
 | Reinforcement added | Dashed node, "Practice" label | "Added after two quiz attempts" |
 | Challenge offered | Dashed node, "Challenge" label | "Optional" |
-| Decision waiting | Double border, `here` tint when it is the current step | "Choose your framework" |
-| Decision made | Double border, `surface` fill, technology badge | "React" |
-| Test or check failed | ✕ in `error` | "Expected 2, got 0" |
+| Decision waiting | Double border, `--here-tint` when it is the current step | "Choose your framework" |
+| Decision made | Double border, `--surface-card` fill, technology badge | "React" |
+| Test or check failed | ✕ in `--error` | "Expected 2, got 0" |
 | Check running | Spinner with text | "Running checks on a1b2c3d…" |
-| Milestone complete | ✓ in `verified` | "Complete" |
+| Milestone complete | ✓ in `--verified` | "Complete" |
 | Milestone waiting for push | ○ | "Push your changes to see checks" |
-| Certificate earned | 🏅 with `verified` text | "Issued September 2, 2026" |
+| Certificate earned | 🏅 with `--verified` text | "Issued September 2, 2026" |
 | Certificate locked | 🔒, dashed card | "Complete your capstone project to earn this" |
-| Certificate revoked | ✕ in `error` | "Revoked on [date]" |
-| Project flagged (admin only) | ⚑ in `notice` | "Most work in one commit" |
+| Certificate revoked | ✕ in `--error` | "Revoked on [date]" |
+| Project flagged (admin only) | ⚑ in `--notice` | "Most work in one commit" |
 
 ---
 
@@ -1409,7 +1485,9 @@ The interface speaks like a patient senior developer: plain, specific, and encou
 | New push arrives | Latest push panel updates with a brief `action` outline (about 600ms) | Shows the page refreshed from GitHub |
 | Certificate earned | The certificate node on the roadmap fills in; no confetti | Shows the milestone was reached, calmly |
 
-No entrance animations on page sections, and no hover animations on list rows. With `prefers-reduced-motion`, the roadmap appears fully drawn and transitions become instant.
+Durations come from tokens: `--dur-fast` 120ms (press), `--dur-base` 180ms (colour and border), `--dur-slow` 280ms (progress width), all on `--ease-out` `cubic-bezier(.22,.7,.25,1)`. **Nothing bounces, nothing springs, nothing slides in on scroll.**
+
+No entrance animations on page sections, and no hover animations on list rows. With `prefers-reduced-motion`, the roadmap appears fully drawn and every duration token drops to 0ms, so transitions become instant.
 
 ---
 
@@ -1561,7 +1639,7 @@ Target: **WCAG 2.2 Level AA**.
 | React and Vue exercises | Sandpack (or similar in-browser bundler) | Runs framework exercises, tests, and live previews in the browser |
 | QR codes | A QR code library (e.g., qrcode.react) | Certificate verification links |
 | Live capstone updates | Polling with TanStack Query, or server-sent events | Updates the milestone tracker when a push arrives |
-| Styling | CSS Modules with CSS custom properties | Tokens from Section 3 |
+| Styling | CSS Modules with CSS custom properties | Tokens from Section 3. Hover, press, and focus are CSS state selectors, never React state. |
 | Analytics charts | Recharts | Admin analytics |
 | Testing | Vitest, React Testing Library, Playwright | Playwright runs viewport tests at the widths in Section 11.4 |
 | Accessibility checks | eslint-plugin-jsx-a11y, axe | Automated checks in development and CI |
@@ -1702,25 +1780,64 @@ One `Roadmap` object drives both the chart layout (`lg`, `md`) and the stacked l
 ## 13.4 Tokens in Code
 
 ```css
-/* styles/tokens.css */
+/* styles/tokens.css — abridged; the file is the full set */
 :root {
-  --paper: #F4F6F5;
-  --surface: #FFFFFF;
-  --ink: #1B2733;
-  --ink-muted: #55626E;
-  --rule: #D3DAD7;
-  --action: #0E6E6A;
-  --here: #F2B705;
-  --here-tint: #FDF1C7;
-  --verified: #237045;
-  --verified-tint: #E2F1E7;
-  --error: #C0392B;
-  --notice: #8A5A00;
-  --ai: #5B4BB7;
-  --font-ui: "Atkinson Hyperlegible Next", system-ui, sans-serif;
-  --font-code: "JetBrains Mono", ui-monospace, monospace;
-  --radius-control: 6px;
-  --radius-panel: 10px;
+  /* Lime: fills, and text only on ink */
+  --lime-400: #CDE84B;  --lime-500: #C8E441;  --lime-600: #A9C42A;
+  --lime-800: #6B7D18;  /* the 1px edge on a lime fill */
+
+  /* Violet: the ground */
+  --violet-100: #EDE5FB; --violet-300: #C8B6E5;
+  --violet-600: #6F4FD1; --violet-700: #553AA6;
+
+  /* Ink and neutrals */
+  --ink-900: #14161D;  --gray-0: #FFFFFF;   --gray-100: #F4F2F9;
+  --gray-200: #EEEAF8; --gray-300: #E3DDEF; --gray-600: #6B6878; --gray-700: #4A4857;
+
+  /* Semantic text */
+  --text-strong: var(--ink-900);
+  --text-body: var(--gray-700);
+  --text-muted: var(--gray-600);
+  --text-accent: var(--violet-700);          /* accent phrase on LIGHT */
+  --text-accent-on-dark: var(--lime-400);    /* accent phrase on INK   */
+  --text-on-lime: var(--ink-900);
+
+  /* Surfaces */
+  --surface-page: var(--gray-200);
+  --surface-card: var(--gray-0);
+  --surface-card-soft: var(--violet-100);
+  --surface-card-dark: var(--ink-900);
+
+  /* Borders — decorative vs control-grade (3:1) */
+  --border-subtle: var(--gray-300);
+  --border-control: #847C93;
+  --border-accent: var(--lime-800);
+
+  /* Status: text value, then the tint it sits on */
+  --verified: #237045; --verified-tint: #E2F1E7;
+  --error:    #C0392B; --error-tint:    #FBE7E4;
+  --notice:   #8A5A00; --notice-tint:   #FBF0DC;
+  --here:     #8A6100; --here-tint:     #FDF1C7;
+  --ai: var(--violet-700); --ai-tint: var(--violet-100);
+
+  --accent: var(--lime-400);
+  --focus-ring: var(--violet-600);
+
+  --font-display: "Plus Jakarta Sans", "Helvetica Neue", Arial, sans-serif;
+  --font-body: "Plus Jakarta Sans", "Helvetica Neue", Arial, sans-serif;
+  --font-mono: "JetBrains Mono", "SFMono-Regular", Menlo, monospace;
+
+  --radius-control: 12px;  /* inputs are never pills */
+  --radius-card: 20px;
+  --radius-panel: 28px;
+  --radius-button: 999px;
+
+  --ease-out: cubic-bezier(.22, .7, .25, 1);
+  --dur-fast: 120ms; --dur-base: 180ms; --dur-slow: 280ms;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :root { --dur-fast: 0ms; --dur-base: 0ms; --dur-slow: 0ms; }
 }
 ```
 

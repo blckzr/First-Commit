@@ -1,0 +1,45 @@
+.wrapper {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  cursor: pointer;
+}
+
+.wrapper:has(.control:disabled) { cursor: default; opacity: 0.45; }
+
+.control {
+  position: absolute;
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
+
+.box {
+  width: 19px;
+  height: 19px;
+  flex: 0 0 auto;
+  border-radius: var(--radius-xs);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: var(--transition-control);
+  background: var(--gray-0);
+  border: 1px solid var(--border-control);
+  color: var(--ink-900);
+}
+
+/* A checked box fills lime — lime as a fill, with ink on it. */
+.control:checked + .box {
+  background: var(--accent);
+  border-color: var(--accent-press);
+}
+
+.control:focus-visible + .box {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 2px;
+}
+
+.check { opacity: 0; }
+.control:checked + .box .check { opacity: 1; }
+
+.text { font-size: var(--text-body-base); color: var(--text-strong); }
