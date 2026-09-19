@@ -1,4 +1,5 @@
 .wrapper {
+  position: relative;
   display: flex;
   align-items: center;
   gap: 10px;
@@ -12,9 +13,23 @@
 
 .wrapper:hover:not(:has(.control:checked)) { background: var(--gray-100); }
 
-.control { position: absolute; opacity: 0; width: 0; height: 0; }
+/* Keeps the visual dot's footprint — see Checkbox.module.css. */
+.control {
+  position: absolute;
+  left: 8px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 18px;
+  height: 18px;
+  margin: 0;
+  opacity: 0;
+  cursor: inherit;
+}
 
 .dot {
+  /* Decoration only (aria-hidden): never swallow a click meant for the
+     input beneath it. */
+  pointer-events: none;
   width: 18px;
   height: 18px;
   flex: 0 0 auto;

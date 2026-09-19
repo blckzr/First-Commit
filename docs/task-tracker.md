@@ -67,8 +67,9 @@ ran ahead of Phase 1.
 - [x] Toolchain — ESLint 9 with `jsx-a11y` (a11y rules as errors), Vitest + Testing Library, axe helper. 21 tests.
 - [x] Component gallery route at `/dev/components` — every variant, live token swatches, live contrast table. Dev-only; excluded from production builds.
 - [x] Contrast gate — `contrast.test.ts` reads `tokens.css` from disk and asserts all 29 pairs, so §12 is enforced by a test, not by a one-off check
-- [ ] `AdminShell` — the grouped admin sidebar
-- [ ] Playwright, for the 360/768/1024/1440 viewport tests `design.md` §11.4 commits to
+- [x] `AdminShell` — grouped sidebar, persistent Admin indicator, admin Overview screen, and a named placeholder for the other ten §6 screens
+- [x] Playwright — 23 tests across the four §11.4 widths, plus live-resize and 320px reflow. **92 assertions passing.**
+- [x] Dev session override (`?as=admin|learner|onboarding|signedout`), so all four areas and every §4.3 redirect can be exercised
 
 ## Phase 2 — Learner core
 

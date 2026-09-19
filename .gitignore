@@ -6,6 +6,12 @@ dist/
 build/
 .vite/
 
+# Playwright
+test-results/
+playwright-report/
+blob-report/
+.playwright/
+
 # Environment files — the Supabase service role key lives in apps/worker/.env
 .env
 .env.*

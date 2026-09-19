@@ -9,6 +9,7 @@ export default defineConfig({
     setupFiles: ["./src/test/setup.ts"],
     css: true, // CSS Modules resolve, so className assertions work
     include: ["src/**/*.test.{ts,tsx}"],
+    exclude: ["e2e/**", "node_modules/**"],
     coverage: {
       provider: "v8",
       include: ["src/**/*.{ts,tsx}"],

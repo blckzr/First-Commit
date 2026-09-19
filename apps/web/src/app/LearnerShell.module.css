@@ -89,13 +89,72 @@
 
 .bottomNav .navList { justify-content: space-around; }
 
-.bottomNav .navLink {
+.bottomNav .navList { justify-content: space-between; gap: 0; }
+
+.bottomNav .navLink,
+.bottomNav summary {
   flex-direction: column;
   gap: 4px;
   font-size: var(--text-micro);
-  min-width: 56px;
+  padding: var(--space-2) var(--space-1);
   text-align: center;
+  /* Five items must fit 320px (design.md §12), so they share the width
+     rather than claiming a minimum. */
+  min-width: 0;
 }
+
+.bottomNav .navLabel {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.bottomNav li { flex: 1 1 0; min-width: 0; }
+
+/* The More disclosure opens upward, above the bar. */
+.more { position: relative; }
+
+.more summary {
+  list-style: none;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  border-radius: var(--radius-sm);
+  color: var(--text-body);
+  font-weight: var(--fw-semibold);
+}
+
+.more summary::-webkit-details-marker { display: none; }
+.more[open] summary { background: var(--violet-100); color: var(--violet-700); }
+
+.moreList {
+  position: absolute;
+  bottom: calc(100% + var(--space-2));
+  right: 0;
+  min-width: 190px;
+  background: var(--gray-0);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-card);
+  box-shadow: var(--shadow-md);
+  padding: var(--space-2);
+  list-style: none;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  z-index: 10;
+}
+
+.moreList .navLink {
+  flex-direction: row;
+  gap: var(--space-3);
+  font-size: var(--text-body-sm);
+  text-align: left;
+  padding: var(--space-3);
+}
+
+.moreList .navLabel { display: inline; }
 
 /* --- md and lg: sidebar -------------------------------------------------- */
 @media (min-width: 640px) {
@@ -111,13 +170,37 @@
   }
 
   .navList { flex-direction: column; gap: var(--space-1); }
-  .navLabel { display: none; }
   .navLink { justify-content: center; }
+
+  /**
+   * The icon rail hides labels visually but NOT from assistive technology.
+   * `display: none` would strip them from the accessibility tree, leaving a
+   * screen reader user at this width with six unlabelled links — design.md §12
+   * requires every control to have a name at every width.
+   */
+  .navLabel {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+    border: 0;
+  }
 }
 
 @media (min-width: 1024px) {
   .nav { padding: var(--space-5) var(--space-4); min-width: 210px; }
-  .navLabel { display: inline; }
+  .navLabel {
+    position: static;
+    width: auto;
+    height: auto;
+    margin: 0;
+    overflow: visible;
+    clip-path: none;
+  }
   .navLink { justify-content: flex-start; }
   .main { padding: var(--space-7); }
 }

@@ -48,7 +48,9 @@ export const router = createBrowserRouter([
         element: <RequireAdmin />,
         children: [
           {
-            path: "/admin",
+            // AdminArea owns its own nested routes, so the whole admin tree
+            // lives in the lazy chunk rather than only its entry point.
+            path: "/admin/*",
             element: (
               <Suspense fallback={<div role="status">Loading…</div>}>
                 <AdminArea />

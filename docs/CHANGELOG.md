@@ -11,6 +11,63 @@ lives under `[Unreleased]` until there is something to version.
 
 ## [Unreleased]
 
+### 2026-09-19 — Admin shell, and Playwright found five real layout bugs
+
+#### Added
+
+- **`AdminShell`** — the grouped sidebar from `design.md` §4.2 (Content / Quality /
+  Platform, with Overview above the groups) and the persistent "Admin" indicator. A
+  separate component from `LearnerShell`: neither renders the other's navigation, and
+  neither links into the other's area.
+- **Admin Overview** (§6.1) — drafts, flagged AI feedback, flagged projects, struggling
+  modules, each with a link to handle it. Mock data.
+- **A named placeholder** for the other ten admin screens, each citing the `design.md`
+  section that specifies it, so the sidebar is walkable while the shell is reviewed.
+- **Dev session override** in `useSession` — `?as=admin|learner|onboarding|signedout`,
+  sticky per tab. All four areas and every §4.3 redirect can now be exercised without
+  editing a file. Gated on `import.meta.env.DEV`, so it never ships.
+- **Playwright** — `e2e/responsive.spec.ts` and `e2e/areas.spec.ts`, **23 tests run across
+  the four widths §11.4 names** (360, 768, 1024, 1440): **92 passing**. They cover the
+  live-resize case §11.4 asks for, the 320px reflow §12 requires, the no-view-switcher rule
+  from §11.1, and the area separation in §4.3.
+
+The admin chunk now carries real weight — 6.58 kB JS + 3.86 kB CSS, separate from the main
+bundle — so the lazy split in §4.3 is doing actual work rather than splitting a stub.
+
+#### Fixed — all five found by Playwright, none catchable in jsdom
+
+1. **Nav links had no accessible name at 768px.** The icon rail hid labels with
+   `display: none`, which removes them from the accessibility tree — a screen reader user
+   at that width got six unlabelled links, straight against §12. Labels are now visually
+   hidden (clipped) and remain in the tree. **This is the one that mattered.**
+2. **The learner bottom bar overflowed 320px** (471px of content in a 320px viewport). The
+   cause was mine: §4.2 specifies *five* items below 640px — Home, Roadmaps, Capstone,
+   Resume, and More — and the first implementation put all six in. Now five, with More as a
+   native `<details>` disclosure opening Explore, Certificates, and Settings.
+3. **The landing top bar overflowed 320px.** The wordmark plus both actions do not fit; it
+   now wraps.
+4. **Checkbox and radio inputs were `0×0` with `opacity: 0`.** A zero-size control is
+   invisible to Windows High Contrast Mode, which paints the real control rather than our
+   styled span, and is not a usable target for a stylus or for automation. Both now keep the
+   visual box's footprint.
+5. **The decorative box swallowed clicks meant for the input beneath it.** Both indicators
+   are `aria-hidden` decoration and now carry `pointer-events: none`.
+
+#### Verified
+
+Lint clean, 59 unit tests, 92 Playwright assertions across four viewports, `tsc --noEmit`
+clean, build succeeds.
+
+#### Notes
+
+- Two Playwright failures were defects in the *tests*, not the app, and are recorded because
+  the distinction matters: `evaluateAll` does not auto-wait, so it ran before the lazy admin
+  chunk loaded; and `isVisible()` returns true for a 1px clipped element, so the label test
+  had to assert rendered width instead.
+- `e2e/areas.spec.ts` exercises the guards, which decide what *renders*. It is not a
+  security test — the API decides what data comes back (`database-schema.md` §6). The real
+  versions live in the API's endpoint tests.
+
 ### 2026-09-19 — Component gallery, and contrast became an automated gate
 
 #### Added
