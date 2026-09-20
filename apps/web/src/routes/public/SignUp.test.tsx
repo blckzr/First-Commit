@@ -1,16 +1,15 @@
 import { describe, expect, it } from "vitest";
-import { render, screen } from "@testing-library/react";
-import userEvent from "@testing-library/user-event";
-import { MemoryRouter } from "react-router";
+import { screen } from "@testing-library/react";
+import { render } from "../../test/render";
 import { SignUp } from "./SignUp";
 import { expectNoAxeViolations } from "../../test/axe";
 
+/**
+ * Accessibility and structure. The submit-and-navigate behaviour lives in
+ * auth-flow.test.tsx, which stubs the API.
+ */
 function renderSignUp() {
-  return render(
-    <MemoryRouter>
-      <SignUp />
-    </MemoryRouter>,
-  );
+  return render(<SignUp />);
 }
 
 describe("SignUp", () => {
@@ -26,15 +25,6 @@ describe("SignUp", () => {
     expect(screen.getByLabelText("Full name")).toBeInTheDocument();
     expect(screen.getByLabelText("Email")).toBeInTheDocument();
     expect(screen.getByLabelText("Password")).toBeInTheDocument();
-  });
-
-  it("keeps the submit disabled until consent is given", async () => {
-    renderSignUp();
-    const submit = screen.getByRole("button", { name: "Create account" });
-    expect(submit).toBeDisabled();
-
-    await userEvent.click(screen.getByRole("checkbox"));
-    expect(submit).toBeEnabled();
   });
 
   it("guides the learner on the name field rather than just labelling it", () => {

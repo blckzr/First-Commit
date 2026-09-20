@@ -1,5 +1,5 @@
 import type { CookieOptions, Request, Response } from "express";
-import type { Pool } from "pg";
+import type { Pool, PoolClient } from "pg";
 import { config } from "../config.js";
 import { SESSION_TTL_MS, expiresIn, generateToken, hashToken } from "./tokens.js";
 import { clientIp } from "./client-ip.js";
@@ -35,6 +35,14 @@ export interface SessionUser {
   role: "learner" | "admin";
   status: "active" | "suspended";
   emailVerifiedAt: Date | null;
+  /**
+   * Where the learner stopped in onboarding, or null once finished.
+   *
+   * design.md §4.3 sends a learner with unfinished onboarding back to their
+   * current step, so the browser has to know it on every request — not only in
+   * the reply to a log in.
+   */
+  onboardingStep: string | null;
 }
 
 /**
@@ -84,10 +92,13 @@ export async function resolveSession(pool: Pool, token: string): Promise<Session
     role: "learner" | "admin";
     status: "active" | "suspended";
     email_verified_at: Date | null;
+    onboarding_step: string | null;
   }>(
-    `select u.id, u.email, u.full_name, u.role, u.status, u.email_verified_at
+    `select u.id, u.email, u.full_name, u.role, u.status, u.email_verified_at,
+            p.onboarding_step
        from sessions s
        join users u on u.id = s.user_id
+       left join learner_profiles p on p.user_id = u.id
       where s.token_hash = $1
         and s.expires_at > now()`,
     [hashToken(token)],
@@ -103,6 +114,9 @@ export async function resolveSession(pool: Pool, token: string): Promise<Session
     role: row.role,
     status: row.status,
     emailVerifiedAt: row.email_verified_at,
+    // 'done' and null both mean finished; an admin has no learner profile.
+    onboardingStep:
+      row.onboarding_step && row.onboarding_step !== "done" ? row.onboarding_step : null,
   };
 }
 
@@ -118,6 +132,9 @@ export async function destroySession(pool: Pool, res: Response, token: string): 
  * §6.3 requires this on password change: a stolen session must not outlive the
  * password it was obtained with.
  */
-export async function destroyAllSessions(pool: Pool, userId: string): Promise<void> {
-  await pool.query(`delete from sessions where user_id = $1`, [userId]);
+export async function destroyAllSessions(
+  db: Pool | PoolClient,
+  userId: string,
+): Promise<void> {
+  await db.query(`delete from sessions where user_id = $1`, [userId]);
 }

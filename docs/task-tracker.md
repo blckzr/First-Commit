@@ -14,8 +14,9 @@ What is planned and what is done, from an empty repository to a working platform
 
 The immediate queue. Everything here is unblocked and ready to pick up.
 
-- [ ] **Log in / log out** — reuses the session and middleware that sign up established.
-- [ ] **Email verification and password reset** — the tokens are already issued and hashed; these spend them.
+- [ ] **Security tests** — `project-proposal.md` §9.2 names these as a deliverable. Much is already covered; what is missing is a learner reaching another learner's data, which needs a second endpoint to test against.
+
+
 
 
 ## Decide
@@ -46,11 +47,11 @@ Nothing in the learner app can be built until an account can log in.
 - [x] `apps/api` scaffold — Express 5 + TS, pooled `pg`, CORS for `APP_ORIGIN` with credentials, JSON error handling, `/health` + `/health/db`, graceful shutdown, and a supertest harness (8 tests)
 - [x] **Mail module** — one interface, console transport for development, Brevo for production, plus the verification and reset templates. Injected through `app.locals`, so endpoint tests substitute their own.
 - [x] **Sign up** — `POST /auth/signup`: argon2id, `users` + `learner_profiles` + verification token in one transaction, session cookie, verification mail. Plus `GET /auth/me`.
-- [ ] **Log in / log out** — session cookie (`httpOnly`, `secure`, CSRF defense), sessions cleared on logout and password change
-- [ ] **Email verification and password reset** — hashed, expiring, single-use tokens
-- [ ] **Rate limiting** — failed logins and reset requests per email and per IP via `auth_attempts`
+- [x] **Log in / log out** — `POST /auth/login` and `/auth/logout`, non-leaking failure message, decoy hash against timing enumeration, `next` destination per §5.3, plus the **CSRF guard** on every state-changing route. Mutation-tested: six vulnerabilities, all caught.
+- [x] **Email verification and password reset** — `/auth/verify-email`, `/auth/verification/resend`, `/auth/password/forgot`, `/auth/password/reset`. Atomic single-use spending, non-leaking forgot reply, all sessions cleared on reset. Mutation-tested: eight vulnerabilities, all caught.
+- [x] **Rate limiting** — per email and per IP on log in (5/20 per 15 min, failures only) and reset requests (3/10 per hour, all requests). Attempts recorded for unknown addresses too, so a 429 leaks nothing. Mutation-tested: seven vulnerabilities, all caught.
 - [x] **Request middleware** — §6.1 steps 1, 2 and 5 as `attachSession` / `requireAuth` / `requireAdmin`; steps 3, 4 and 6 as `sessionUser()`, `assertOwned()` and the explicit-columns rule. **Mutation-tested**: five deliberate vulnerabilities, all caught.
-- [ ] **SSE** — `/events` stream per user, `/internal/events` for the worker (`WORKER_SECRET`), periodic sweep for unsent rows
+- [x] **SSE** — `/events` per session user with `Last-Event-ID` resume, `/internal/events` for the worker behind a constant-time secret check, heartbeat, and a 10s sweep as the backstop. Mutation-tested: six vulnerabilities, all caught after three test gaps were fixed.
 - [ ] **Security tests** — a learner cannot reach another learner's data or any admin route (`project-proposal.md` §9.2)
 - [ ] **Deploy to Render** — Singapore region, env vars, health check; point the GitHub App webhook at it
 
@@ -78,8 +79,11 @@ ran ahead of Phase 1.
 
 The main loop: sign up → roadmap → learn → pass.
 
+- [x] **Data layer** — TanStack Query, a Zod-validated API client, `Providers`, and MSW so web tests need no database. `useSession` is now a real `GET /auth/me` query, not a stub.
+- [x] **Sign up wired** to `POST /auth/signup`
+
 - [x] Landing and Sign up (Phase 1.5)
-- [ ] Log in
+- [x] **Log in** — built and wired to `POST /auth/login`, with the §5.3 destination rules and the single non-leaking failure message
 - [ ] **Design + build `/forgot-password` and `/reset-password`** — not in the prototype
 - [ ] Onboarding — about you, target position, placement, generating; one page per step, resumable via `onboarding_step`
 - [ ] **Roadmap chart** — React Flow, custom nodes, side panel, the `sm` stacked layout, keyboard navigation and nested-list DOM equivalent

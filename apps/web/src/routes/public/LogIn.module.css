@@ -41,8 +41,6 @@
 
 .form { display: flex; flex-direction: column; gap: var(--space-5); }
 
-.consent { font-size: var(--text-body-sm); }
-
 .formError {
   margin: 0;
   padding: var(--space-3) var(--space-4);
@@ -61,4 +59,10 @@
 
 @media (min-width: 640px) {
   .card { padding: var(--pad-card-lg); }
+}
+
+.forgot {
+  align-self: flex-end;
+  font-size: var(--text-body-sm);
+  margin-top: calc(var(--space-3) * -1);
 }

@@ -1,4 +1,5 @@
 import { expect, test } from "@playwright/test";
+import { signedIn } from "./session";
 
 /**
  * The responsive contract from design.md §11.
@@ -15,6 +16,7 @@ const LG = { width: 1280, height: 900 };
 
 test.describe("learner shell navigation", () => {
   test("shows exactly one main navigation, matching the width", async ({ page }, testInfo) => {
+    await signedIn(page);
     await page.goto("/app");
 
     const width = page.viewportSize()!.width;
@@ -38,6 +40,7 @@ test.describe("learner shell navigation", () => {
   });
 
   test("hides nav labels visually on the icon rail but keeps them for screen readers", async ({ page }) => {
+    await signedIn(page);
     await page.goto("/app");
     const width = page.viewportSize()!.width;
 
@@ -61,6 +64,7 @@ test.describe("learner shell navigation", () => {
   });
 
   test("capstone stays locked until the roadmap is finished", async ({ page }) => {
+    await signedIn(page);
     await page.goto("/app");
     const capstone = page
       .getByRole("navigation", { name: "Main" })
@@ -72,6 +76,7 @@ test.describe("learner shell navigation", () => {
 test.describe("no horizontal scrolling", () => {
   for (const path of ["/", "/signup", "/app"]) {
     test(`${path} reflows without a horizontal scrollbar`, async ({ page }) => {
+      await signedIn(page);
       await page.goto(path);
       await page.waitForLoadState("networkidle");
 
@@ -92,6 +97,7 @@ test.describe("no horizontal scrolling", () => {
 test.describe("one layout, no view switcher (§11.1)", () => {
   test("offers no desktop/mobile toggle anywhere", async ({ page }) => {
     for (const path of ["/", "/signup", "/app"]) {
+      await signedIn(page);
       await page.goto(path);
       const text = (await page.locator("body").innerText()).toLowerCase();
       for (const banned of ["desktop view", "mobile view", "switch to desktop", "switch to mobile"]) {
@@ -129,6 +135,7 @@ test.describe("state survives a live resize", () => {
   });
 
   test("navigation swaps between sidebar and bottom bar on resize", async ({ page }) => {
+    await signedIn(page);
     await page.goto("/app");
     const navs = page.getByRole("navigation", { name: "Main" });
 
@@ -150,6 +157,7 @@ test.describe("320px reflow", () => {
 
   for (const path of ["/", "/signup", "/app"]) {
     test(`${path} reflows at 320px`, async ({ page }) => {
+      await signedIn(page);
       await page.goto(path);
       await page.waitForLoadState("networkidle");
       const { scrollWidth, clientWidth } = await page.evaluate(() => ({

@@ -1,8 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import request from "supertest";
 import type { Express } from "express";
 import { createApp } from "../app.js";
 import { createTestDb, type TestDb } from "../test/db.js";
+import { post } from "../test/http.js";
 import type { Mailer, MailMessage } from "../mail/index.js";
 import { verifyPassword } from "./passwords.js";
 import { hashToken } from "./tokens.js";
@@ -39,7 +39,7 @@ beforeEach(() => {
 
 describe("POST /auth/signup", () => {
   it("creates the account, its learner profile, and a session", async () => {
-    const res = await request(app).post("/auth/signup").send(VALID);
+    const res = await post(app, "/auth/signup").send(VALID);
 
     expect(res.status).toBe(201);
     expect(res.body.user).toMatchObject({
@@ -57,7 +57,7 @@ describe("POST /auth/signup", () => {
   });
 
   it("sets an httpOnly session cookie", async () => {
-    const res = await request(app).post("/auth/signup").send(VALID);
+    const res = await post(app, "/auth/signup").send(VALID);
     const cookie = (res.headers["set-cookie"] as unknown as string[])[0];
     expect(cookie).toContain(`${SESSION_COOKIE}=`);
     expect(cookie).toMatch(/HttpOnly/i);
@@ -65,7 +65,7 @@ describe("POST /auth/signup", () => {
 
   /** §6.3: the database stores only a hash, so a copy cannot be replayed. */
   it("stores the session token only as a hash", async () => {
-    const res = await request(app).post("/auth/signup").send(VALID);
+    const res = await post(app, "/auth/signup").send(VALID);
     const cookie = (res.headers["set-cookie"] as unknown as string[])[0];
     const token = /fc_session=([^;]+)/.exec(cookie)![1];
 
@@ -76,7 +76,7 @@ describe("POST /auth/signup", () => {
 
   /** §6.3: argon2id, and the password itself is never stored. */
   it("stores the password only as an argon2id hash", async () => {
-    await request(app).post("/auth/signup").send(VALID);
+    await post(app, "/auth/signup").send(VALID);
     const hash = db.rows("users")[0].password_hash as string;
 
     expect(hash).not.toContain(VALID.password);
@@ -86,12 +86,12 @@ describe("POST /auth/signup", () => {
   });
 
   it("never returns the password hash", async () => {
-    const res = await request(app).post("/auth/signup").send(VALID);
+    const res = await post(app, "/auth/signup").send(VALID);
     expect(JSON.stringify(res.body)).not.toMatch(/argon2|password_hash|passwordHash/i);
   });
 
   it("issues a hashed, expiring verification token and mails the link", async () => {
-    await request(app).post("/auth/signup").send(VALID);
+    await post(app, "/auth/signup").send(VALID);
 
     expect(mailer.sent).toHaveLength(1);
     const link = /https?:\/\/\S+/.exec(mailer.sent[0].text)![0];
@@ -109,8 +109,7 @@ describe("POST /auth/signup", () => {
    * its own role. This is the test that would catch a privilege escalation.
    */
   it("ignores a role or status sent by the browser", async () => {
-    await request(app)
-      .post("/auth/signup")
+    await post(app, "/auth/signup")
       .send({ ...VALID, role: "admin", status: "suspended", id: "00000000-0000-0000-0000-000000000000" });
 
     const user = db.rows("users")[0];
@@ -120,10 +119,9 @@ describe("POST /auth/signup", () => {
   });
 
   it("rejects a duplicate email, case-insensitively, without creating anything", async () => {
-    await request(app).post("/auth/signup").send(VALID);
+    await post(app, "/auth/signup").send(VALID);
 
-    const res = await request(app)
-      .post("/auth/signup")
+    const res = await post(app, "/auth/signup")
       .send({ ...VALID, email: "LEARNER@EXAMPLE.COM", fullName: "Someone Else" });
 
     expect(res.status).toBe(409);
@@ -138,7 +136,7 @@ describe("POST /auth/signup", () => {
     [{ ...VALID, fullName: "  " }, /name/i],
     [{}, /./],
   ])("rejects invalid input with a message that explains", async (body, expected) => {
-    const res = await request(app).post("/auth/signup").send(body);
+    const res = await post(app, "/auth/signup").send(body);
     expect(res.status).toBe(400);
     expect(res.body.error).toMatch(expected);
     // design.md §9: errors explain and direct, never "Invalid input".
@@ -153,7 +151,7 @@ describe("POST /auth/signup", () => {
     vi.spyOn(console, "error").mockImplementation(() => {});
     mailer.fail = true;
 
-    const res = await request(app).post("/auth/signup").send(VALID);
+    const res = await post(app, "/auth/signup").send(VALID);
 
     expect(res.status).toBe(201);
     expect(db.rows("users")).toHaveLength(1);

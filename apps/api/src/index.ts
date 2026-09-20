@@ -19,6 +19,9 @@ const server = app.listen(config.port, () => {
  */
 async function shutdown(signal: string) {
   console.log(`\n${signal} received, shutting down...`);
+  // End open SSE streams first; they would otherwise hold the server open.
+  (app.locals.hub as { closeAll(): void } | undefined)?.closeAll();
+
   server.close(async () => {
     await pool.end();
     console.log("Closed.");

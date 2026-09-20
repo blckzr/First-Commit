@@ -3,6 +3,7 @@ import request from "supertest";
 import express, { type Express } from "express";
 import cookieParser from "cookie-parser";
 import { createTestDb, type TestDb } from "../test/db.js";
+import { post } from "../test/http.js";
 import { createApp } from "../app.js";
 import { SESSION_COOKIE } from "../auth/sessions.js";
 import { hashToken } from "../auth/tokens.js";
@@ -23,7 +24,7 @@ const VALID = {
 
 /** Signs up and returns the session cookie, the way a browser would hold it. */
 async function signUp(as: Express = app): Promise<string> {
-  const res = await request(as).post("/auth/signup").send(VALID);
+  const res = await post(as, "/auth/signup").send(VALID);
   const cookies = res.headers["set-cookie"] as unknown as string[];
   return cookies[0].split(";")[0];
 }
@@ -42,6 +43,22 @@ describe("§6.1 step 1 — resolve the session", () => {
     expect(res.body.user.email).toBe(VALID.email);
     expect(res.body.user.role).toBe("learner");
     expect(res.body.user.emailVerified).toBe(false);
+  });
+
+  /** design.md §4.3: the guards need the onboarding step on every request. */
+  it("reports where the learner stopped in onboarding", async () => {
+    const cookie = await signUp();
+
+    const fresh = await request(app).get("/auth/me").set("Cookie", cookie);
+    expect(fresh.body.onboardingStep).toBe("about");
+
+    await db.pool.query(`update learner_profiles set onboarding_step = 'placement'`);
+    const mid = await request(app).get("/auth/me").set("Cookie", cookie);
+    expect(mid.body.onboardingStep).toBe("placement");
+
+    await db.pool.query(`update learner_profiles set onboarding_step = 'done'`);
+    const done = await request(app).get("/auth/me").set("Cookie", cookie);
+    expect(done.body.onboardingStep).toBeNull();
   });
 
   it("never returns the password hash", async () => {

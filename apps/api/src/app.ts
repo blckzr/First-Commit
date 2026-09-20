@@ -8,6 +8,12 @@ import { createMailer, type Mailer } from "./mail/index.js";
 import { pool as defaultPool } from "./db.js";
 import { attachSession, requireAuth, sessionUser } from "./middleware/session.js";
 import { signupRoutes } from "./auth/signup.js";
+import { loginRoutes } from "./auth/login.js";
+import { verificationRoutes } from "./auth/verification.js";
+import { passwordResetRoutes } from "./auth/password-reset.js";
+import { requireSameOrigin } from "./middleware/csrf.js";
+import { EventHub } from "./events/hub.js";
+import { eventRoutes, internalEventRoutes } from "./events/routes.js";
 import type { Pool } from "pg";
 
 /**
@@ -25,6 +31,8 @@ export interface AppDeps {
   mailer?: Mailer;
   /** Injected so endpoint tests drive a fake instead of a live database. */
   pool?: Pool;
+  /** Injected so a test can cover the unconfigured case. `null` closes the route. */
+  workerSecret?: string | null;
 }
 
 export function createApp(deps: AppDeps = {}) {
@@ -68,7 +76,24 @@ export function createApp(deps: AppDeps = {}) {
   app.use(attachSession(pool));
 
   app.use(health);
+
+  const hub = new EventHub(pool);
+  app.locals.hub = hub;
+
+  // Mounted BEFORE the CSRF guard: the worker is not a browser, sends no
+  // Origin, and authenticates with WORKER_SECRET instead.
+  app.use(internalEventRoutes(hub, deps.workerSecret === undefined ? config.workerSecret : deps.workerSecret));
+
+  // Every state-changing browser route sits behind the CSRF guard. Routes
+  // authenticated by a shared secret rather than a cookie are mounted before
+  // it, since a non-browser caller sends no Origin.
+  app.use(requireSameOrigin);
+
   app.use(signupRoutes(pool));
+  app.use(loginRoutes(pool));
+  app.use(verificationRoutes(pool));
+  app.use(passwordResetRoutes(pool));
+  app.use(eventRoutes(hub));
 
   /** The session the browser currently has. Drives useSession in the web app. */
   app.get("/auth/me", requireAuth, (req, res) => {
@@ -81,6 +106,9 @@ export function createApp(deps: AppDeps = {}) {
         role: user.role,
         emailVerified: user.emailVerifiedAt !== null,
       },
+      // design.md §4.3: the guards need this on every request, not only in a
+      // log-in reply.
+      onboardingStep: user.onboardingStep,
     });
   });
 

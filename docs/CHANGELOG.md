@@ -11,6 +11,313 @@ lives under `[Unreleased]` until there is something to version.
 
 ## [Unreleased]
 
+### 2026-09-21 — Phase 2 begins: the web app talks to the API
+
+The three existing screens stop being mockups. Sign up and log in now work against the real
+endpoints, and every later screen has a data layer to build on.
+
+#### Added
+
+- **`src/api/`** — one client that sets `credentials: "include"` on every request (the
+  session is an `httpOnly` cookie), maps failures to an `ApiError` whose message is safe to
+  display, and **validates every response with Zod** before the app trusts it. A shape
+  change fails loudly at the boundary instead of surfacing as an undefined three components
+  deep.
+- **TanStack Query**, with a 401 excluded from retries: no session is a normal state, not a
+  failure worth hammering the API over while the learner waits.
+- **`app/providers.tsx`**, so tests build the same tree with their own client.
+- **The log-in screen** (design.md §5.3), wired to `POST /auth/login`. It honours the §5.3
+  destinations — admin to `/admin`, a learner mid-onboarding to their step, everyone else
+  to `/app` — and `location.state.from` when a guard sent them there.
+- **MSW**, so web tests exercise the real fetch path with no database and no running server.
+  `onUnhandledRequest: "error"`, so a component reaching an unstubbed endpoint fails the
+  test rather than escaping to the network.
+- 11 new web tests covering the auth flow.
+
+#### Changed
+
+- **`useSession` is no longer a stub.** It asks `GET /auth/me`, so the role comes from the
+  server exactly as design.md §13.6 requires. The `?as=` development override is **gone**.
+- **`GET /auth/me` now returns `onboardingStep`.** Removing the stub exposed that it did
+  not: §4.3 sends a learner with unfinished onboarding back to their current step, which
+  means the browser needs that value on *every* request, not only in a log-in reply. `'done'`
+  and a missing learner profile both read as null.
+- **Playwright now stubs the API at the network boundary** (`e2e/session.ts`) instead of
+  using the removed `?as=` override. This is the better test: the app runs its real session
+  query and its real guards against a real response, rather than a branch that only existed
+  in development.
+- Sign up puts "That email is already registered" **under the email field**, where the
+  learner is looking, and everything else above the button.
+
+#### A deliberate difference between the two screens
+
+Sign up reports a taken address under the field. **Log in never does** — its one message sits
+above the button, because pointing at a field would imply the other one was right, and
+that is exactly what `database-schema.md` §6.3 refuses to reveal. There is a test asserting
+neither log-in field carries `aria-invalid` after a failure.
+
+#### Verified
+
+130 API tests, 70 web tests, **96 Playwright assertions across four viewports**, all three
+workspaces typecheck, lint clean, build succeeds.
+
+#### Notes
+
+- **None of this has run against the real API yet** — there is still no database. The web
+  tests stub the API and the API tests stub the database, so the two contracts are asserted
+  independently but never against each other. The first run with Postgres behind it is still
+  the outstanding check.
+
+### 2026-09-21 — Server-sent events
+
+Phase 1 is 9 of 10. The worker-to-browser path is closed: the worker writes a result, posts
+to the API, and the learner's open stream receives it.
+
+#### Added
+
+- **`GET /events`** — one stream per session user. Scoped to `req.user.id`, never to
+  anything in the query string.
+- **`POST /internal/events`** — the worker's hint, behind a constant-time `WORKER_SECRET`
+  check and **mounted before the CSRF guard**, because the worker is not a browser and sends
+  no `Origin`. The body says only *who* has something waiting; the API reads the rows itself,
+  so even a leaked secret cannot inject content into a learner's stream.
+- **`EventHub`** — connection registry, 25s heartbeat so proxies do not close idle streams,
+  and a **10s sweep** that finds rows whose notify never arrived. That sweep is why the
+  worker can treat a failed post as non-fatal.
+- **Resume after a dropped connection.** Each frame carries an `id` of
+  `createdAt|rowId`, which the browser replays as `Last-Event-ID`. Rows are ordered and
+  compared on **both halves**, because two rows can share a timestamp and comparing on the
+  timestamp alone would silently drop one.
+- `X-Accel-Buffering: no`, since proxies buffer by default and would hold events until the
+  response ended — the opposite of the point.
+
+#### Verified by mutation testing — and it found four real gaps
+
+Six vulnerabilities. **Only two were caught on the first pass.** Each miss was a genuine
+hole in the tests, not a false alarm:
+
+| Vulnerability | First pass | Why it was missed |
+|---|---|---|
+| Stream scoped to a query param, not the session | missed | The test never flushed for the *other* user, so a wrongly-registered stream received nothing either way |
+| Hub ignores its user filter, fanning out to everyone | missed | Only one stream was ever open, so there was nobody to leak to |
+| Internal route accepts any secret | missed | **`WORKER_SECRET` was unset in tests**, so the route 404'd before ever reaching the comparison |
+| Internal route open when no secret is configured | caught | |
+| Cursor ignored, so reconnecting replays everything | caught | |
+| Cursor drops rows sharing a timestamp | missed | The test read with no cursor, so the tie-break branch never ran |
+
+Fixed by setting `WORKER_SECRET` in the test setup, opening **two concurrent streams** from
+different learners, flushing for the other user while connected, and resuming from the
+lower-sorting of two rows that share a timestamp. All six are now caught.
+
+The third row is the one worth remembering: a whole authentication check had **no coverage
+at all** and every test around it was green, because an earlier guard was short-circuiting
+the request first.
+
+#### Changed
+
+- `workerSecret` is injectable through `createApp`, like the pool and the mailer, so the
+  unconfigured case can be tested.
+- `src/test/db.ts` now also loads `ai_jobs` and `ai_outputs` from the real migration.
+- `index.ts` closes open streams on SIGTERM before `server.close()`, which would otherwise
+  wait on them forever.
+
+**129 API tests**, 59 web, all three workspaces typecheck.
+
+#### Notes
+
+- **The hub's state lives in one process.** Render runs a single free instance, so this is
+  correct today. With two instances, a learner connected to A would not get a notify
+  delivered to B — the sweep would still find it, just later. `LISTEN/NOTIFY` is not the fix,
+  because the pooler does not support it; a shared bus would be.
+
+### 2026-09-21 — Rate limiting
+
+Phase 1 is 8 of 10.
+
+#### Added
+
+- **`enforceLimit` / `recordAttempt`** over `auth_attempts`, on the two endpoints §6.3 names.
+
+| Endpoint | Per email | Per IP | Window | Counts |
+|---|---|---|---|---|
+| `POST /auth/login` | 5 | 20 | 15 min | failures only |
+| `POST /auth/password/forgot` | 3 | 10 | 1 hour | every request |
+
+Two dimensions because they stop different attacks. **Per email** stops credential stuffing
+against one account; its cost is that someone can lock a specific address out for the length
+of the window, so that window is short. **Per IP** stops one machine spraying many
+addresses, which the per-email limit cannot see at all.
+
+Reset requests count *every* attempt rather than only failures, because a reset request has
+no meaningful failure — each one sends an email.
+
+#### The detail that matters most
+
+**Attempts are recorded whether or not the address has an account.** If rows were only
+written for real accounts, a 429 would mean "this account exists" — and the limiter meant to
+protect §6.3's non-leaking guarantee would have become the enumeration oracle it was
+protecting against. There is a test asserting a rate-limited known address and a
+rate-limited unknown one return identical bodies.
+
+**The limit is checked before the password is verified**, so an attacker cannot spend the
+endpoint's own argon2id cost against it. A mutation moving the check after the verify is
+caught.
+
+#### Verified by mutation testing
+
+Seven vulnerabilities, one at a time; **every one caught**:
+
+| Vulnerability | Caught |
+|---|---|
+| Per-email limit never fires | yes |
+| Per-IP limit never fires | yes |
+| Window ignored, so attempts never expire | yes |
+| Attempts not recorded for an unknown address | yes |
+| Limit checked after the password verify | yes |
+| Successful logins count toward the limit | yes |
+| Reset requests counted only when an account matched | yes |
+
+**108 API tests**, 59 web, all three workspaces typecheck.
+
+#### Notes
+
+- Sign up is deliberately **not** rate-limited. §6.3 names log in and reset requests, and
+  this follows the document. It is worth revisiting before the platform is public, since
+  unlimited sign up means unlimited junk accounts and unlimited outbound verification mail
+  against a 300-a-day Brevo allowance.
+- `purge_expired_auth_rows()` already exists in the schema to trim the table; §9.3 step 9
+  schedules it.
+
+### 2026-09-21 — Email verification and password reset
+
+Phase 1 is 7 of 10. The auth story is complete apart from rate limiting.
+
+#### Added
+
+- **`POST /auth/verify-email`** — spends the token issued at sign up.
+- **`POST /auth/verification/resend`** — a new link, session required.
+- **`POST /auth/password/forgot`** — always the same reply.
+- **`POST /auth/password/reset`** — sets the password, then clears every session.
+- **`spendToken` / `issueToken`**, shared by both flows.
+
+#### The race a select-then-update would have left open
+
+Spending a token is **one statement**:
+
+```sql
+update password_reset_tokens set used_at = now()
+ where token_hash = $1 and used_at is null and expires_at > now()
+returning user_id
+```
+
+Checking first and updating second would let two requests carrying the same link both pass
+the check before either wrote — which matters, because a leaked reset link is exactly the
+thing worth replaying. As one atomic compare-and-set the second request matches zero rows.
+Expiry is judged by the database clock, so clock drift cannot extend a link.
+
+**Asking for a new link kills the old one.** Otherwise every request leaves another live
+link in another inbox, and the oldest is the most likely to have been forwarded or caught by
+a mail scanner.
+
+#### Leak-proofing
+
+- Expired, already used, and never valid give the **identical** response, with a test
+  asserting the bodies are equal. Distinguishing them would tell a stranger which links
+  exist.
+- `forgot-password` answers the same for a registered and an unregistered address — and
+  **a mail failure is logged, never surfaced**, because a 502 there would mean "this address
+  exists".
+- A suspended account gets no reset link.
+- Resend needs a session, so it cannot be used to probe addresses.
+
+#### Decided
+
+A password reset now also confirms the email address. Following an emailed link proves
+control of the inbox, which is the same thing verification asks for; a second link would be
+ceremony. Not something the documents specify either way, so it is recorded here.
+
+#### Verified by mutation testing
+
+Eight vulnerabilities, one at a time. Seven caught immediately. **The eighth exposed a real
+gap in the tests**: dropping `requireAuth` from the resend route still returned 401, because
+`sessionUser()` throws by design — but `requireAuth` *also* rejects suspended accounts and
+`sessionUser()` does not, and nothing covered that. Added the missing test; the mutation is
+now caught.
+
+| Vulnerability | Caught |
+|---|---|
+| Token spendable twice | yes |
+| Expired token still spends | yes |
+| Raw token compared against the stored column | yes |
+| A new link leaves the old one live | yes |
+| Forgot-password reveals an unknown address | yes |
+| Mail failure reveals the address exists | yes |
+| Reset leaves old sessions alive | yes |
+| Resend does not require a session | after adding the missing test |
+
+**94 API tests**, all three workspaces typecheck.
+
+### 2026-09-21 — Log in, log out, and the CSRF guard
+
+Phase 1 is 6 of 10. Auth is usable end to end: sign up, sign out, sign back in.
+
+#### Added
+
+- **`POST /auth/login`** — verifies with argon2id, issues a session, records `last_login_at`,
+  and returns where the browser goes next per design.md §5.3 (admin to `/admin`, a learner
+  mid-onboarding back to their step, everyone else to `/app`).
+- **`POST /auth/logout`** — ends the presented session only, not every session for that
+  user, and always answers 204. Log out is not a place to tell someone whether their cookie
+  was real.
+- **`requireSameOrigin`** — the CSRF defense §6.3 asks for, on every state-changing route.
+
+#### The CSRF hole this closes
+
+CORS alone was not enough. In production the session cookie is `sameSite=none`, so browsers
+attach it to cross-site requests. A cross-origin `fetch` is stopped, because sending
+credentials cross-origin triggers a preflight our CORS refuses. **But a plain HTML form post
+is a simple request** — no preflight, cookie attached, and nothing for CORS to block. Any
+endpoint not needing a parseable JSON body would have acted on it, and `/auth/logout` takes
+no body at all.
+
+Every state-changing request now needs an `Origin` we recognise, with a same-origin
+`Referer` accepted as a fallback for the browsers that omit `Origin` on same-origin form
+posts. Routes authenticated by a shared secret rather than a cookie — the worker's
+`/internal/events` — will mount before the guard, since a non-browser caller sends no
+`Origin` at all.
+
+#### Two enumeration defenses
+
+- **A wrong password and an unknown address return the identical response.** There is a test
+  asserting the two bodies are equal, not merely that both are 401.
+- **A decoy hash.** Without one, an unknown address returns before argon2id runs and a known
+  one returns after — a timing difference wide enough to enumerate accounts. Both paths now
+  verify against a hash, so both cost the same.
+- Suspension is reported **only after the password checks out**, so it confirms nothing to
+  someone who has not already proved they hold the credentials.
+
+#### Verified by mutation testing
+
+Six vulnerabilities introduced one at a time; **every one caught**:
+
+| Vulnerability | Caught |
+|---|---|
+| CSRF guard accepts any origin | yes |
+| CSRF guard allows a missing Origin | yes |
+| Login reveals that an address is unknown | yes |
+| Login ignores suspension | yes |
+| Logout does not end the session | yes |
+| Login issues a session before checking the password | yes |
+
+**71 API tests**, all three workspaces typecheck.
+
+#### Changed
+
+- Test POSTs now go through `src/test/http.ts`, which sets `Origin` the way a browser does.
+  Without it every POST test would have been asserting against a 403 from the CSRF guard
+  rather than against the handler — the guard caught its own tests first, which is a fair
+  sign it works.
+
 ### 2026-09-20 — Sign up, and the §6.1 request middleware
 
 Phase 1 is 5 of 10. The first real endpoint, landed together with the middleware that

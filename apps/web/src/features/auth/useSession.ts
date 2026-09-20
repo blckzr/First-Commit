@@ -1,24 +1,20 @@
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { ApiError } from "../../api/client";
+import { authApi, type SessionUser } from "../../api/auth";
+
 /**
- * Session stub.
+ * The signed-in user, from the API.
  *
- * The real implementation reads the session from the Express API
- * (`GET /auth/me`), which resolves the session cookie server-side. The role
- * comes from the `users` table and never from anything the browser can set
- * (design.md §13.6).
+ * design.md §13.6: the role comes from the server and never from anything the
+ * browser can set. This asks `GET /auth/me`, which resolves the `httpOnly`
+ * session cookie — there is nothing here a page can influence.
  *
- * Until `apps/api` exists this returns a fixed user so the shells, the guards,
- * and the screens can be built and reviewed. **Nothing here is a security
- * boundary** — the API is (docs/database-schema.md §6). When this is replaced,
- * the dev override below goes with it.
+ * **The guards read this, but the guards are not the protection.** The API
+ * refuses data the session is not entitled to regardless of what renders
+ * (AGENT.md §6).
  */
 
-export type AppRole = "learner" | "admin";
-
-export interface SessionUser {
-  id: string;
-  fullName: string;
-  role: AppRole;
-}
+export type AppRole = SessionUser["role"];
 
 export interface Session {
   status: "loading" | "ready";
@@ -27,65 +23,50 @@ export interface Session {
   onboardingStep: string | null;
 }
 
-const LEARNER: SessionUser = {
-  id: "stub-learner",
-  fullName: "Jan Kevin",
-  role: "learner",
-};
-
-const ADMIN: SessionUser = {
-  id: "stub-admin",
-  fullName: "Jan Kevin",
-  role: "admin",
-};
-
-/**
- * Development-only override, so all four areas and every redirect in §4.3 can
- * be exercised without editing this file:
- *
- *   ?as=admin      an admin session
- *   ?as=learner    a learner session (the default)
- *   ?as=onboarding a learner part-way through onboarding
- *   ?as=signedout  no session
- *
- * The choice sticks in sessionStorage so it survives navigation within a tab.
- * `import.meta.env.DEV` is replaced at build time, so none of this reaches a
- * production bundle.
- */
-type DevAs = "learner" | "admin" | "onboarding" | "signedout";
-
-function devOverride(): DevAs {
-  if (!import.meta.env.DEV || typeof window === "undefined") return "learner";
-
-  const KEY = "fc:dev:as";
-  const valid: DevAs[] = ["learner", "admin", "onboarding", "signedout"];
-
-  try {
-    const fromUrl = new URLSearchParams(window.location.search).get("as");
-    if (fromUrl && (valid as string[]).includes(fromUrl)) {
-      window.sessionStorage.setItem(KEY, fromUrl);
-      return fromUrl as DevAs;
-    }
-    const stored = window.sessionStorage.getItem(KEY);
-    if (stored && (valid as string[]).includes(stored)) return stored as DevAs;
-  } catch {
-    // Private mode or blocked storage — fall through to the default.
-  }
-
-  return "learner";
-}
+export const sessionKey = ["session"] as const;
 
 export function useSession(): Session {
-  const as = devOverride();
+  const query = useQuery({
+    queryKey: sessionKey,
+    queryFn: ({ signal }) => authApi.me(signal),
+    // A signed-out visitor is a normal state, not an error to retry.
+    retry: (count, error) =>
+      error instanceof ApiError && error.isUnauthorized ? false : count < 2,
+  });
 
-  switch (as) {
-    case "admin":
-      return { status: "ready", user: ADMIN, onboardingStep: null };
-    case "onboarding":
-      return { status: "ready", user: LEARNER, onboardingStep: "placement" };
-    case "signedout":
-      return { status: "ready", user: null, onboardingStep: null };
-    default:
-      return { status: "ready", user: LEARNER, onboardingStep: null };
+  if (query.isPending) return { status: "loading", user: null, onboardingStep: null };
+
+  // 401 means signed out. Any other failure also renders as signed out rather
+  // than as a broken page — the guards then send them to /login, which is the
+  // honest thing to show when we cannot confirm who they are.
+  if (query.isError || !query.data) {
+    return { status: "ready", user: null, onboardingStep: null };
   }
+
+  return {
+    status: "ready",
+    user: query.data.user,
+    onboardingStep: query.data.onboardingStep,
+  };
+}
+
+/**
+ * Replaces the cached session after signing in or out.
+ *
+ * design.md §13.6: on log out the query cache is cleared, so the next person at
+ * the same computer sees nothing of the last one.
+ */
+export function useSessionActions() {
+  const client = useQueryClient();
+
+  return {
+    setSession(user: SessionUser, onboardingStep: string | null = null) {
+      client.setQueryData(sessionKey, { user, onboardingStep });
+    },
+    async clearSession() {
+      client.setQueryData(sessionKey, null);
+      await client.cancelQueries();
+      client.clear();
+    },
+  };
 }

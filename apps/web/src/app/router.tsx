@@ -4,6 +4,7 @@ import { RequireAdmin, RequireAuth, RequireLearner } from "./guards";
 import { LearnerShell } from "./LearnerShell";
 import { Landing } from "../routes/public/Landing";
 import { SignUp } from "../routes/public/SignUp";
+import { LogIn } from "../routes/public/LogIn";
 import { NotFound } from "../routes/public/NotFound";
 import { Home } from "../routes/learner/Home";
 import { Placeholder } from "../routes/Placeholder";
@@ -33,17 +34,7 @@ const devRoutes = import.meta.env.DEV
 const publicRoutes = [
   { path: "/", element: <Landing /> },
   { path: "/signup", element: <SignUp /> },
-  {
-    path: "/login",
-    element: (
-      <Placeholder
-        standalone
-        title="Log in"
-        section="section 5.3"
-        purpose="Returning learners and admins sign in here, and land wherever they left off."
-      />
-    ),
-  },
+  { path: "/login", element: <LogIn /> },
   {
     path: "/forgot-password",
     element: (

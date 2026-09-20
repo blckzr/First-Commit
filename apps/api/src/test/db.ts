@@ -19,14 +19,23 @@ import type { Pool } from "pg";
 
 const MIGRATION = resolve(process.cwd(), "../../supabase/migrations/0001_initial_schema.sql");
 
-/** Tables the auth endpoints touch. */
+/**
+ * Tables the endpoints under test touch. Add to this as endpoints are built —
+ * a missing table surfaces immediately as "relation does not exist", which is
+ * a clearer failure than a silently hand-written schema drifting from the real
+ * one.
+ */
 const TABLES = [
+  // Auth
   "users",
   "sessions",
   "email_verification_tokens",
   "password_reset_tokens",
   "auth_attempts",
   "learner_profiles",
+  // AI results, for the event stream
+  "ai_jobs",
+  "ai_outputs",
 ];
 
 function readMigration(): string {
