@@ -11,6 +11,170 @@ lives under `[Unreleased]` until there is something to version.
 
 ## [Unreleased]
 
+### 2026-09-20 — Sign up, and the §6.1 request middleware
+
+Phase 1 is 5 of 10. The first real endpoint, landed together with the middleware that
+protects every endpoint after it.
+
+#### Added
+
+- **`POST /auth/signup`** — argon2id (OWASP baseline parameters), then `users`,
+  `learner_profiles`, and the verification token in **one transaction**, then a session
+  cookie, then the mail. A provider outage logs and carries on: the account exists either
+  way and the learner can ask for another link.
+- **`GET /auth/me`** — the session the browser holds. This is what the web app's
+  `useSession` stub will call.
+- **Session handling** — random 256-bit tokens, SHA-256 in the database, `httpOnly`
+  cookie, expiry judged by the **database** clock so a clock difference cannot extend a
+  session. `destroyAllSessions` is there for §6.3's "clear sessions on password change".
+- **The §6.1 pipeline** — `attachSession` (step 1) on every request, `requireAuth`
+  (steps 1–2), `requireAdmin` (step 5), plus `sessionUser()` and `assertOwned()` for
+  steps 3 and 4. A learner hitting an admin route gets **404, not 403**: answering
+  "forbidden" confirms the route exists.
+- **An in-memory PostgreSQL for endpoint tests** (`src/test/db.ts`). The DDL is
+  **extracted from the real migration**, not hand-written, so a renamed column or a moved
+  constraint fails the tests. A hand-copied schema drifts silently, which is worse than no
+  schema test.
+- **39 new tests**, 52 in the API.
+
+#### Fixed
+
+- **One client could have occupied two rate-limit buckets.** Express reports an IPv4
+  caller as the IPv4-mapped IPv6 address `::ffff:127.0.0.1`, so the same client can be
+  written to `sessions.ip_address` and `auth_attempts` under two different values — and
+  §6.3's per-IP limiting counts by value. `clientIp()` now normalises both the mapped form
+  and `::1` before anything stores an address. Found because pg-mem rejected the mapped
+  form as `inet`.
+
+#### Verified by mutation testing
+
+Passing security tests prove nothing until they have failed. Five vulnerabilities were
+introduced deliberately, one at a time, and **every one was caught**:
+
+| Vulnerability | Caught |
+|---|---|
+| Session expiry not enforced | yes |
+| Suspended accounts allowed through | yes |
+| Admin route open to learners | yes |
+| Raw cookie compared against the stored hash | yes |
+| Browser able to choose its own `role` | yes |
+
+All five were reverted, and the restored code was re-checked before the suite was run
+again.
+
+#### Notes
+
+- **The bash heredoc in this environment eats backslashes**, which silently turned a test
+  helper's `\([\s\S]` into `([sS]`. That had been quietly breaking earlier work too.
+  Files containing regexes or escapes are now written with the editor rather than a
+  heredoc.
+- pg-mem is not PostgreSQL: it does not run the triggers or plpgsql functions, and its
+  planner is simpler. It proves the SQL is valid and matches the real columns. Anything
+  depending on a trigger — `prevent_log_changes`, `set_updated_at` — still needs a real
+  database, and so does the worker's `claim_next_ai_job()`.
+- `sameSite` is `"lax"` in development and `"none"` in production, and the reason it has to
+  be `"none"` is the open question in AGENT.md §11 about hosting the API at `api.<domain>`.
+  The code comment says so, so whoever changes it knows why.
+
+### 2026-09-20 — Mail module
+
+Phase 1 is 3 of 10. Every remaining auth task is now unblocked, and none of them needs a
+Brevo account to build or test.
+
+#### Added
+
+- **`src/mail/`** — one `Mailer` interface, two transports.
+  - **Console** (development): prints the message and pulls the links out so they can be
+    copied straight from the terminal. This is what makes all of
+    `docs/database-schema.md` §6.3 — hashed, expiring, single-use tokens and the rate
+    limiting around them — buildable and testable with no provider account.
+  - **Brevo** (production): posts to the transactional API with a 15s timeout.
+- **`createMailer()`** picks between them on `BREVO_API_KEY`, and **throws at boot** if a key
+  is set without `MAIL_FROM`. Failing at startup beats failing at the first sign up, by
+  which point an account exists with no way to verify it.
+- **Verification and password-reset templates**, in the §9 voice: plain, specific, no
+  exclamation marks, no "Oops". Both say the link works once and expires; the reset message
+  says plainly that ignoring it is safe and the password stays as it is.
+- The mailer is injected through `app.locals`, so no module imports a singleton and every
+  endpoint test can substitute its own.
+- **15 mail tests**, 23 in the API total.
+
+#### Notes
+
+- **One of the tests was vacuous and I only found it by trying to break it.** The check that
+  an error never contains the API key used `rejects.toThrow(expect.not.stringContaining(...))`
+  — but `toThrow()` does not accept an asymmetric matcher, so it passed whatever the message
+  said. Deliberately leaking the key into the error proved it: a *different* test caught the
+  leak while the dedicated one stayed green. Rewritten to catch the error and assert on the
+  message, and it now fails when the key leaks. A matching test covers the message body, so
+  a reset token cannot reach a log either.
+- The HTML template is deliberately plain and does not use the design tokens. Mail clients
+  strip most CSS, and a verification link that renders as unstyled text in Outlook beats one
+  that renders as a broken layout. URLs are escaped before interpolation, with a test using
+  a `<script>` payload.
+- `send()` throws and the caller decides. Sign up should log and carry on — the account
+  exists either way and the learner can ask for another link — while an explicit resend
+  should surface the failure, since silence would look like success. Written into the
+  interface docs.
+
+### 2026-09-20 — `apps/api` scaffolded
+
+Phase 1 is now 2 of 10. The API exists, boots, and has a test harness ready for the first
+real endpoint.
+
+#### Added
+
+- **`apps/api`** — Express 5 + TypeScript strict, in the workspace as `@first-commit/api`.
+  Express 5 forwards rejected promises to the error handler on its own, so handlers need no
+  async wrapper.
+- **`createApp()` separate from `index.ts`**, so tests drive the app without binding a port.
+  That is the pattern every endpoint test should follow, given AGENT.md §10's rule that no
+  endpoint ships without a test.
+- **`config.ts`** validates the environment once at import, so a missing variable fails at
+  boot with a named error instead of surfacing as an undefined inside a handler.
+- **`db.ts`** — a `pg` pool on the **connection pooler** (6543), deliberately the opposite
+  of the worker's direct connection (5432). `pg` connects lazily, so the API boots and
+  answers `/health` even with no database reachable.
+- **`/health` and `/health/db`** — liveness and readiness, split on purpose. Render's health
+  check points at `/health`, which must not touch the database: a check that fails when the
+  database blinks would have Render restart a healthy process. `/health/db` is where the
+  connection is actually reported, with a 503 when it is down.
+- **Error handling** — an `HttpError` class whose message reaches the client, and a catch-all
+  that logs the real error and answers generically, so an internal failure cannot leak a
+  query or a column name. Unknown routes return JSON, not an HTML stack.
+- **CORS for `APP_ORIGIN` with credentials**, `trust proxy`, `x-powered-by` disabled, and a
+  graceful SIGTERM shutdown that drains in-flight requests and ends the pool.
+- **8 tests** covering liveness without the database, readiness pass and fail, the JSON 404,
+  the absent framework header, and the CORS behaviour including a credentialed preflight.
+- Root script `npm run dev:api`; `npm run typecheck` now covers all three workspaces.
+
+#### Fixed
+
+- **`/health/db` reported an empty error string.** Node tries IPv6 and IPv4 in parallel, so
+  a connection failure arrives as an `AggregateError` whose own `message` is blank —
+  reporting it verbatim gave `"error": ""`, which tells an operator nothing. It now unwraps
+  the aggregate and includes the error code, e.g.
+  `ECONNREFUSED: connect ECONNREFUSED 127.0.0.1:6543`.
+
+#### Verified
+
+Booted the API against a deliberately unreachable database: `/health` answered 200 without
+touching it, `/health/db` returned 503 with a useful message, `/nope` returned JSON 404, and
+the startup log named the two unset optional secrets. All three workspaces typecheck; web
+lint clean; 8 API tests and 59 web tests pass. The temporary `.env` used for the smoke test
+was deleted afterwards.
+
+#### Notes
+
+- One test failure along the way was the test's fault, not the code's. I asserted that a
+  foreign `Origin` gets no `Access-Control-Allow-Origin` header, but `cors` returns the
+  *configured* origin rather than echoing the caller's — which is safe, because the browser
+  compares the two and blocks the read when they differ. Rewritten to assert the property
+  that matters: the header never equals a foreign origin. A credentialed preflight test was
+  added alongside it.
+- `ssl: { rejectUnauthorized: false }` is set on the pool, matching the worker, because that
+  is how Supabase connections are normally made without its root certificate.
+
 ### 2026-09-20 — Worker ported from the Supabase client to `pg`
 
 The last place where code contradicted the documentation. The repo is now internally

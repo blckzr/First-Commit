@@ -14,7 +14,9 @@ What is planned and what is done, from an empty repository to a working platform
 
 The immediate queue. Everything here is unblocked and ready to pick up.
 
-- [ ] **Scaffold `apps/api`** — Express + TypeScript, `pg` pool on the connection pooler, `/health`, `app.set("trust proxy", 1)`.
+- [ ] **Log in / log out** — reuses the session and middleware that sign up established.
+- [ ] **Email verification and password reset** — the tokens are already issued and hashed; these spend them.
+
 
 ## Decide
 
@@ -41,13 +43,13 @@ Open questions from [`../AGENT.md`](../AGENT.md) §11. Each blocks the task name
 Nothing in the learner app can be built until an account can log in.
 
 - [x] Worker on `pg` — `@supabase/supabase-js` removed, `claim_next_ai_job()` and the writes are plain SQL, `notifyApi()` added for the SSE handoff. **Not yet run against a live database.**
-- [ ] `apps/api` scaffold *(see Now)*
-- [ ] **Mail module** — one interface, a console transport for development and Brevo for production
-- [ ] **Sign up** — argon2id hash, insert `users` + `learner_profiles`, create session, send verification email
+- [x] `apps/api` scaffold — Express 5 + TS, pooled `pg`, CORS for `APP_ORIGIN` with credentials, JSON error handling, `/health` + `/health/db`, graceful shutdown, and a supertest harness (8 tests)
+- [x] **Mail module** — one interface, console transport for development, Brevo for production, plus the verification and reset templates. Injected through `app.locals`, so endpoint tests substitute their own.
+- [x] **Sign up** — `POST /auth/signup`: argon2id, `users` + `learner_profiles` + verification token in one transaction, session cookie, verification mail. Plus `GET /auth/me`.
 - [ ] **Log in / log out** — session cookie (`httpOnly`, `secure`, CSRF defense), sessions cleared on logout and password change
 - [ ] **Email verification and password reset** — hashed, expiring, single-use tokens
 - [ ] **Rate limiting** — failed logins and reset requests per email and per IP via `auth_attempts`
-- [ ] **Request middleware** — the `database-schema.md` §6.1 six steps: resolve session → reject suspended → filter by session user id → check ownership of every URL id → check role on admin routes → explicit column lists
+- [x] **Request middleware** — §6.1 steps 1, 2 and 5 as `attachSession` / `requireAuth` / `requireAdmin`; steps 3, 4 and 6 as `sessionUser()`, `assertOwned()` and the explicit-columns rule. **Mutation-tested**: five deliberate vulnerabilities, all caught.
 - [ ] **SSE** — `/events` stream per user, `/internal/events` for the worker (`WORKER_SECRET`), periodic sweep for unsent rows
 - [ ] **Security tests** — a learner cannot reach another learner's data or any admin route (`project-proposal.md` §9.2)
 - [ ] **Deploy to Render** — Singapore region, env vars, health check; point the GitHub App webhook at it
