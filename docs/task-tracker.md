@@ -14,14 +14,13 @@ What is planned and what is done, from an empty repository to a working platform
 
 The immediate queue. Everything here is unblocked and ready to pick up.
 
-- [ ] **Port `apps/worker` to `pg`** — `config.ts:22-25` (`SUPABASE_URL`/`SUPABASE_SERVICE_ROLE_KEY` → `DATABASE_URL`), `worker.ts:7-76` (`createClient` → `Pool`, `.rpc("claim_next_ai_job")` → `select * from claim_next_ai_job()`, `.from().insert()`/`.update()` → SQL), swap the dependency, rewrite `.env.example`. Code and docs disagree until this lands.
 - [ ] **Scaffold `apps/api`** — Express + TypeScript, `pg` pool on the connection pooler, `/health`, `app.set("trust proxy", 1)`.
 
 ## Decide
 
 Open questions from [`../AGENT.md`](../AGENT.md) §11. Each blocks the task named beside it.
 
-- [!] **Email provider** — blocks auth (verification and reset links). `database-schema.md` §9.3 lists no mail config. Resend free tier is 3,000/month; Brevo 300/day.
+- [x] **Email provider — Brevo.** Verifies a sender by email, so it needs no domain; 300/day free. Written into `database-schema.md` §9.1–9.3. Auth is **no longer blocked**: mail sits behind one module with a dev transport that logs the link to the console.
 - [!] **API domain** — blocks deployment. `§6.3`'s `sameSite=none` makes a third-party cookie, already blocked by Safari ITP. Hosting the API at `api.<domain>` alongside the app makes it same-site.
 - [ ] **`users.role` trigger** — defense-in-depth for the table controlling the admin surface. §5 currently relies on convention alone.
 - [ ] **Replace the substituted fonts, icons, and logo** if real brand assets exist — see [design-source.md](design-source.md) §6
@@ -41,8 +40,9 @@ Open questions from [`../AGENT.md`](../AGENT.md) §11. Each blocks the task name
 
 Nothing in the learner app can be built until an account can log in.
 
-- [ ] Worker on `pg` *(see Now)*
+- [x] Worker on `pg` — `@supabase/supabase-js` removed, `claim_next_ai_job()` and the writes are plain SQL, `notifyApi()` added for the SSE handoff. **Not yet run against a live database.**
 - [ ] `apps/api` scaffold *(see Now)*
+- [ ] **Mail module** — one interface, a console transport for development and Brevo for production
 - [ ] **Sign up** — argon2id hash, insert `users` + `learner_profiles`, create session, send verification email
 - [ ] **Log in / log out** — session cookie (`httpOnly`, `secure`, CSRF defense), sessions cleared on logout and password change
 - [ ] **Email verification and password reset** — hashed, expiring, single-use tokens
@@ -70,6 +70,7 @@ ran ahead of Phase 1.
 - [x] `AdminShell` — grouped sidebar, persistent Admin indicator, admin Overview screen, and a named placeholder for the other ten §6 screens
 - [x] Playwright — 23 tests across the four §11.4 widths, plus live-resize and 320px reflow. **92 assertions passing.**
 - [x] Dev session override (`?as=admin|learner|onboarding|signedout`), so all four areas and every §4.3 redirect can be exercised
+- [x] Named placeholders for every specified-but-unbuilt screen, so no navigation item dead-ends. Each cites the `design.md` section that specifies it.
 
 ## Phase 2 — Learner core
 

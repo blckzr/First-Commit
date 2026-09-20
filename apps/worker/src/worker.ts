@@ -1,17 +1,30 @@
 /**
- * Local AI worker. Claims jobs from Supabase one at a time, runs them on Ollama,
- * and writes results back.
+ * Local AI worker. Claims jobs from PostgreSQL one at a time, runs them on
+ * Ollama, and writes the results back.
  *
  *   npm run worker
+ *
+ * The worker only makes outgoing connections: it pulls work from the database
+ * rather than waiting to be called, so nothing on the internet needs to reach
+ * the machine with the GPU (docs/database-schema.md §1).
  */
-import { createClient } from "@supabase/supabase-js";
-import { supabaseConfig, config } from "./config.js";
+import { Pool } from "pg";
+import { dbConfig, config } from "./config.js";
 import { chatJson } from "./ollama.js";
 import { buildCodeFeedbackMessages, type CodeFeedbackInput } from "./prompts/code-feedback.js";
 import { CodeFeedback, noSolutionLeak } from "./schemas.js";
 
-const sb = supabaseConfig();
-const supabase = createClient(sb.url, sb.serviceRoleKey, { auth: { persistSession: false } });
+const db = dbConfig();
+
+const pool = new Pool({
+  connectionString: db.databaseUrl,
+  // One job at a time (docs/model-setup-guide.md §5), so one connection is
+  // all that is ever needed.
+  max: 1,
+  // Supabase requires TLS but presents a certificate this client will not
+  // chain to a local root, which is the documented way to connect.
+  ssl: { rejectUnauthorized: false },
+});
 
 interface AiJob {
   id: string;
@@ -34,16 +47,41 @@ const handlers: Record<string, Handler> = {
     });
     return { result: { attempts: r.attempts, durationMs: r.durationMs }, output: r.data };
   },
-  // Add roadmap_generation, milestone_review, resume_generation, etc. as you build them.
+  // Add roadmap_generation, milestone_review, resume_generation as you build them.
+  // Their output schemas are already in schemas.ts.
 };
 
 const MAX_JOB_ATTEMPTS = 3;
 let running = true;
 
+/**
+ * Tell the API a result is ready, so it can push it to the learner's open SSE
+ * stream (AGENT.md §3).
+ *
+ * Deliberately non-fatal: the result is already committed, and the API sweeps
+ * for unsent rows. A failure here delays an update, it does not lose one.
+ */
+async function notifyApi(job: AiJob): Promise<void> {
+  if (!db.apiUrl || !db.workerSecret) return;
+  try {
+    const res = await fetch(`${db.apiUrl}/internal/events`, {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        "x-worker-secret": db.workerSecret,
+      },
+      body: JSON.stringify({ jobId: job.id, userId: job.user_id, type: job.type }),
+      signal: AbortSignal.timeout(10_000),
+    });
+    if (!res.ok) console.warn(`  notify: API replied ${res.status}; the sweep will catch it`);
+  } catch (err) {
+    console.warn(`  notify: ${(err as Error).message}; the sweep will catch it`);
+  }
+}
+
 async function processOne(): Promise<boolean> {
-  const { data, error } = await supabase.rpc("claim_next_ai_job");
-  if (error) throw new Error(`claim_next_ai_job failed: ${error.message}`);
-  const job = (data as AiJob[] | null)?.[0];
+  const claimed = await pool.query<AiJob>("select * from claim_next_ai_job()");
+  const job = claimed.rows[0];
   if (!job) return false;
 
   const started = Date.now();
@@ -55,28 +93,29 @@ async function processOne(): Promise<boolean> {
     const { result, output } = await handler(job);
 
     if (output !== undefined && job.user_id && job.source_id) {
-      const { error: outErr } = await supabase.from("ai_outputs").insert({
-        job_id: job.id,
-        user_id: job.user_id,
-        source_type: job.type,
-        source_id: job.source_id,
-        content: output,
-      });
-      if (outErr) throw new Error(`Saving output failed: ${outErr.message}`);
+      await pool.query(
+        `insert into ai_outputs (job_id, user_id, source_type, source_id, content)
+         values ($1, $2, $3, $4, $5)`,
+        [job.id, job.user_id, job.type, job.source_id, output],
+      );
     }
 
-    await supabase
-      .from("ai_jobs")
-      .update({ status: "completed", result, model: config.model, completed_at: new Date().toISOString() })
-      .eq("id", job.id);
+    await pool.query(
+      `update ai_jobs
+          set status = 'completed', result = $1, model = $2, completed_at = now()
+        where id = $3`,
+      [result, config.model, job.id],
+    );
+
     console.log(`✓ ${job.type} ${job.id} in ${((Date.now() - started) / 1000).toFixed(1)}s`);
+    await notifyApi(job);
   } catch (err) {
     const message = (err as Error).message;
     const retry = job.attempts < MAX_JOB_ATTEMPTS;
-    await supabase
-      .from("ai_jobs")
-      .update({ status: retry ? "queued" : "failed", error: message, model: config.model })
-      .eq("id", job.id);
+    await pool.query(
+      `update ai_jobs set status = $1, error = $2, model = $3 where id = $4`,
+      [retry ? "queued" : "failed", message, config.model, job.id],
+    );
     console.error(`✕ ${job.type} ${job.id}: ${message}${retry ? " (will retry)" : ""}`);
   }
   return true;
@@ -84,15 +123,21 @@ async function processOne(): Promise<boolean> {
 
 async function main() {
   console.log(`First Commit AI worker started. Model ${config.model}, mode ${config.jsonMode}.`);
+  if (!db.apiUrl || !db.workerSecret) {
+    console.log("API_URL or WORKER_SECRET unset: results are written but not announced.");
+  }
+
   while (running) {
     try {
       const didWork = await processOne();
-      if (!didWork) await new Promise((r) => setTimeout(r, sb.pollMs));
+      if (!didWork) await new Promise((r) => setTimeout(r, db.pollMs));
     } catch (err) {
       console.error((err as Error).message);
-      await new Promise((r) => setTimeout(r, sb.pollMs * 3));
+      await new Promise((r) => setTimeout(r, db.pollMs * 3));
     }
   }
+
+  await pool.end();
   console.log("Worker stopped.");
 }
 

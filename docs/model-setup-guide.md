@@ -353,10 +353,6 @@ Run it a few times with both models. The output varies slightly each run.
 
 # 11. Connect the Worker to the Database
 
-> **Note:** the worker code in `apps/worker` still uses the Supabase client library. This
-> section describes the target state — a direct PostgreSQL connection — which the port to
-> `pg` will implement. Until then, the `.env` keys below are what the worker is moving to.
-
 1. Make sure `supabase/migrations/0001_initial_schema.sql` has been run on your database.
 2. In Supabase, go to **Project Settings > Database** and copy the connection string. Use
    the **direct connection** (port 5432) for the worker rather than the pooler, since the

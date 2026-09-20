@@ -11,6 +11,139 @@ lives under `[Unreleased]` until there is something to version.
 
 ## [Unreleased]
 
+### 2026-09-20 — Worker ported from the Supabase client to `pg`
+
+The last place where code contradicted the documentation. The repo is now internally
+consistent for the first time since the architecture changed to Express.
+
+#### Changed
+
+- **`apps/worker` no longer uses `@supabase/supabase-js`.** Dependency removed, `pg` and
+  `@types/pg` added.
+- `config.ts` — `supabaseConfig()` becomes `dbConfig()`: `SUPABASE_URL` and
+  `SUPABASE_SERVICE_ROLE_KEY` are replaced by `DATABASE_URL`, plus optional `API_URL` and
+  `WORKER_SECRET`.
+- `worker.ts` — `createClient` becomes a `Pool` capped at one connection, since the worker
+  handles one job at a time anyway. `.rpc("claim_next_ai_job")` becomes
+  `select * from claim_next_ai_job()`, and the `ai_outputs` insert and two `ai_jobs`
+  updates become parameterised SQL written against the actual column lists in the
+  migration.
+- **Added `notifyApi()`** — the `POST /internal/events` handoff the SSE decision requires.
+  It is deliberately non-fatal and optional: the result is already committed before it
+  runs, and if `API_URL`/`WORKER_SECRET` are unset, or the call fails, the worker logs it
+  and moves on. The API's sweep is the backstop, so a missed notice delays an update rather
+  than losing one. The worker says so at startup when those variables are absent.
+- `.env.example` rewritten for the direct connection (port 5432, **not** the pooler — the
+  worker holds one long-lived connection and claims inside a transaction with
+  `for update skip locked`).
+- Removed the three now-false notes saying the worker still used the Supabase client:
+  `AGENT.md` §4, `docs/model-setup-guide.md` §11, and the worker's own README.
+
+#### Verified
+
+`tsc --noEmit` clean in both workspaces; no `supabase` reference remains in worker code,
+`package.json`, or `.env.example`; a missing `DATABASE_URL` still produces the intended
+"Copy .env.example to .env and fill it in" error. Web lint clean, 59 unit tests pass.
+
+#### Notes
+
+- **Not run against a live database.** There is no Supabase project yet, so the SQL was
+  checked by reading the migration — `claim_next_ai_job()` returns `setof ai_jobs`, and the
+  `ai_outputs` insert matches its column list — rather than by executing it. First run
+  against a real database is the remaining check, and `docs/model-setup-guide.md` §11 step 5
+  has the test job to do it with.
+- `ssl: { rejectUnauthorized: false }` is set on the pool because that is how Supabase
+  connections are normally made from a client without its root certificate. Worth
+  revisiting if the database ever moves.
+
+### 2026-09-20 — Email provider decided: Brevo
+
+Closes the first of the two blocked items. **Auth is no longer blocked** — see the dev
+transport below.
+
+#### Decided
+
+- **Brevo**, over Resend, for one reason: Brevo verifies a sender by clicking a link in
+  that inbox, so it needs **no domain**. Resend without a verified domain sends from
+  `onboarding@resend.dev` and delivers **only to the account owner's address**, which would
+  make the usability testing in `project-proposal.md` §9.2 impossible. Free tier is 300 a
+  day, which is ample when the only mail sent is verification and reset links.
+- **Mail sits behind one module with two implementations** — Brevo in production, and a
+  development transport that writes the link to the console. Everything §6.3 specifies
+  (hashed, expiring, single-use tokens, and the rate limiting around them) can be built and
+  tested with no provider account, and moving to another provider later changes one file.
+
+#### Changed
+
+- `docs/database-schema.md` §9.1 lists Brevo as a part that runs somewhere; §9.2 records
+  both limits that matter; §9.3 step 5's environment list gains `BREVO_API_KEY`,
+  `MAIL_FROM`, `MAIL_FROM_NAME` — and `WORKER_SECRET`, which was also missing — with a new
+  step 6 covering Brevo setup and the transport split.
+- `AGENT.md` §4 records the decision and the reasoning; §11's open question about the email
+  provider is removed, leaving three.
+- `docs/task-tracker.md` — the email item flips from `[!]` to done, and Phase 1 gains a
+  "mail module" task ahead of sign up.
+
+#### Notes
+
+- **Deliverability is the trade.** Without a domain there is no SPF or DKIM alignment, so
+  mail from a verified personal address often lands in spam. Fine while the recipients are
+  testers who can be told to check; not fine for anything wider. Verifying a domain in
+  Brevo later fixes it without changing any code.
+- **A domain would close the remaining blocked item too.** Hosting the app at a domain and
+  the API at `api.<domain>` makes the session cookie same-site and removes the
+  `sameSite=none` problem in §11 entirely. Around $10–12 a year, and it would let the
+  provider move to Resend with proper deliverability. Recorded, not urgent.
+- Brevo's free plan has historically added its own branding to outgoing mail — worth
+  confirming before the defense, since a verification email is something a panel may see.
+
+### 2026-09-20 — Corrected AGENT.md, and made every route resolve
+
+#### Fixed
+
+- **`AGENT.md` §8 listed five design tokens that no longer exist** — `--paper`,
+  `--surface`, `--ink-muted`, `--rule`, `--action`, none of which appear in `tokens.css`.
+  It also still named Atkinson Hyperlegible as the UI face. This was drift from the
+  design-system adoption: `design.md` §3 was rewritten and `AGENT.md` was not. An agent
+  following the contract would have written `var(--action)` and produced dead CSS, and the
+  contrast gate would not have caught it because it only checks the pairs it is given.
+  §8 now names the tokens that exist and carries the lime-as-fill and control-edge rules.
+- **`AGENT.md` §4 and §5 claimed `apps/web` was not scaffolded.** Both now describe what is
+  actually built, and list which of the §13.1 libraries are still uninstalled so nobody
+  assumes TanStack Query or React Flow is already there.
+- **Two admin placeholders cited the wrong section.** `design.md` §6.4 is the Impact Preview
+  Dialog, not Capstone projects (§6.5), and Project reviews is §6.6.
+- `AGENT.md` §1 was missing `docs/design-source.md`; §5's script list was missing
+  `npm run e2e`.
+
+#### Added
+
+- **A shared `Placeholder`** at `src/routes/Placeholder.tsx`, replacing the admin-only one.
+  It takes the screen's title, the `design.md` section that specifies it, and a one-line
+  purpose drawn from that section, and renders either inside a shell or standalone.
+- **Every route the navigation offers now resolves.** Previously the six learner sidebar
+  items, `/login`, and the onboarding steps all fell through to "We couldn't find that
+  page", while admin had proper placeholders — an inconsistency that made the learner app
+  look broken during review. Added: `/login`, `/forgot-password`, `/reset-password`,
+  `/verify/:code`, the four `/onboarding/*` steps, and ten learner routes including
+  `/app/roadmap/:id`, `/app/module/:id`, and `/app/exercise/:id`.
+- **An e2e guard**, mirroring the admin one: walk every link in the learner navigation and
+  assert none lands on the not-found page. At `sm` it opens the "More" disclosure first, so
+  the three items behind it are covered too. The onboarding and signed-out redirect tests
+  now also assert the destination *renders*, not just that the URL changed.
+
+**96 Playwright assertions** across the four widths (was 92), 59 unit tests, lint clean,
+build succeeds.
+
+#### Notes
+
+- One Playwright failure was the test's fault, not the app's: it asserted at least five
+  links in the learner navigation, but at 360px there are four plus a `<details>` holding
+  the rest, and a closed disclosure has no rendered links. Rewritten to open it and assert
+  six distinct destinations at every width.
+- `/onboarding/*` renders Home for the default session. That is correct — §4.3 sends a
+  learner who has finished onboarding away from those pages. `?as=onboarding` reaches them.
+
 ### 2026-09-19 — Admin shell, and Playwright found five real layout bugs
 
 #### Added

@@ -553,6 +553,7 @@ Most logic lives in the Express backend, where it is easier to read, test, and e
 | Express API | Render, Singapore region | Free plan sleeps after 15 minutes; region cannot be changed later |
 | PostgreSQL | Supabase | Free plan pauses after a week of inactivity |
 | Files | Supabase Storage | Render's free plan has no permanent disk |
+| Transactional email | Brevo | Free plan sends 300 a day, and a sender can be verified by email without owning a domain |
 | Ollama, worker, Judge0 | Your own machine | Needs the GPU |
 
 ## 9.2 Free Plan Limits to Plan Around
@@ -566,6 +567,8 @@ Most logic lives in the Express backend, where it is easier to read, test, and e
 | Render: sleeps after 15 minutes, 30 to 60 second wake | Slow first request; a GitHub webhook can fail while waking | Warm the service before a demo, have the worker also check GitHub for new commits, or pay for a Starter service during defense month |
 | Render: 512 MB RAM, 0.1 CPU | Fine for the API; not enough for sandboxes or models | Keep Judge0 and Ollama local |
 | Render: no permanent disk on free | Files written to disk disappear on restart | Use Supabase Storage |
+| Brevo: 300 emails a day | Only verification and reset links are sent, so this is ample for testing | Nothing needed at this scale |
+| Brevo: no domain means no SPF or DKIM | Mail sent from a verified personal address often lands in spam | Tell testers to check spam, or verify a domain before the defense |
 
 ## 9.3 Setup Checklist
 
@@ -573,16 +576,19 @@ Most logic lives in the Express backend, where it is easier to read, test, and e
 2. **Run `supabase/migrations/0001_initial_schema.sql`** in the SQL Editor, or as the first migration with your migration tool (node-pg-migrate, Drizzle, or Prisma all work).
 3. **Create Storage buckets:** `lesson-media` and `certificates`, both private and served through signed URLs from the backend.
 4. **Create the Express service on Render:** connect the repository, choose the Singapore region, set the build command (`npm ci && npm run build`) and start command (`node dist/index.js`), and add a health check path such as `/health`.
-5. **Add environment variables on Render:** `DATABASE_URL`, `SESSION_SECRET`, `APP_ORIGIN` (your frontend URL), and the GitHub App id, webhook secret, and private key.
-6. **Point the GitHub App webhook** at `https://your-api.onrender.com/webhooks/github`.
-7. **Create the first admin.** Sign up through the app, then run:
+5. **Add environment variables on Render:** `DATABASE_URL`, `SESSION_SECRET`, `APP_ORIGIN` (your frontend URL), `WORKER_SECRET` (shared with the local worker, so it can report a finished job), `BREVO_API_KEY`, `MAIL_FROM`, `MAIL_FROM_NAME`, and the GitHub App id, webhook secret, and private key.
+6. **Set up Brevo.** Create an account, verify a sender address under **Senders, Domains & Dedicated IPs** (a personal address works; no domain is required), and create an API key under **SMTP & API**. Verification and password-reset links are the only mail the platform sends.
+
+   Mail goes through one module in the API with two implementations: Brevo in production, and a development transport that writes the link to the console instead of sending it. That means the whole of Section 6.3 — hashed, expiring, single-use tokens and the rate limiting around them — can be built and tested before any provider exists, and swapping to another provider later changes one file.
+7. **Point the GitHub App webhook** at `https://your-api.onrender.com/webhooks/github`.
+8. **Create the first admin.** Sign up through the app, then run:
 
    ```sql
    update users set role = 'admin', email_verified_at = now() where email = 'you@example.com';
    ```
 
-8. **Schedule housekeeping.** Run `purge_expired_auth_rows()` and `purge_processed_github_events()` daily, from a Render cron job or from the worker.
-9. **Configure the worker** with the same `DATABASE_URL` in its `.env` file, and keep that file out of Git.
+9. **Schedule housekeeping.** Run `purge_expired_auth_rows()` and `purge_processed_github_events()` daily, from a Render cron job or from the worker.
+10. **Configure the worker** with the same `DATABASE_URL` in its `.env` file, and keep that file out of Git.
 
 ## 9.4 If You Use an Auth Library
 

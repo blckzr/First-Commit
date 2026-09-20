@@ -1,0 +1,18 @@
+.title { font-size: var(--text-h1); margin-bottom: var(--space-5); }
+.body { color: var(--text-body); }
+.ref { color: var(--text-muted); font-size: var(--text-body-sm); margin-top: var(--space-3); }
+
+/* Standalone: for routes that sit outside a shell (public and onboarding). */
+.page {
+  min-height: 100vh;
+  background: var(--surface-page);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-4);
+}
+
+.card {
+  width: 100%;
+  max-width: 420px;
+}

@@ -22,6 +22,42 @@ test.describe("learner area", () => {
     await expect(adminLinks).toHaveCount(0);
   });
 
+  test("every navigation item resolves to a screen", async ({ page }) => {
+    await page.goto("/app?as=learner");
+    const nav = page.getByRole("navigation", { name: "Main" });
+    await expect(nav.getByRole("link").first()).toBeVisible();
+
+    // Below 640px the bar carries four links plus a "More" disclosure holding
+    // the rest (design.md §4.2). Open it so its links are counted too.
+    const more = nav.locator("details");
+    if (await more.count()) {
+      await more.locator("summary").click();
+      await expect(more).toHaveAttribute("open", "");
+    }
+
+    const links = nav.getByRole("link");
+    const hrefs = await links.evaluateAll((els) =>
+      els.map((e) => (e as HTMLAnchorElement).getAttribute("href")!),
+    );
+    // Six destinations either way: six in the sidebar, or four plus three in
+    // More (Home appears once).
+    expect(new Set(hrefs).size).toBeGreaterThanOrEqual(6);
+
+    for (const href of new Set(hrefs)) {
+      await page.goto(`${href}?as=learner`);
+      // A dead link falls through to the catch-all, so assert we did NOT land there.
+      await expect(
+        page.getByRole("heading", { name: /couldn't find that page/i }),
+        `${href} fell through to the not-found page`,
+      ).toHaveCount(0);
+      await expect(
+        page.getByRole("heading", { level: 1 }),
+        `${href} should render a heading`,
+      ).toBeVisible();
+      await expect(page.getByRole("navigation", { name: "Main" })).toBeVisible();
+    }
+  });
+
   test("a learner opening an admin page is sent back to /app", async ({ page }) => {
     await page.goto("/admin?as=learner");
     await expect(page).toHaveURL(/\/app$/);
@@ -76,16 +112,18 @@ test.describe("admin area", () => {
 });
 
 test.describe("onboarding guard", () => {
-  test("an unfinished learner is sent to their current step", async ({ page }) => {
+  test("an unfinished learner is sent to their current step, and it renders", async ({ page }) => {
     await page.goto("/app?as=onboarding");
     await expect(page).toHaveURL(/\/onboarding\/placement$/);
+    await expect(page.getByRole("heading", { name: "Placement", level: 1 })).toBeVisible();
   });
 });
 
 test.describe("signed out", () => {
-  test("a protected page redirects to /login", async ({ page }) => {
+  test("a protected page redirects to /login, and it renders", async ({ page }) => {
     await page.goto("/app?as=signedout");
     await expect(page).toHaveURL(/\/login$/);
+    await expect(page.getByRole("heading", { name: "Log in", level: 1 })).toBeVisible();
   });
 
   test("public pages stay reachable", async ({ page }) => {

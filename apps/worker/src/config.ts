@@ -19,10 +19,23 @@ export const config = {
   timeoutMs: Number(env("AI_TIMEOUT_MS", "120000")),
 };
 
-export function supabaseConfig() {
+/**
+ * Database and API settings.
+ *
+ * The worker uses a **direct** PostgreSQL connection (port 5432), not the
+ * pooler the API uses. It holds one long-lived connection and claims jobs
+ * inside a transaction with `for update skip locked`, which transaction
+ * pooling does not suit.
+ *
+ * `apiUrl` and `workerSecret` are optional: without them the worker still
+ * writes its results, and the API's periodic sweep picks them up. A missed
+ * notice delays an update rather than losing it.
+ */
+export function dbConfig() {
   return {
-    url: env("SUPABASE_URL"),
-    serviceRoleKey: env("SUPABASE_SERVICE_ROLE_KEY"),
+    databaseUrl: env("DATABASE_URL"),
     pollMs: Number(env("WORKER_POLL_MS", "3000")),
+    apiUrl: process.env.API_URL?.trim() || null,
+    workerSecret: process.env.WORKER_SECRET?.trim() || null,
   };
 }
