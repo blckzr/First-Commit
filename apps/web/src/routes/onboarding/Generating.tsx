@@ -1,6 +1,8 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router";
+import { useQueryClient } from "@tanstack/react-query";
 import { Button } from "../../components/core/Button";
+import { sessionKey } from "../../features/auth/useSession";
 import { useOnboarding } from "../../features/onboarding/useOnboarding";
 import { OnboardingLayout } from "./OnboardingLayout";
 import styles from "./OnboardingLayout.module.css";
@@ -12,10 +14,16 @@ import styles from "./OnboardingLayout.module.css";
  * happening and what to do if it takes long; on failure, a "Try again" that
  * does not lose the learner's answers.
  *
- * **The roadmap is not generated yet.** `roadmap_generation` is a stub in the
- * worker (AGENT.md §7, Phase 3), so the `ai_jobs` row queued by the placement
- * step sits there. This screen is built for the real thing: it polls the
- * onboarding state and moves on by itself the moment the step becomes `done`.
+ * It polls the onboarding state and leaves by itself once the step reads
+ * `done` — but **it does not navigate**. `RequireLearner` already sends a
+ * learner with no unfinished onboarding to `/app`; all this screen has to do is
+ * refresh the session so the guard can see that.
+ *
+ * That matters. An earlier version called `navigate("/app")` here as well, and
+ * the two fought: navigating changed the location, `useNavigate` returned a new
+ * identity, the effect's dependencies changed, and it navigated again —
+ * "Maximum update depth exceeded", then the browser throttling navigation to
+ * stay responsive. One place decides where a learner goes.
  *
  * Nothing here is lost by waiting or leaving — every answer is already stored
  * server-side, which is what makes "Try again" cheap.
@@ -28,6 +36,7 @@ const SLOW_AFTER_MS = 60_000;
 
 export function Generating() {
   const navigate = useNavigate();
+  const client = useQueryClient();
   const { data } = useOnboarding({ pollMs: POLL_MS });
   const [slow, setSlow] = useState(false);
 
@@ -36,10 +45,18 @@ export function Generating() {
     return () => clearTimeout(timer);
   }, []);
 
-  // The worker writes the roadmap and moves the step; the browser only reads it.
+  /**
+   * The worker writes the roadmap and moves the step; the browser only reads
+   * it. `done` means the session's `onboardingStep` is stale, so refresh it and
+   * let the guard do the redirect.
+   *
+   * `client` is stable and `data?.step` settles once, so this runs exactly
+   * once — which is the whole difference from the version that looped.
+   */
   useEffect(() => {
-    if (data?.step === "done") void navigate("/app", { replace: true });
-  }, [data?.step, navigate]);
+    if (data?.step !== "done") return;
+    void client.invalidateQueries({ queryKey: sessionKey });
+  }, [data?.step, client]);
 
   return (
     <OnboardingLayout step={3} title="Building your roadmap">

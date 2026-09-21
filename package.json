@@ -24,6 +24,7 @@
     "dev:api": "npm run dev -w @first-commit/api",
     "db:migrate": "node --env-file=apps/api/.env scripts/db.mjs migrate",
     "db:verify": "node --env-file=apps/api/.env scripts/db.mjs verify",
-    "db:seed": "node --env-file=apps/api/.env scripts/seed.mjs"
+    "db:seed": "node --env-file=apps/api/.env scripts/seed.mjs",
+    "db:accounts": "tsx --env-file=apps/api/.env scripts/accounts.mts"
   }
 }

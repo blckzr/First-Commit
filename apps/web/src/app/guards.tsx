@@ -21,7 +21,15 @@ export function RequireAuth() {
 }
 
 export function RequireLearner({ needsOnboarding = false }: { needsOnboarding?: boolean }) {
-  const { user, onboardingStep } = useSession();
+  const { status, user, onboardingStep } = useSession();
+  /**
+   * §13.6: guards render nothing while the session loads. Without this, an
+   * unloaded session looks like "no unfinished onboarding" and this redirects
+   * to `/app` before it knows anything. It is safe in the router because
+   * `RequireAuth` waits above it — but a guard that is only correct because of
+   * where it happens to sit is one move away from being wrong.
+   */
+  if (status === "loading") return <FullPageSpinner />;
   if (user?.role === "admin") return <Navigate to="/admin" replace />;
   if (!needsOnboarding && onboardingStep) {
     return <Navigate to={`/onboarding/${onboardingStep}`} replace />;
@@ -42,8 +50,10 @@ const ONBOARDING_STEPS = ["about", "target", "placement", "generating"];
  * only saves the learner from a page they cannot use.
  */
 export function RequireOnboardingStep() {
-  const { onboardingStep } = useSession();
+  const { status, onboardingStep } = useSession();
   const { pathname } = useLocation();
+
+  if (status === "loading") return <FullPageSpinner />;
 
   const asked = ONBOARDING_STEPS.indexOf(pathname.replace("/onboarding/", ""));
   const reached = ONBOARDING_STEPS.indexOf(onboardingStep ?? "");
@@ -54,8 +64,33 @@ export function RequireOnboardingStep() {
   return <Outlet />;
 }
 
+/**
+ * design.md §4.3: "Anyone signed in | `/login` or `/signup` | Sent to their own
+ * area."
+ *
+ * Without this, a signed-in learner opening the site is shown a log-in page as
+ * though they were a stranger — and can sign in as somebody else without ever
+ * signing out. The session was being held all along; nothing on the public
+ * pages was looking at it.
+ *
+ * "Their own area" is the same answer `POST /auth/login` gives in its `next`,
+ * so arriving at `/login` while signed in lands exactly where logging in would
+ * have.
+ */
+export function RedirectIfSignedIn() {
+  const { status, user, onboardingStep } = useSession();
+
+  if (status === "loading") return <FullPageSpinner />;
+  if (!user) return <Outlet />;
+  if (user.role === "admin") return <Navigate to="/admin" replace />;
+  if (onboardingStep) return <Navigate to={`/onboarding/${onboardingStep}`} replace />;
+  return <Navigate to="/app" replace />;
+}
+
 export function RequireAdmin() {
-  const { user } = useSession();
+  const { status, user } = useSession();
+  // Same reason as above: an unloaded session is not an unauthorised one.
+  if (status === "loading") return <FullPageSpinner />;
   if (user?.role !== "admin") {
     return <Navigate to="/app" replace state={{ notice: "unavailable" }} />;
   }

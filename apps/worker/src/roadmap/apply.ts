@@ -53,6 +53,19 @@ export async function applyRoadmapPlan(
       throw new Error(`Roadmap ${roadmapId} does not belong to this learner and career path`);
     }
 
+    /**
+     * A regeneration may land on a different track from the one the learner was
+     * on. If it does, their framework choice belonged to a track that is no
+     * longer on this roadmap, so it goes with it.
+     */
+    const previousTrack = await client.query<{ track_id: string | null }>(
+      `select track_id from roadmaps where id = $1`,
+      [roadmapId],
+    );
+    const trackChanged =
+      previousTrack.rows[0]?.track_id !== null &&
+      previousTrack.rows[0]?.track_id !== plan.recommendedTrackId;
+
     await client.query(
       `update roadmaps
           set track_id = $1, ai_rationale = $2, status = 'active', updated_at = now()
@@ -60,15 +73,35 @@ export async function applyRoadmapPlan(
       [plan.recommendedTrackId, plan.explanation, roadmapId],
     );
 
+    if (trackChanged) {
+      await client.query(
+        `update roadmap_technology_choices
+            set technology_id = null, chosen_at = null
+          where roadmap_id = $1`,
+        [roadmapId],
+      );
+    }
+
     /**
      * Replace what a previous generation produced, and leave alone anything the
      * learner added themselves. `roadmap_items` is a plan, not evidence — no
      * foreign key points at it, and `module_completions` is untouched — so
      * regenerating loses nothing a learner earned (§6 rule 5 protects content
      * and evidence, which this is neither).
+     *
+     * **Technology modules are kept**, unless the track itself changed. They
+     * are not this plan's to write — the learner put them there by answering
+     * the technology decision (§5.8), and that answer survives a regeneration.
+     * Deleting them left the roadmap claiming "you chose Vue" with no Vue
+     * modules on it, which is how this was found.
      */
     await client.query(
-      `delete from roadmap_items where roadmap_id = $1 and source = 'generated'`,
+      trackChanged
+        ? `delete from roadmap_items where roadmap_id = $1 and source = 'generated'`
+        : `delete from roadmap_items
+            where roadmap_id = $1
+              and source = 'generated'
+              and module_id not in (select id from modules where kind = 'technology')`,
       [roadmapId],
     );
 

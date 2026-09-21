@@ -3,7 +3,13 @@ import { screen } from "@testing-library/react";
 import { Route, Routes } from "react-router";
 import { render } from "../test/render";
 import { api, ADMIN, LEARNER } from "../test/server";
-import { RequireAdmin, RequireAuth, RequireLearner, RequireOnboardingStep } from "./guards";
+import {
+  RedirectIfSignedIn,
+  RequireAdmin,
+  RequireAuth,
+  RequireLearner,
+  RequireOnboardingStep,
+} from "./guards";
 
 /**
  * Guards decide what renders, not what data comes back (AGENT.md §6 rule 3).
@@ -81,6 +87,103 @@ describe("RequireLearner", () => {
   it("sends an unfinished learner from the app to their step", async () => {
     at("target", "/app");
     expect(await screen.findByText("page: target")).toBeInTheDocument();
+  });
+});
+
+/**
+ * §13.6: "Guards render nothing while the session loads, so protected content
+ * never flashes."
+ *
+ * Each of these is mounted **alone**, without `RequireAuth` above it. In the
+ * router that never happens — which is exactly why it is worth asserting. A
+ * guard that treats an unloaded session as an answer redirects on a null it has
+ * not earned, and `RequireLearner` did: it sent a learner mid-onboarding to
+ * `/app` before the session arrived.
+ */
+describe("every guard waits for the session", () => {
+  const alone = (guard: React.ReactElement) =>
+    render(
+      <Routes>
+        <Route element={guard}>
+          <Route path="/here" element={<p>protected</p>} />
+        </Route>
+        <Route path="/app" element={<p>page: app</p>} />
+        <Route path="/admin" element={<p>page: admin</p>} />
+        <Route path="/onboarding/about" element={<p>page: about</p>} />
+      </Routes>,
+      { route: "/here" },
+    );
+
+  it.each([
+    ["RequireLearner", <RequireLearner key="l" />],
+    ["RequireLearner needsOnboarding", <RequireLearner key="o" needsOnboarding />],
+    ["RequireAdmin", <RequireAdmin key="a" />],
+    ["RequireOnboardingStep", <RequireOnboardingStep key="s" />],
+  ])("%s redirects nowhere while loading", (_name, guard) => {
+    api.signedIn(LEARNER, "about");
+    alone(guard);
+
+    expect(screen.getByRole("status")).toBeInTheDocument();
+    expect(screen.queryByText(/^page: /)).not.toBeInTheDocument();
+    expect(screen.queryByText("protected")).not.toBeInTheDocument();
+  });
+});
+
+/**
+ * §4.3: "Anyone signed in | `/login` or `/signup` | Sent to their own area."
+ *
+ * The rule that was missing. Without it a signed-in learner opening the site is
+ * shown a log-in page as though they were a stranger, and can sign in as
+ * somebody else without ever signing out — which reads as "the site does not
+ * hold my session", when it was holding it all along.
+ */
+describe("RedirectIfSignedIn", () => {
+  const atLogin = () =>
+    render(
+      <Routes>
+        <Route element={<RedirectIfSignedIn />}>
+          <Route path="/login" element={<p>page: login</p>} />
+        </Route>
+        <Route path="/app" element={<p>page: app</p>} />
+        <Route path="/admin" element={<p>page: admin</p>} />
+        {ONBOARDING.map((step) => (
+          <Route key={step} path={`/onboarding/${step}`} element={<p>page: {step}</p>} />
+        ))}
+      </Routes>,
+      { route: "/login" },
+    );
+
+  it("sends a signed-in learner to the app", async () => {
+    api.signedIn(LEARNER, null);
+    atLogin();
+    expect(await screen.findByText("page: app")).toBeInTheDocument();
+  });
+
+  /** Their own area is where they stopped, not a generic landing. */
+  it("sends a learner mid-onboarding back to their step", async () => {
+    api.signedIn(LEARNER, "target");
+    atLogin();
+    expect(await screen.findByText("page: target")).toBeInTheDocument();
+  });
+
+  it("sends a signed-in admin to the admin area", async () => {
+    api.signedIn(ADMIN, null);
+    atLogin();
+    expect(await screen.findByText("page: admin")).toBeInTheDocument();
+  });
+
+  /** And it still lets the people who need it through. */
+  it("shows the page to a signed-out visitor", async () => {
+    api.signedOut();
+    atLogin();
+    expect(await screen.findByText("page: login")).toBeInTheDocument();
+  });
+
+  it("shows nothing while the session loads", () => {
+    api.signedIn(LEARNER, null);
+    atLogin();
+    expect(screen.getByRole("status")).toBeInTheDocument();
+    expect(screen.queryByText("page: login")).not.toBeInTheDocument();
   });
 });
 

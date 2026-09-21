@@ -1,6 +1,12 @@
 import { lazy, Suspense } from "react";
 import { createBrowserRouter } from "react-router";
-import { RequireAdmin, RequireAuth, RequireLearner, RequireOnboardingStep } from "./guards";
+import {
+  RedirectIfSignedIn,
+  RequireAdmin,
+  RequireAuth,
+  RequireLearner,
+  RequireOnboardingStep,
+} from "./guards";
 import { LearnerShell } from "./LearnerShell";
 import { Landing } from "../routes/public/Landing";
 import { SignUp } from "../routes/public/SignUp";
@@ -40,11 +46,22 @@ const devRoutes = import.meta.env.DEV
   ? [{ path: "/dev/components", element: <Gallery /> }]
   : [];
 
+/**
+ * §4.3: "Anyone signed in | `/login` or `/signup` | Sent to their own area."
+ *
+ * Only these two. Password reset stays reachable while signed in — §5.3's reset
+ * clears every session, so someone using it has a reason to, and bouncing them
+ * away from it would be the wrong moment to be clever.
+ */
+const signedOutOnlyRoutes = [
+  { path: "/signup", element: <SignUp /> },
+  { path: "/login", element: <LogIn /> },
+];
+
 /** Public, outside every shell (design.md §5.3). */
 const publicRoutes = [
   { path: "/", element: <Landing /> },
-  { path: "/signup", element: <SignUp /> },
-  { path: "/login", element: <LogIn /> },
+  { element: <RedirectIfSignedIn />, children: signedOutOnlyRoutes },
   { path: "/forgot-password", element: <ForgotPassword /> },
   { path: "/reset-password", element: <ResetPassword /> },
   {
@@ -77,7 +94,7 @@ const learnerRoutes = [
   // roadmap because the answer belongs to a roadmap, not to the track — the
   // same decision on two roadmaps is two separate choices.
   { path: "roadmap/:id/technology/:decisionId", element: <TechnologyChoice /> },
-  { path: "modules", title: "Explore modules", section: "section 5.13", purpose: "Search and take any published module, inside a roadmap or not." },
+  { path: "explore", title: "Explore modules", section: "section 5.13", purpose: "Search and take any published module, inside a roadmap or not." },
   { path: "module/:id", element: <Module /> },
   // §4.3 has no address for the quiz; §5.10 specifies the screen. Recorded in
   // docs/task-tracker.md alongside the technology choice, which has the same gap.

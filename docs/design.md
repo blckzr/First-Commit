@@ -384,8 +384,14 @@ The platform is three separate areas. A learner never sees admin screens, and an
 |---|---|---|---|
 | **Public** | `/`, `/signup`, `/login`, `/forgot-password`, `/reset-password`, `/verify/:code` | Anyone, signed in or not | Plain page, no app navigation |
 | **Onboarding** | `/onboarding/about`, `/target`, `/placement`, `/generating` | Signed-in learners who have not finished onboarding | Step indicator only, no app navigation |
-| **Learner app** | `/app`, `/app/roadmaps`, `/app/roadmap/:id`, `/app/module/:id`, `/app/exercise/:id`, `/app/explore`, `/app/capstone`, `/app/certificates`, `/app/resume`, `/app/notifications`, `/app/settings` | Signed-in learners who finished onboarding | Learner shell: sidebar or bottom navigation |
+| **Learner app** | `/app`, `/app/roadmaps`, `/app/roadmap/:id`, `/app/roadmap/:id/technology/:decisionId`, `/app/module/:id`, `/app/quiz/:id`, `/app/exercise/:id`, `/app/explore`, `/app/capstone`, `/app/certificates`, `/app/resume`, `/app/notifications`, `/app/settings` | Signed-in learners who finished onboarding | Learner shell: sidebar or bottom navigation |
 | **Admin app** | `/admin`, `/admin/paths`, `/admin/modules`, `/admin/briefs`, `/admin/reviews`, `/admin/certificates`, `/admin/flags`, `/admin/analytics`, `/admin/users`, `/admin/settings`, `/admin/log` | Signed-in admins only | Admin shell: grouped sidebar and "Admin" indicator |
+
+**Two of those addresses are new.** §5.8's technology choice is nested under the roadmap —
+`/app/roadmap/:id/technology/:decisionId` — because the *answer* belongs to a roadmap, not
+to the track: `roadmap_technology_choices` is keyed on both, so the same decision on two of
+a learner's roadmaps is two separate choices. §5.10's quiz is `/app/quiz/:id`, keyed by
+assessment, because a module version can carry more than one.
 
 ### Redirect Rules
 
@@ -396,7 +402,7 @@ The platform is three separate areas. A learner never sees admin screens, and an
 | Signed-in learner, onboarding unfinished | Any `/app` page | Sent to their current onboarding step |
 | Signed-in learner, onboarding finished | Any `/onboarding` page | Sent to `/app` |
 | Admin | `/app/...` or `/onboarding/...` | Sent to `/admin` |
-| Anyone signed in | `/login` or `/signup` | Sent to their own area |
+| Anyone signed in | `/login` or `/signup` | Sent to their own area — `/admin`, their unfinished onboarding step, or `/app`. Password reset stays reachable: §5.3's reset clears every session, so someone using it has a reason to. |
 
 ### Rules That Keep the Areas Apart
 
@@ -560,6 +566,24 @@ Each step is its own page and its own address. Answers are saved when the learne
 ```
 
 Placement is introduced with: "This short check helps us skip what you already know."
+
+**What "skip" can actually mean.** A skipped module is one the roadmap leaves out — it is
+**not** a pass, and no `module_completions` row is written from a placement result (the
+backend rule in `database-schema.md` §6). Two consequences follow, and both are enforced
+when the Roadmap AI's output is validated:
+
+- A module **required for the certificate** can never be skipped, or the certificate would
+  quietly become unreachable.
+- A module **another roadmap module requires** can never be skipped, or that module would
+  never unlock.
+
+So placement narrows and orders the roadmap; the only thing that really removes a module
+from a learner's path is **testing out of it**, which produces evidence. The copy should
+promise no more than that.
+
+> Placement questions themselves are **not specified**: there is no question table, and
+> `placement_results.results` is free-form `jsonb`. Until that is settled the screen offers
+> only the skip this section already requires be available.
 
 **Rules for the onboarding flow**
 
@@ -1385,18 +1409,19 @@ Components marked **built** exist in `apps/web/src/components`; the rest are spe
 | **SearchField** *(built)* | — | The one input the system shapes as a pill |
 | **ProgressBar** *(built)* | Light, onDark | Always paired with text ("6 of 16 passed") |
 | **CodeBlock** *(built)* | — | Read-only code display. The editable exercise surface is CodeMirror 6. |
+| **LessonBody** *(built)* | paragraph, heading, list, code, callout | Renders `LessonContent` (§13.3) with an exhaustive `switch`, so a new block type is a compile error. Every string is a text node — nothing a lesson author writes can reach the DOM as markup. |
 | **StepIndicator** *(built)* | — | Used only for true sequences |
-| **Roadmap canvas** | Learner (read-only), admin (editable) | Pan, zoom, fit; opens at current module |
-| **Skill node** | Core, concept, complete, in progress, locked | 2px `ink` border, `h3` text; concept skills show "(concept)" |
-| **Module node** | Passed, tested out, current, available, locked, update available, archived | Icon and status text inside node; technology modules show a technology badge |
-| **Adaptive node** | Reinforcement, challenge | Smaller dashed node with "Practice" or "Challenge" label |
-| **Decision node** | Unchosen, chosen | Double border; shows the options, or the chosen technology |
-| **Milestone node** | Certificate of Completion, capstone, Project Certificate | Wide node at the end of the main path |
-| **Connector** | Main path (solid 2px `ink`), branch (dashed 1px `rule`) | |
-| **Node side panel** | One per node type (Section 5.7) | Raised; slides in from the right on wide screens, up from the bottom on narrow screens |
-| **Technology badge** | One per technology option | Small label with the technology name; never color alone |
-| **Option card** | Technology option, project brief | Comparison details, optional "Recommended" label, primary choose action |
-| **AI panel** | Roadmap rationale, technology recommendation, code feedback, milestone review, resume text | `ai` left border, "AI" label, flag control |
+| **Roadmap canvas** *(built, learner)* | Learner (read-only), admin (editable) | Pan, zoom, fit. The canvas is `aria-hidden`; the nested list §12 requires is the real structure, and both read the same `Roadmap` object. Admin editing is not built. |
+| **Skill node** *(built)* | Core, concept, complete, in progress, locked | Ink surface with the skill's progress ("2 of 3") |
+| **Module node** *(built)* | Passed, tested out, current, available, locked, update available, archived | Icon and status text inside the node; a coloured left edge reinforces but never carries the status alone |
+| **Adaptive node** *(built)* | Reinforcement, challenge | Labelled "Extra practice" or "Challenge", with the AI's reason in the side panel |
+| **Decision node** *(built)* | Unchosen, chosen | Heavier control-grade border; shows the options, or the chosen technology |
+| **Milestone node** *(built)* | Certificate of Completion, capstone, Project Certificate | Wide node at the end of the main path. Status comes from `certificates`; issuance itself is Phase 4. |
+| **Connector** *(built)* | Main path (solid 2px), branch (dashed 1px) | Positions come from `features/roadmap/layout.ts`, not a layout library |
+| **Node side panel** *(built)* | One per node type (Section 5.7) | Slides in from the right on wide screens, up from the bottom on narrow. Focus moves to its heading and returns to the node on close. Reinforcement "Remove" and challenge "Skip" are disabled — both change the roadmap and need an endpoint. |
+| **Technology badge** *(built)* | One per technology option | Small label with the technology name; never colour alone |
+| **Option card** *(built, technology)* | Technology option, project brief | Comparison details, an optional "Recommended" label in words, and a primary choose action. Project briefs are Phase 4. |
+| **AI panel** *(built, technology choice)* | Roadmap rationale, technology recommendation, code feedback, milestone review, resume text | `ai` tint, "AI" label, flag control. The flag control is disabled until `ai_feedback_flags` has an endpoint. |
 | **Check result row** | Passed, failed, running | Icon, check name, detail; used for milestone checks |
 | **Commit row** | Latest push, push history | Short commit ID in `code`, message, relative time |
 | **Certificate card** | Earned, locked | Type, path, issue date, ID, and actions; locked version shows what's needed |
@@ -1634,7 +1659,7 @@ Target: **WCAG 2.2 Level AA**.
 | Server state | TanStack Query | Caching, loading and error states for API calls |
 | Forms and validation | React Hook Form with Zod | Zod schemas also validate API responses, including AI output |
 | Roadmap chart | React Flow (`@xyflow/react`) | Custom node components; pan and zoom; editable mode for admins |
-| Chart layout | elkjs or dagre | Computes node positions from skills, modules, and prerequisites |
+| Chart layout | Written, not a library | The roadmap is a fixed spine with a known number of children per step, not a general graph, so `features/roadmap/layout.ts` computes it directly — synchronously, so no frame has every node at the origin, and purely, so the positions are testable without a DOM. elkjs or dagre would still suit the admin editor's free-form prerequisite graph. |
 | Code editor | CodeMirror 6 | Works better than Monaco on touch devices and small screens |
 | React and Vue exercises | Sandpack (or similar in-browser bundler) | Runs framework exercises, tests, and live previews in the browser |
 | QR codes | A QR code library (e.g., qrcode.react) | Certificate verification links |

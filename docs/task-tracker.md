@@ -14,7 +14,9 @@ What is planned and what is done, from an empty repository to a working platform
 
 The immediate queue. Everything here is unblocked and ready to pick up.
 
-- [~] **Create the Supabase project**, put the connection string in `apps/api/.env`, then `npm run db:migrate` and `npm run db:verify`. Tooling is ready; the project itself needs the author's login. This closes the gap where nothing has ever run against a real database.
+- [x] **Supabase project created**, migrated and verified. `npm run db:seed` loads the curriculum and `npm run db:accounts` creates the sign-in accounts.
+- [ ] **Replace the placeholder `SESSION_SECRET` in `apps/api/.env`.** It is the literal instruction text rather than a value. `required()` only checks for non-empty, so the API boots and sessions work — but the signing secret is a publicly known string. Generate one with `node -e "console.log(crypto.randomBytes(32).toString('hex'))"`. (`apps/api/.env` also lists `APP_ORIGIN` twice; harmless, but worth tidying.)
+- [ ] **`config.ts` accepts a placeholder as a secret.** `SESSION_SECRET` passing validation as `<node -e "...">` is the kind of thing that reaches production. A length check, and a refusal on anything starting with `<`, would cost two lines.
 
 - [ ] **Security tests** — `project-proposal.md` §9.2 names these as a deliverable. Much is already covered; what is missing is a learner reaching another learner's data, which needs a second endpoint to test against.
 
@@ -25,11 +27,13 @@ The immediate queue. Everything here is unblocked and ready to pick up.
 
 Open questions from [`../AGENT.md`](../AGENT.md) §11. Each blocks the task named beside it.
 
+- [ ] **Does Landing redirect a signed-in visitor?** §4.3 sends them away from `/login` and `/signup`, and says nothing about `/`. Showing a signed-in learner a "Log in" button is what made the session look broken. Recommendation: keep the page, swap the call to action for "Go to your roadmap".
+
 - [x] **Email provider — Brevo.** Verifies a sender by email, so it needs no domain; 300/day free. Written into `database-schema.md` §9.1–9.3. Auth is **no longer blocked**: mail sits behind one module with a dev transport that logs the link to the console.
 - [!] **API domain** — blocks deployment. `§6.3`'s `sameSite=none` makes a third-party cookie, already blocked by Safari ITP. Hosting the API at `api.<domain>` alongside the app makes it same-site.
 - [ ] **`users.role` trigger** — defense-in-depth for the table controlling the admin surface. §5 currently relies on convention alone.
 - [ ] **Replace the substituted fonts, icons, and logo** if real brand assets exist — see [design-source.md](design-source.md) §6
-- [ ] **Document the SSE trigger** — the decision (worker POSTs `/internal/events`, API sweeps as backstop) is not yet written into `database-schema.md` §8.2, §8.3, or the §9.3 environment list.
+- [x] **SSE trigger documented** — `database-schema.md` §8.4 now describes the whole path, and §8.1–8.3 point at it.
 
 ---
 
@@ -94,12 +98,12 @@ The main loop: sign up → roadmap → learn → pass.
   - [ ] **§5.5 Roadmap Review does not exist.** Onboarding currently ends at `/app`, skipping the review the document specifies ("Track [ Frontend ▾ ]", "Adjust weekly hours", "Start learning")
 - [x] **Roadmap chart** — React Flow, custom nodes, side panel, the `sm` stacked layout, keyboard navigation and nested-list DOM equivalent. Built on the `Roadmap` type from `design.md` §13.3 against mock data
   - [x] **Fetch a real roadmap** — `GET /roadmaps/:id` builds the §13.3 object from the database; the screen no longer holds mock data
-  - [ ] **§4.3 has no address for the technology choice screen** even though §5.8 specifies it, and none for the quiz although §5.10 specifies it. `/app/roadmap/:id/technology/:decisionId` and `/app/quiz/:id` are the router's choices; settle both in §4.3
+  - [x] ~~§4.3 has no address for the technology choice or the quiz~~ — both are in the route map now, with the reason each is shaped that way
   - [ ] **`pathColor` has no column.** §13.3 has it, `career_paths` does not, so the API derives it from the path id. Either §13.3 drops it or the schema gains it
   - [ ] **`RoadmapModuleNode` has no description**, but §5.7 says the side panel shows one. Add it to §13.3 or drop it from §5.7
   - [ ] **`sharedWithPaths` holds ids, and §2.1 renders names** ("Also in: Data"). The panel says "1 other career path" until the type carries a title
   - [ ] Reinforcement "Remove" and challenge "Skip" are disabled — both change the roadmap, so both need an endpoint
-  - [ ] `/app/modules` in the router vs `/app/explore` in §4.3 — pick one
+  - [x] ~~`/app/modules` vs `/app/explore`~~ — the router moved to `/app/explore`, which is what §4.3 says
 - [x] **Module page, lesson reading, lesson progress** — `GET /modules/:id`, `POST /modules/:id/start`, `POST /lessons/:id/complete`. §5.9's lesson list, 720px reading column, both version notices, and test-out. The open lesson is in the URL
 - [x] **Quiz — server-side grading, attempts, test-out** — `GET /assessments/:id` (questions, never the key) and `POST /assessments/:id/attempts` (chosen options only). **The first place the platform writes evidence**; mutation-tested with four deliberate defects
   - [ ] §5.10: "After a second failed attempt, the Roadmap AI may add a reinforcement module, and the result screen says so." The `roadmap_adaptation` job type exists in the enum; nothing queues it
@@ -123,8 +127,12 @@ The main loop: sign up → roadmap → learn → pass.
   - [x] **Lesson format settled** — a block list, written into `design.md` §13.3 as `LessonContent`. Five block types, and `text` is plain except for backticks marking inline code, so nothing in a lesson can inject markup. 9 lessons seeded for the three modules with quizzes
   - [ ] This replaces an admin content editor, which is still unbuilt
 - [x] **`roadmap_generation`** — handler, prompt, validation against real module IDs, prerequisite order, full core coverage; reject and regenerate on invalid. 24 tests on the validator
-  - [ ] **Not yet run against the model.** Ollama was not running, so the catalogue query, the validator and the writes are verified against real PostgreSQL (`npm run try:roadmap -- <userId> <slug> --stub`) but the prompt has never been sent. Start Ollama and run it without `--stub`
-  - [ ] **Placement can barely skip anything**, by design: skipping writes no evidence, so a skipped module cannot be required for the certificate *and* cannot be a prerequisite of anything on the roadmap. Only testing out really skips a module. Worth saying plainly in §5.4, which currently reads as though placement removes modules
+  - [x] **Run against the model.** Three runs on qwen3.5:4b: **one attempt each**, 7.5–8s warm, all chose Frontend with an explanation tied to the learner's stated goal. The prompt measures ~2,400 tokens of the 8,192 context, so there is room for the answer and retries
+  - [ ] **`apps/worker` has no database test harness**, so `catalogue.ts` and `apply.ts` are only ever checked against the real database by hand. `apps/api/src/test/db.ts` builds pg-mem from the real migration; moving it to `packages/` would let the worker use it too
+  - [x] **`AI_JSON_MODE` measured on this machine** — all three modes 5/5 valid, 5/5 first try on qwen3.5:4b. `think_off_schema` 1.1s, `prompt_only` 1.0s, `think_on_schema` 12.5s. Schema mode is reliable here, so `think_off_schema` stands
+  - [ ] Evaluation harness (`project-proposal.md` §9, `model-setup-guide.md` §12) — three runs is a sanity check, not a measurement
+  - [~] `apps/worker/.env` exists. Its `DATABASE_URL` points at `db.<project-ref>.supabase.co`, which is **IPv6-only** and unreachable here — use the **session pooler** instead: the API's string with 6543 changed to 5432
+  - [x] ~~§5.4 reads as though placement removes modules~~ — it now states the two rules the validator enforces, and that only testing out really skips a module
   - [ ] `weeklySchedule` was removed from `RoadmapPlan` — nothing stored it, and §5.5's "about 14 weeks" is arithmetic the platform does
 - [ ] **Roadmap review screen** — AI rationale panel, track override, weekly hours, flag control
 - [x] **Technology decision** — comparison, switching, and the AI panel when there is a recommendation to show. `GET`/`POST /roadmaps/:id/decisions/:decisionId`; choosing adds that framework's modules to the roadmap, switching archives the old ones. 23 API tests, 23 screen tests

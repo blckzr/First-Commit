@@ -514,8 +514,8 @@ Most logic lives in the Express backend, where it is easier to read, test, and e
 1. `POST /auth/signup` hashes the password, inserts `users` and `learner_profiles`, creates a session, and sends a verification email.
 2. Each onboarding page posts its answers; the backend updates `learner_profiles` and moves `onboarding_step` forward.
 3. After placement, the backend stores `placement_results` and inserts an `ai_jobs` row of type `roadmap_generation`.
-4. The worker claims the job, sends the career path structure and learner data to Ollama, validates the JSON, and inserts `roadmaps`, `roadmap_items`, and empty `roadmap_technology_choices`.
-5. The generating page receives the finished roadmap through server-sent events (or by polling) and moves to roadmap review.
+4. The worker claims the job, sends the career path structure and learner data to Ollama, validates the JSON against the real module ids and prerequisite order, and fills in `roadmaps`, `roadmap_items`, and empty `roadmap_technology_choices`. It also moves `onboarding_step` to `done` in the same transaction — a roadmap and a learner who can see it arrive together or not at all.
+5. The generating page learns the roadmap is ready by **server-sent events** (§8.4), and polls `GET /onboarding` as a backstop. It does not redirect itself: when the step reads `done` it refreshes the session, and the route guard sends the learner on.
 
 ## 8.2 Coding Exercise
 
@@ -523,7 +523,7 @@ Most logic lives in the Express backend, where it is easier to read, test, and e
 2. The worker picks it up and runs the tests on the server: Judge0 for JavaScript and Python, and a Node test runner (for example, Vitest with jsdom) for React and Vue. It writes `test_results` and `passed`. The in-browser sandbox is used for instant "Run tests" practice, but only server results count, since browser results could be tampered with.
 3. The worker inserts a `code_feedback` job, generates feedback, and writes an `ai_outputs` row.
 4. If every assessment in the module is passed, the worker inserts `module_completions`.
-5. The backend pushes results and feedback to the exercise screen through server-sent events.
+5. The backend pushes results and feedback to the exercise screen through **server-sent events** (§8.4).
 
 ## 8.3 Capstone Push
 
@@ -531,10 +531,29 @@ Most logic lives in the Express backend, where it is easier to read, test, and e
 2. The backend records `project_commits` and creates a `milestone_attempts` row with status `checking`.
 3. When the GitHub Actions workflow finishes, a second webhook updates `check_results`. If the service was asleep and a delivery failed, the worker's periodic commit check catches it.
 4. The worker runs any remaining checks (deployment link), creates a `milestone_review` job on the diff, and writes the review to `ai_outputs`.
-5. The attempt becomes `complete` or `failed`; the milestone tracker updates through server-sent events.
+5. The attempt becomes `complete` or `failed`; the milestone tracker updates through **server-sent events** (§8.4).
 6. The worker evaluates integrity signals (for example, commit size) and inserts `integrity_flags` when needed.
 
-## 8.4 Certificate Issuance
+## 8.4 How a Result Reaches the Browser
+
+The flows above all end "through server-sent events". This is the mechanism, which the rest
+of this document previously left unstated.
+
+1. The browser holds an open `GET /events` stream, authenticated by the session cookie and
+   scoped to that user. It reconnects with `Last-Event-ID`, so a dropped connection resumes
+   rather than losing what it missed.
+2. When the worker finishes a job it posts to **`POST /internal/events`** with a shared
+   `WORKER_SECRET`, compared in constant time. That is the only thing on the API the worker
+   ever calls.
+3. The API pushes the event down that learner's open stream.
+4. **The API also sweeps for unsent rows every 10 seconds.** A failed post therefore delays
+   an update rather than losing one, which is why the worker treats the post as non-fatal
+   and why `WORKER_SECRET` is optional in development.
+
+`LISTEN`/`NOTIFY` is deliberately **not** used: it does not work through Supabase's
+connection pooler, which the API connects on.
+
+## 8.5 Certificate Issuance
 
 1. After a completion or completed milestone, the backend checks the certificate requirements itself.
 2. If met, it inserts `certificates` with a generated `public_code` and a snapshot of the learner's name.
@@ -572,7 +591,7 @@ Most logic lives in the Express backend, where it is easier to read, test, and e
 
 ## 9.3 Setup Checklist
 
-1. **Create the Supabase project** in the region nearest your users, and copy the connection string from **Project Settings > Database**. Use the connection pooler string (port 6543) for the API, since Render restarts often and pooling avoids exhausting connections.
+1. **Create the Supabase project** in the region nearest your users, and copy the connection string from **Project Settings > Database**. Use the **transaction pooler** string (port 6543) for the API, since Render restarts often and pooling avoids exhausting connections. The local AI worker uses the **session pooler** instead — the same host on port **5432** — because it is one long-lived process holding one connection, and that keeps it out of the transaction pool the API shares. Transaction mode works for its queries too, so 6543 is a usable fallback. Do not use `db.<project-ref>.supabase.co` for either: it resolves over IPv6 only, so an IPv4-only machine cannot reach it.
 2. **Apply the migrations.** From the repo root, with `apps/api/.env` filled in:
 
    ```powershell

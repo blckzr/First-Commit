@@ -44,6 +44,21 @@ export const api = {
       http.get(`${BASE}/auth/me`, () => HttpResponse.json({ user, onboardingStep })),
     );
   },
+  /**
+   * The session as the worker changes it underneath: the first read still says
+   * the learner is mid-onboarding, every read after it says they are finished.
+   * Refreshing the session is the only way to see the difference.
+   */
+  sessionFinishesOnboarding(user: SessionUser = LEARNER, step = "generating") {
+    const calls = { n: 0 };
+    server.use(
+      http.get(`${BASE}/auth/me`, () => {
+        calls.n += 1;
+        return HttpResponse.json({ user, onboardingStep: calls.n === 1 ? step : null });
+      }),
+    );
+    return calls;
+  },
   signedOut() {
     server.use(
       http.get(`${BASE}/auth/me`, () =>

@@ -354,13 +354,23 @@ Run it a few times with both models. The output varies slightly each run.
 # 11. Connect the Worker to the Database
 
 1. Make sure `supabase/migrations/0001_initial_schema.sql` has been run on your database.
-2. In Supabase, go to **Project Settings > Database** and copy the connection string. Use
-   the **direct connection** (port 5432) for the worker rather than the pooler, since the
-   worker holds one long-lived connection and claims jobs inside a transaction.
+2. In Supabase, go to **Project Settings > Database** and copy a connection string. The
+   worker needs **session mode**, because it is one long-lived process holding one
+   connection and claiming jobs inside a transaction — the API's transaction pooler (6543)
+   is for many short-lived clients.
+
+   On Supabase that is the **pooler host on port 5432**: the same string the API uses with
+   6543 changed to 5432. Copy it rather than retyping, so you keep the
+   `postgres.<project-ref>` username the pooler needs.
+
+   > **Not `db.<project-ref>.supabase.co`.** That host publishes an AAAA record and no A
+   > record, so on an IPv4-only machine it fails with `ENOTFOUND` and no amount of retrying
+   > helps. Both pooler ports resolve over IPv4.
+
 3. Fill in the database section of `.env`:
 
    ```ini
-   DATABASE_URL=postgresql://postgres:<password>@<host>:5432/postgres
+   DATABASE_URL=postgresql://postgres.<project-ref>:<password>@<region>.pooler.supabase.com:5432/postgres
    WORKER_POLL_MS=3000
    # Where the worker posts "a result is ready" so the API can push it over SSE
    API_URL=https://your-api.onrender.com
@@ -414,7 +424,18 @@ Run it a few times with both models. The output varies slightly each run.
   fails, the worker retries and the API's periodic sweep picks the row up anyway, so a
   missed notice only delays the update.
 - Press `Ctrl + C` to stop. It finishes the current job first.
-- Only `code_feedback` is implemented. Add handlers for `roadmap_generation`, `milestone_review`, and `resume_generation` in `src/worker.ts` as you build those features. Their output schemas are already in `src/schemas.ts`.
+- `code_feedback` and `roadmap_generation` are implemented. Add handlers for
+  `technology_recommendation`, `roadmap_adaptation`, `milestone_review` and
+  `resume_generation` in `src/worker.ts` as you build those features; their output schemas
+  are already in `src/schemas.ts`.
+- **Try the Roadmap AI on its own**: `npm run try:roadmap -- <userId> <careerPathSlug>`.
+  Add `stub` as a third argument to skip Ollama and exercise the catalogue query, the
+  validator and the writes with no GPU. It is a positional, not a flag — npm strips unknown
+  `--flags` in a nested workspace run, so a `--stub` would silently call the model anyway.
+- **Prompts register themselves.** On startup the worker writes each prompt into
+  `ai_prompts` and records the version on every job it runs, so an evaluation result maps to
+  an exact prompt. It **refuses to start** if the stored text for a version differs from the
+  code — bump `PROMPT_VERSION` instead of editing a published prompt.
 
 **Keeping the worker running during a demo:** Open Ollama and start the worker before the presentation, send one test job to load the model into memory, and set `OLLAMA_KEEP_ALIVE=-1` so the model isn't unloaded while you talk.
 
@@ -453,6 +474,8 @@ Keep prompts versioned in the `ai_prompts` table so your evaluation results matc
 | `Model output was invalid after 3 attempts` | Prompt or schema too complex for the model | Simplify the schema, lower temperature, shorten the prompt, or try 9B |
 | Hints contain code | Model ignoring the no-solution rule | `noSolutionLeak` retries automatically; strengthen the prompt if it happens often |
 | `Ollama did not respond within 120000 ms` | Very long prompt, or model running on CPU | Check `ollama ps`; raise `AI_TIMEOUT_MS` only after fixing GPU placement |
-| `claim_next_ai_job failed` | Schema not run, or a wrong or pooled connection string | Run `supabase/migrations/0001_initial_schema.sql`; use the direct connection string (port 5432) in `DATABASE_URL` |
+| `claim_next_ai_job failed` | Schema not run, or the wrong connection string | Run `supabase/migrations/0001_initial_schema.sql`; use the pooler host on port **5432** (session mode) in `DATABASE_URL` |
+| `getaddrinfo ENOTFOUND db.<ref>.supabase.co` | That host is IPv6-only and your machine has no routable IPv6 address | Use the pooler host on port 5432 instead — see §11 |
+| `The stored … prompt version N differs from the code` | A published prompt was edited in place | Bump `PROMPT_VERSION` in the prompt module; never change a version that has already run jobs |
 | Worker saves nothing to `ai_outputs` | Job has no `user_id` or `source_id` | Always create jobs with both |
 | Out-of-memory errors | Another app is using VRAM | Close it, or set `OLLAMA_GPU_OVERHEAD` to reserve memory for the desktop |

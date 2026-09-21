@@ -22,10 +22,16 @@ export const config = {
 /**
  * Database and API settings.
  *
- * The worker uses a **direct** PostgreSQL connection (port 5432), not the
- * pooler the API uses. It holds one long-lived connection and claims jobs
- * inside a transaction with `for update skip locked`, which transaction
- * pooling does not suit.
+ * The worker uses **session mode** (port 5432), not the transaction pooler the
+ * API uses (6543). It is one long-lived process holding one connection, which
+ * is what session mode is for; transaction mode suits many short-lived clients,
+ * which is the API on Render. Both work — Supavisor keeps prepared statements
+ * in transaction mode — but a process that never disconnects should not be
+ * competing for the pool the API shares.
+ *
+ * On Supabase, session mode is still the **pooler host**, on 5432. The true
+ * direct host, `db.<project-ref>.supabase.co`, is IPv6-only: an IPv4-only
+ * machine gets ENOTFOUND and no amount of retrying helps.
  *
  * `apiUrl` and `workerSecret` are optional: without them the worker still
  * writes its results, and the API's periodic sweep picks them up. A missed

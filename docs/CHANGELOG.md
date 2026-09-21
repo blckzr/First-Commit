@@ -11,6 +11,231 @@ lives under `[Unreleased]` until there is something to version.
 
 ## [Unreleased]
 
+### 2026-09-22 — The documents catch up with the code
+
+A sweep across every document, closing the gaps that had accumulated while the learner path
+was being built. Nothing here changes behaviour except one route rename.
+
+#### Changed
+
+- **`README.md`** said "Nothing has run against a real database yet" and "Phase 1 is 9 of
+  10". Both had been false for days. It now carries a phase table, the full first-run
+  sequence including `db:seed` and `db:accounts`, and the three terminals needed to run the
+  thing.
+- **`design.md` §4.3** gained the three routes that exist and were not in the map:
+  `/app/roadmap/:id/technology/:decisionId`, `/app/quiz/:id`, and the reason each is shaped
+  that way. The signed-in redirect row now names where "their own area" is.
+- **`design.md` §5.4** claimed placement skips what a learner already knows. It cannot:
+  skipping writes no evidence, so a skipped module can be neither required for the
+  certificate nor a prerequisite of anything on the roadmap. Only testing out really
+  removes a module. The section says so now, with the two rules the validator enforces.
+- **`design.md` §7** marks the twelve roadmap, technology and lesson components as built,
+  and `LessonBody` was missing from the table entirely.
+- **`design.md` §13.1** listed "elkjs or dagre" for chart layout. The layout is written —
+  a fixed spine is not a general graph — and the table now says why, and where a solver
+  would still suit.
+- **`database-schema.md` §8.4 is new**: how a result actually reaches the browser. The
+  flows in §8.1–8.3 all ended "through server-sent events" and nothing said how the API
+  learned a row had been written. It was decided long ago (the worker posts to
+  `/internal/events`, the API sweeps every 10 seconds) and never written down.
+- **`model-setup-guide.md` §11** told you to use a "direct connection (port 5432)", which
+  on Supabase is IPv6-only and unreachable from an IPv4 machine. It now explains session
+  mode, and three new troubleshooting rows cover `ENOTFOUND`, the pooler port, and the
+  prompt-version refusal.
+- **`AGENT.md` §11** — the SSE question is struck through as settled and pointed at its new
+  section; four new ones replace it, each found by building something that needed an answer.
+- **`/app/modules` renamed to `/app/explore`.** §4.3 said `explore` and the router said
+  `modules`. Docs are authoritative and the screen is a placeholder, so the router moved.
+
+#### Notes
+
+- A link check across all eight documents: every internal reference resolves.
+- `project-proposal.md` is still written as an academic study — "Proponent(s)", an adviser,
+  a defense, an evaluation plan on ISO/IEC 25010. It is the author's own document and was
+  left alone, as flagged when the project stopped being a thesis.
+
+### 2026-09-22 — The site never checked whether you were already signed in
+
+Reported as "the website doesn't hold the session — all I need is to reset the website to
+log in to another account." The session was being held correctly the whole time: the cookie
+persists for 30 days, `httpOnly`, `SameSite=Lax`, and `GET /auth/me` returns the user on
+every request. **Nothing on the public pages was looking at it.**
+
+#### Added
+
+- **`RedirectIfSignedIn` on `/login` and `/signup`** — design.md §4.3's last redirect rule,
+  "Anyone signed in | `/login` or `/signup` | Sent to their own area", which had never been
+  built. A signed-in learner opening the site was shown a log-in page as though they were a
+  stranger, and could sign in as somebody else without ever signing out.
+  - "Their own area" is the same answer `POST /auth/login` gives in its `next`: `/admin`
+    for an admin, the unfinished onboarding step for a learner mid-flow, `/app` otherwise.
+  - Password reset stays reachable while signed in. §5.3's reset clears every session, so
+    someone using it has a reason to, and bouncing them away would be the wrong moment to
+    be clever.
+  - 5 tests.
+- **`npm run db:accounts -- reset`** puts the development learners back to their first day:
+  roadmaps, completions, enrolments, lesson progress, quiz attempts, placement results, AI
+  jobs and outputs all removed, and the profile back to the `about` step.
+  - It deletes real evidence, which §6 rule 5 forbids anywhere near a learner who earned
+    it. That is why it lives only here, behind the production refusal, and why nothing in
+    the API can do it.
+  - `certificates` and `capstone_projects` hold `on delete restrict` references to a
+    roadmap, so they are cleared first or the delete is refused.
+  - `reset` is a positional, not a flag, for the same reason `stub` is: npm strips unknown
+    `--flags` in a nested workspace run, and a silently ignored `--reset` would be a delete
+    that looked like it happened and did not.
+
+#### Notes
+
+- Landing (`/`) still shows the marketing page to a signed-in visitor, because §4.3 names
+  only `/login` and `/signup`. Whether it should say "Go to your roadmap" instead of
+  "Log in" is recorded as a decision rather than made here.
+
+### 2026-09-21 — Two redirects fighting over the same learner
+
+The generating screen worked, but the browser console said "Maximum update depth exceeded"
+and then "Throttling navigation to prevent the browser from hanging", with a 500 on
+`/home` in the middle of the storm. Reported from a real run, not from a test.
+
+#### Fixed
+
+- **`Generating` and `RequireLearner` were both redirecting to `/app`.** The screen called
+  `navigate("/app")` when the step reached `done`; navigating changed the location,
+  `useNavigate` returned a new identity, the effect's dependencies changed, and it
+  navigated again — a loop, on top of the guard's own redirect.
+  - The screen navigates nowhere now. `done` means the session's `onboardingStep` is
+    stale, so it refreshes the session and lets the guard — which already owns that
+    decision — do the one redirect. Polling also stops at `done`, so nothing is in flight
+    while the redirect happens.
+  - The `/home` 500 was a symptom: the loop hammered the endpoint. It does not reproduce,
+    and `buildHome` returns cleanly for both learners with roadmaps.
+- **The inner guards redirected before the session had loaded.** `RequireLearner`,
+  `RequireAdmin` and `RequireOnboardingStep` all read a not-yet-loaded session as an
+  answer: `onboardingStep` is null before it arrives, which `RequireLearner needsOnboarding`
+  read as "onboarding is finished" and redirected on. They were only correct because
+  `RequireAuth` waits above them in the router — §13.6 says guards render nothing while the
+  session loads, and now each one does that on its own.
+  - Found by writing the test for the first bug: mounting `Generating` under its real guard
+    made the guard redirect instantly, before `/auth/me` had returned.
+  - Four tests now mount each guard **alone**, which the router never does, precisely
+    because that is where the assumption hides.
+
+#### Notes
+
+- The test for the first fix mounts the screen and the guard **together**, since the bug was
+  the two of them disagreeing — neither in isolation was wrong. The session handler changes
+  its answer between calls, the way the worker changes it underneath a real learner.
+- Both defects were re-introduced afterwards and both failed the suite.
+
+### 2026-09-21 — The worker's connection string was impossible on Supabase
+
+`apps/worker/.env.example`, `AGENT.md` §4 and `config.ts` all told you to use a "direct
+PostgreSQL connection (port 5432, not the pooler)". On Supabase that host is
+`db.<project-ref>.supabase.co`, which **publishes an AAAA record and no A record** — so on
+an IPv4-only machine it fails with `ENOTFOUND` and no amount of retrying helps. Confirmed:
+the host resolves only to IPv6, and this machine has no routable IPv6 address.
+
+#### Changed
+
+- The worker's requirement is **session mode**, not "direct" — it holds one long-lived
+  connection and claims jobs with `for update skip locked` inside a transaction. On
+  Supabase that is the **pooler host on port 5432**: the same string the API uses with 6543
+  changed to 5432.
+- Corrected in `apps/worker/.env.example`, `apps/worker/src/config.ts`, `AGENT.md` §4 and
+  `docs/database-schema.md` §9.3, each saying why rather than just naming a port.
+- Verified against the session pooler: it connects over IPv4, `claim_next_ai_job()` runs
+  with `for update skip locked` inside a transaction, and a named prepared statement is
+  reused — the three things transaction pooling would break.
+
+### 2026-09-21 — The Roadmap AI, run for the first time
+
+Written days ago, validated against real PostgreSQL, and never actually asked anything. It
+works: **three runs on qwen3.5:4b, one attempt each, 7.5–8s warm**, all choosing Frontend
+with an explanation tied to the learner's stated goal. The catalogue is presented in an
+already-valid order precisely so a lazy answer is still correct, and one attempt every time
+is that design paying off.
+
+Measured while I was there: the prompt is ~2,400 tokens of the 8,192 context, leaving
+~5,800 for the answer and any retry turns. Context was a risk; it is not one.
+
+#### Fixed
+
+- **`npm run check` recommended dropping a safety layer.** It ranked the JSON modes by
+  validity, then first-try, then **speed** — and on this machine all three scored 5/5, so
+  `prompt_only` won by 0.1s. That mode sends no schema at all: the model is merely asked
+  for JSON and Zod is the only thing behind it. AGENT.md §7 is explicit that both layers
+  stay and that this check exists to measure *whether schema mode is reliable here*, not
+  which mode is quickest. Schema modes now win a tie, and the output says why. It
+  recommends `think_off_schema` — which is what the worker was already using.
+- **Regenerating a roadmap stranded the technology choice.** `applyRoadmapPlan` deleted
+  every `source = 'generated'` item, including the framework modules the learner put there
+  by answering §5.8 — leaving a roadmap that said "you chose Vue" with **zero Vue modules
+  on it**. Found by running the thing rather than by reading it.
+  - Technology modules now survive a regeneration. They are not the plan's to write.
+  - Unless the regenerated plan lands on a **different track**, in which case the choice
+    belonged to a track no longer on this roadmap, so the choice and its modules go with
+    it and the learner picks again.
+  - Verified against real PostgreSQL: choose React → 2 modules; regenerate same track →
+    still React, still 2; regenerate onto Backend → choice cleared, modules gone.
+- **`npm run try:roadmap -- … --stub` silently called the model.** npm strips unknown
+  `--flags` in a nested workspace run, so the argument never reached the script — a flag
+  whose entire purpose is "do not use the GPU" quietly used it. It is a positional now
+  (`… junior-web-developer stub`); `--stub` still works when running the file directly.
+
+#### Notes
+
+- **`npm run check`, run for the first time** (AGENT.md §7: "decided by `npm run check` on
+  this machine, not by assumption"). On qwen3.5:4b, all three modes returned 5/5 valid on
+  the first try; `think_off_schema` averaged 1.1s, `prompt_only` 1.0s, and
+  `think_on_schema` 12.5s. Schema mode is reliable here, so both layers stay.
+- `apps/worker` has no database test harness, so `apply.ts` and `catalogue.ts` are checked
+  against the real database by hand rather than by a test. `apps/api/src/test/db.ts`
+  already builds pg-mem from the real migration; moving it to `packages/` would let the
+  worker use it. Recorded in the tracker.
+- Three runs is a sanity check, not the §9 evaluation harness.
+
+### 2026-09-21 — Accounts you can actually sign in with
+
+There were two accounts in the development database and neither could log in: both had
+placeholder password hashes (`x` and `not-a-real-hash`) left behind by the verification and
+pipeline checks. Sign-up always creates a learner, so there was also no way to reach
+`/admin` at all.
+
+#### Added
+
+- **`npm run db:accounts`** — creates `admin@firstcommit.test`,
+  `learner@firstcommit.test` and `student@firstcommit.test`, all active and email-verified,
+  sharing one development password (`--password` overrides it).
+  - **This is the sanctioned way to make an admin.** AGENT.md §6 rule 8: "No endpoint
+    updates `users.role`. The first admin is set by running SQL directly."
+  - It hashes with the API's own `hashPassword`, not a copy — so the accounts authenticate
+    through the real argon2id path, and tuning those parameters later cannot leave them
+    unloggable. Verified: the right password returns true, a wrong one false.
+  - Two learners on purpose, so "learner A cannot see learner B's data" can be tried by
+    hand as well as in a test.
+  - It **refuses to run when `NODE_ENV=production`**, and asks before writing to a remote
+    database that has not declared itself as development. Known-password accounts are
+    exactly what must never reach a deployment.
+  - Idempotent, and it clears the account's sessions so a re-run is a clean slate.
+
+#### Fixed
+
+- **The API never loaded its `.env`.** `apps/api` has no dotenv and its dev script was
+  plain `tsx watch src/index.ts`, so `npm run dev:api` would have failed on
+  `DATABASE_URL` — the endpoint tests inject a pool and never noticed. Now
+  `tsx watch --env-file-if-exists=.env`, so a missing file still gives config's named
+  error rather than an ENOENT.
+
+#### Notes
+
+- Verified by hand against the running API: `POST /auth/login` returns 200 with an
+  `httpOnly` `SameSite=Lax` session cookie, the admin's `next` is `/admin` and the fresh
+  learner's is `/onboarding/about`, and a wrong password gives §6.3's non-leaking
+  "Email or password is incorrect."
+- **`SESSION_SECRET` is still the placeholder text** in `apps/api/.env`. `required()` only
+  checks for non-empty, so the API boots and sessions work — with a publicly known signing
+  secret. Both the value and the missing validation are recorded in the tracker.
+
 ### 2026-09-21 — The roadmap becomes finishable
 
 Every generated roadmap has a technology decision on it, and the screen behind it was a

@@ -1,7 +1,9 @@
 import { describe, expect, it, vi } from "vitest";
 import { screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { Route, Routes } from "react-router";
 import { render } from "../../test/render";
+import { RequireLearner } from "../../app/guards";
 import { api } from "../../test/server";
 import { expectNoAxeViolations } from "../../test/axe";
 import { About } from "./About";
@@ -191,6 +193,23 @@ describe("Placement", () => {
   });
 });
 
+/**
+ * Mounted under the real guard, because the bug this covers was the two of them
+ * disagreeing — the screen navigating to `/app` while `RequireLearner` was
+ * redirecting there too.
+ */
+function underGuard() {
+  return render(
+    <Routes>
+      <Route element={<RequireLearner needsOnboarding />}>
+        <Route path="/onboarding/generating" element={<Generating />} />
+      </Route>
+      <Route path="/app" element={<p>the app</p>} />
+    </Routes>,
+    { route: "/onboarding/generating" },
+  );
+}
+
 describe("Generating", () => {
   it("explains the wait and that leaving is safe", async () => {
     api.onboarding({ step: "generating", careerPathId: PATH.id });
@@ -214,14 +233,40 @@ describe("Generating", () => {
   });
 
   /**
-   * The worker moves the step; the browser only reads it. `done` is the API
-   * saying onboarding is over, so the screen leaves on its own.
+   * The worker moves the step; the browser only reads it.
+   *
+   * `done` means the session's `onboardingStep` is stale, so the screen
+   * refreshes it and `RequireLearner` does the redirect. **It must not navigate
+   * itself** — two redirects fighting is what produced "Maximum update depth
+   * exceeded" and made the browser throttle navigation.
    */
-  it("moves to the app once the roadmap is ready", async () => {
+  it("refreshes the session, and the guard does the redirect", async () => {
+    const calls = api.sessionFinishesOnboarding();
     api.onboarding({ step: "done", careerPathId: PATH.id });
-    render(<Generating />, { route: "/onboarding/generating" });
+    underGuard();
 
-    await waitFor(() => expect(navigate).toHaveBeenCalledWith("/app", { replace: true }));
+    expect(await screen.findByText("the app")).toBeInTheDocument();
+    // Fetched on mount, then again because the screen invalidated it.
+    expect(calls.n).toBeGreaterThan(1);
+    // The screen itself navigates nowhere. Two redirects fighting is the bug.
+    expect(navigate).not.toHaveBeenCalled();
+  });
+
+  /**
+   * And it settles. The loop this replaced produced "Maximum update depth
+   * exceeded" and made the browser throttle navigation, so the assertion that
+   * matters is that the requests stop.
+   */
+  it("stops asking once it has its answer", async () => {
+    const calls = api.sessionFinishesOnboarding();
+    api.onboarding({ step: "done", careerPathId: PATH.id });
+    underGuard();
+
+    await screen.findByText("the app");
+    const settled = calls.n;
+    await new Promise((r) => setTimeout(r, 400));
+
+    expect(calls.n).toBe(settled);
   });
 
   it("offers Try again only once the wait is long", async () => {

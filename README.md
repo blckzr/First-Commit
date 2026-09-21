@@ -70,22 +70,45 @@ npm run worker        # process jobs from the database
 Create a Supabase project, put its connection string in `apps/api/.env`, then:
 
 ```powershell
-npm run db:migrate   # applies supabase/migrations in order, once each
-npm run db:verify    # proves the functions and triggers actually run
-npm run dev:api      # /health/db should now answer 200
+npm run db:migrate    # applies supabase/migrations in order, once each
+npm run db:verify     # proves the functions and triggers actually run
+npm run db:seed       # loads the Junior Web Developer curriculum
+npm run db:accounts   # creates the development sign-in accounts
 ```
 
-The rest — storage buckets, Render, the first admin — is in
+`db:seed` loads `supabase/seed/` — a career path, 2 tracks, 8 skills, 19 modules with
+prerequisites, 9 lessons and 3 quizzes. Until the admin content editor exists, that
+directory is what "an admin defined" means, and the loader validates it (prerequisite
+cycles, dangling references, answer keys out of range) before writing anything.
+
+`db:accounts` is **the only sanctioned way to make an admin** — no endpoint updates
+`users.role` (AGENT.md §6 rule 8), and sign-up always creates a learner. It also takes
+`reset` to put the development learners back to their first day.
+
+The rest — storage buckets, Render — is in
 [`docs/database-schema.md`](docs/database-schema.md) §9.3.
+
+### Running it
+
+Three terminals:
+
+```powershell
+npm run dev:api   # Express on :4000
+npm run dev       # Vite on :5173
+npm run worker    # claims AI jobs; needs Ollama running
+```
+
+Sign in at `http://localhost:5173/login` with an account from `db:accounts`.
 
 ### Environment
 
 | Variable | Used by | What it is |
 |---|---|---|
-| `DATABASE_URL` | API, worker | Connection string. The API uses the pooler (6543); the worker uses a direct connection (5432). |
+| `DATABASE_URL` | API, worker | Connection string. The API uses the **transaction pooler** (6543); the worker uses **session mode** (5432). On Supabase both are the pooler host — not `db.<project-ref>.supabase.co`, which is IPv6-only. |
 | `SESSION_SECRET` | API | Signs session cookies |
 | `APP_ORIGIN` | API | The frontend's URL, for CORS and cookies |
-| `WORKER_SECRET` | API, worker | Shared secret so the worker can tell the API a result is ready |
+| `WORKER_SECRET`, `API_URL` | API, worker | Shared secret and address so the worker can tell the API a result is ready. Optional — without them results are still written, and the API's periodic sweep finds them a few seconds later. |
+| `AI_MODEL`, `AI_JSON_MODE`, `AI_CONTEXT` | worker | Which model, which JSON mode, how much context. `AI_JSON_MODE` is decided by `npm run check` **on your machine**, not by assumption. |
 | GitHub App id, webhook secret, private key | API | Capstone tracking |
 | `BREVO_API_KEY`, `MAIL_FROM`, `MAIL_FROM_NAME` | API | Brevo, for verification and reset links. Leave the key unset in development and links are logged to the console instead. |
 
@@ -94,23 +117,29 @@ The rest — storage buckets, Render, the first admin — is in
 
 ## Status
 
-**Phase 1 (backend foundation) is 9 of 10.** The API has sign up, log in and out, email
-verification, password reset, rate limiting, the §6.1 request middleware, and server-sent
-events — every security-critical path mutation-tested. The worker runs on `pg`. The web app
-has the design system, both shells, and Landing, Sign up, Log in and Home wired to the real
-API.
+**The learner path runs end to end**, against a live database: sign up → verify → log in →
+onboarding → the Roadmap AI plans a roadmap → the roadmap chart → a module → lessons → a
+quiz → passing moves "You are here" and unlocks what is next → the technology decision adds
+that framework's modules.
 
-**Phase 2 (learner core) has started**: the data layer is in and auth works end to end in
-the browser.
+| Phase | State |
+|---|---|
+| **0 — Foundation** | Done |
+| **1 — Backend** | Auth, sessions, rate limiting, the §6.1 middleware and SSE, every security-critical path mutation-tested. Remaining: the §9.2 security tests, and Render (blocked on the API domain decision in [`AGENT.md`](AGENT.md) §11) |
+| **1.5 — Design system** | Done. Tokens plus 15 components, both shells, a contrast gate that reads `tokens.css` from disk |
+| **2 — Learner core** | Home, onboarding, roadmap chart, module page, quiz and the technology choice all on the real API. Remaining: the coding exercise, My roadmaps, Explore, Settings, Notifications |
+| **3 — AI components** | `code_feedback` and `roadmap_generation` work. `technology_recommendation`, `roadmap_adaptation`, `milestone_review` and `resume_generation` are stubs with schemas written |
+| **4 — Capstone, certificates** | Not started |
+| **5 — Resume, admin** | Not started. Admin Overview is the last screen still on mock data |
 
-Remaining in Phase 1: the §9.2 security tests, and deploying to Render — which is blocked on
-the API domain decision in [`AGENT.md`](AGENT.md) §11.
+Roughly 530 tests: the API's run against an in-memory PostgreSQL built from the real
+migration, the web's against the API stubbed at the network boundary, plus 152 Playwright
+tests at the four widths §11.4 names. **Security-critical code is mutation-tested** —
+introduce the vulnerability, confirm a test catches it, revert — which has repeatedly found
+tests that were asserting the wrong thing.
 
-> **Nothing has run against a real database yet.** The API's tests use an in-memory
-> PostgreSQL and the web tests stub the API, so the two contracts are asserted independently
-> but never against each other. Creating the Supabase project is the outstanding check.
-
-See [`docs/task-tracker.md`](docs/task-tracker.md) for what is next.
+See [`docs/task-tracker.md`](docs/task-tracker.md) for what is next, and
+[`docs/CHANGELOG.md`](docs/CHANGELOG.md) for what happened.
 
 ---
 

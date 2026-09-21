@@ -16,7 +16,7 @@ interface NavItem {
 const SIDEBAR: NavItem[] = [
   { to: "/app", label: "Home", icon: "circle-dot" },
   { to: "/app/roadmaps", label: "Roadmaps", icon: "wrench" },
-  { to: "/app/modules", label: "Explore", icon: "search" },
+  { to: "/app/explore", label: "Explore", icon: "search" },
   { to: "/app/capstone", label: "Capstone", icon: "lock", locked: true },
   { to: "/app/resume", label: "Resume", icon: "user" },
   { to: "/app/certificates", label: "Certificates", icon: "award" },
@@ -37,7 +37,7 @@ const BOTTOM: NavItem[] = [
 ];
 
 const MORE: NavItem[] = [
-  { to: "/app/modules", label: "Explore modules", icon: "search" },
+  { to: "/app/explore", label: "Explore modules", icon: "search" },
   { to: "/app/certificates", label: "Certificates", icon: "award" },
   { to: "/app/settings", label: "Settings", icon: "settings" },
 ];

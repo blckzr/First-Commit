@@ -2,9 +2,15 @@
  * Generates one roadmap against the real database.
  *
  *   npm run try:roadmap -- <userId> <careerPathSlug>
- *   npm run try:roadmap -- <userId> <careerPathSlug> --stub
+ *   npm run try:roadmap -- <userId> <careerPathSlug> stub
  *
- * `--stub` skips Ollama and uses the catalogue's own prerequisite-respecting
+ * `stub` is a positional, not a flag, because **npm eats unknown `--flags`** in
+ * a nested workspace run: `npm run try:roadmap -- a b --stub` reaches the
+ * script as `a b`. A silently ignored flag is worse than none — this one would
+ * have quietly called the model when you asked it not to. `--stub` still works
+ * when running the file directly with tsx.
+ *
+ * Stubbing skips Ollama and uses the catalogue's own prerequisite-respecting
  * order as the plan. That is not a test of the model — it is a test of
  * everything around it: the catalogue query, the validator, and the writes. It
  * runs with no GPU, which is what makes the database half of this checkable
@@ -22,11 +28,12 @@ import { eligibleModules, loadCatalogue, type CatalogueModule } from "../roadmap
 import { estimateWeeks, validateRoadmapPlan } from "../roadmap/validate.js";
 import { applyRoadmapPlan } from "../roadmap/apply.js";
 
-const [userId, pathSlug] = process.argv.slice(2).filter((a) => !a.startsWith("--"));
-const stub = process.argv.includes("--stub");
+const positional = process.argv.slice(2).filter((a) => !a.startsWith("--"));
+const [userId, pathSlug] = positional;
+const stub = process.argv.includes("--stub") || positional[2] === "stub";
 
 if (!userId || !pathSlug) {
-  console.error("Usage: npm run try:roadmap -- <userId> <careerPathSlug> [--stub]");
+  console.error("Usage: npm run try:roadmap -- <userId> <careerPathSlug> [stub]");
   process.exit(1);
 }
 
@@ -73,7 +80,7 @@ try {
         `This roadmap was built without the model, so this text is a stand-in. ` +
         `It covers the ${track.title} track in prerequisite order.`,
     };
-    console.log(`\n  --stub: using the catalogue order on ${track.title}`);
+    console.log(`\n  stub: using the catalogue order on ${track.title}, no model call`);
   } else {
     console.log(`\n  Asking the model...`);
     const response = await chatJson({

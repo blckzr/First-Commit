@@ -18,6 +18,9 @@ export function useOnboarding({ pollMs }: { pollMs?: number } = {}) {
     queryKey: onboardingKey,
     queryFn: ({ signal }) => onboardingApi.state(signal),
     staleTime: 0,
-    refetchInterval: pollMs,
+    // Stop polling the moment the answer arrives, so nothing is in flight
+    // while the guard redirects away.
+    refetchInterval: (query) =>
+      pollMs && query.state.data?.step !== "done" ? pollMs : false,
   });
 }
