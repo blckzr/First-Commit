@@ -36,6 +36,9 @@ const TABLES = [
   // AI results, for the event stream
   "ai_jobs",
   "ai_outputs",
+  // Onboarding
+  "career_paths",
+  "placement_results",
 ];
 
 function readMigration(): string {

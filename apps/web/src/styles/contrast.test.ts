@@ -76,6 +76,17 @@ const PAIRS: [fg: string, bg: string, label: string, need: number][] = [
   ["--border-accent", "--surface-card", "lime button edge on a card", AA_UI],
   ["--border-accent", "--surface-page", "lime button edge on the page", AA_UI],
   ["--border-accent", "--progress-track", "progress fill edge on its track", AA_UI],
+
+  // Added with the roadmap: the AI reason panel, the milestone node's soft
+  // surface, the skill node's ink surface, and the decision node's edge.
+  ["--text-body", "--ai-tint", "AI reason text on its tint", AA_TEXT],
+  ["--text-strong", "--surface-card-soft", "milestone node title", AA_TEXT],
+  // --text-muted measures 4.44:1 on --surface-card-soft, just under AA, so the
+  // milestone node uses --text-body for its meta line instead.
+  ["--text-muted", "--surface-inset", "muted text on an inset (node hover)", AA_TEXT],
+  ["--text-on-dark", "--surface-card-dark", "skill node title", AA_TEXT],
+  ["--text-on-dark-muted", "--surface-card-dark", "skill node progress", AA_TEXT],
+  ["--border-control-strong", "--surface-card", "decision node edge", AA_UI],
 ];
 
 describe("contrast utilities", () => {

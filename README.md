@@ -16,8 +16,8 @@ and learner code never leaves the project's own machine.
 ```
 docs/                  The specification, task tracker, and changelog
 supabase/migrations/   Database schema (PostgreSQL)
-apps/api/              Express API (not scaffolded yet)
-apps/web/              React + TypeScript app (not scaffolded yet)
+apps/api/              Express API: sessions, auth, rate limiting, SSE
+apps/web/              React + TypeScript app
 apps/worker/           Local AI worker: job queue → Ollama → validated JSON
 packages/              Reserved for shared types
 AGENT.md               Working contract for AI agents on this project
@@ -65,9 +65,17 @@ npm run try:feedback  # try the Code Review AI on a sample exercise
 npm run worker        # process jobs from the database
 ```
 
-Database setup — creating the project, applying
-[`supabase/migrations/0001_initial_schema.sql`](supabase/migrations/0001_initial_schema.sql),
-creating storage buckets, deploying the API to Render, and making the first admin — is in
+### Database
+
+Create a Supabase project, put its connection string in `apps/api/.env`, then:
+
+```powershell
+npm run db:migrate   # applies supabase/migrations in order, once each
+npm run db:verify    # proves the functions and triggers actually run
+npm run dev:api      # /health/db should now answer 200
+```
+
+The rest — storage buckets, Render, the first admin — is in
 [`docs/database-schema.md`](docs/database-schema.md) §9.3.
 
 ### Environment
@@ -79,23 +87,31 @@ creating storage buckets, deploying the API to Render, and making the first admi
 | `APP_ORIGIN` | API | The frontend's URL, for CORS and cookies |
 | `WORKER_SECRET` | API, worker | Shared secret so the worker can tell the API a result is ready |
 | GitHub App id, webhook secret, private key | API | Capstone tracking |
-| Email provider key | API | Verification and password-reset links (provider not yet chosen — see `AGENT.md` §11) |
+| `BREVO_API_KEY`, `MAIL_FROM`, `MAIL_FROM_NAME` | API | Brevo, for verification and reset links. Leave the key unset in development and links are logged to the console instead. |
 
 > **Never commit `.env`.** The connection string and secrets belong to the API and the
 > worker only, never to the React app.
 
 ## Status
 
-Planning documents and the database schema are complete. The AI worker implements the Code
-Review AI (`code_feedback`); the roadmap, milestone review, and resume job types are stubs
-with their output schemas already defined — and the worker still uses the Supabase client
-library, so porting it to `pg` is the next task. The Express API and the React app have not
-been scaffolded yet.
+**Phase 1 (backend foundation) is 9 of 10.** The API has sign up, log in and out, email
+verification, password reset, rate limiting, the §6.1 request middleware, and server-sent
+events — every security-critical path mutation-tested. The worker runs on `pg`. The web app
+has the design system, both shells, and Landing, Sign up, Log in and Home wired to the real
+API.
 
-Next up is porting the worker to `pg`, then scaffolding the API and the web app — see
-[`docs/task-tracker.md`](docs/task-tracker.md). Four open questions in the specification
-are tracked in [`AGENT.md`](AGENT.md) §11 and in the tracker's "Decide" section.
+**Phase 2 (learner core) has started**: the data layer is in and auth works end to end in
+the browser.
+
+Remaining in Phase 1: the §9.2 security tests, and deploying to Render — which is blocked on
+the API domain decision in [`AGENT.md`](AGENT.md) §11.
+
+> **Nothing has run against a real database yet.** The API's tests use an in-memory
+> PostgreSQL and the web tests stub the API, so the two contracts are asserted independently
+> but never against each other. Creating the Supabase project is the outstanding check.
+
+See [`docs/task-tracker.md`](docs/task-tracker.md) for what is next.
 
 ---
 
-Undergraduate thesis project.
+A personal project.

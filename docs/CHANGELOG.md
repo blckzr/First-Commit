@@ -4,12 +4,185 @@ Task log for First Commit. Every task adds an entry here before it is considered
 (see [`AGENT.md`](../AGENT.md) §10).
 
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). This project
-does **not** follow semantic versioning yet — it is pre-release thesis work, so everything
+does **not** follow semantic versioning yet — it is pre-release, so everything
 lives under `[Unreleased]` until there is something to version.
 
 ---
 
 ## [Unreleased]
+
+### 2026-09-21 — The roadmap chart
+
+The screen the whole product is named after (`design.md` §2.1, §5.7): a vertical main path
+with modules branching left and right, a side panel, and the same roadmap as a single
+column on `sm`. Built against the `Roadmap` type from §13.3, on mock data.
+
+#### Added
+
+- **`features/roadmap/`** — the §13.3 types verbatim, a mock roadmap, the status
+  vocabulary, the accessible labels, and the layout.
+  - `status.ts` is **the one place** that decides a status's icon, words and colour, so the
+    node, the list, the panel and the screen reader can never disagree (§8).
+  - `mock.ts` is filled out to exercise every branch the components have: all six statuses,
+    all five module kinds, an unmade decision, three milestones. It sits beside the types,
+    not in a test file, so a type change breaks it immediately.
+  - `layout.ts` is **written rather than delegated to elkjs or dagre**. §13.1 offers those
+    and closes with "alternatives with the same capabilities are acceptable"; the roadmap
+    is not a general graph but a fixed spine with known children, so a solver would add a
+    large async dependency to compute what 40 lines decide exactly. It is synchronous, so
+    the chart has no frame with every node at the origin, and pure, so its 8 tests assert
+    on real coordinates. The admin editor's free-form prerequisite graph may still want a
+    solver.
+- **`components/roadmap/`** — `RoadmapNav`, `RoadmapChart`, `RoadmapStacked`,
+  `RoadmapPanel`, and the four chart node components.
+  - **There is one roadmap in the DOM, not two.** The nested list §12 requires is the real
+    structure: on `sm` it *is* the view, and on `md`/`lg` it sits inside the chart region
+    clipped to a pixel — clipped, not `display: none`, because a hidden element cannot be
+    focused. The canvas is `aria-hidden`, so a screen reader reads the roadmap once, and
+    the chart node matching the focused list item draws the focus ring. A keyboard user and
+    a mouse user move through the same state.
+  - Arrow keys walk the roadmap, Left and Right step between a skill and its modules, Home
+    and End jump to the ends, Enter opens the panel and focus moves to its heading, Escape
+    closes it and focus returns to the node (§12).
+  - Roving tabindex: one tab stop for the whole roadmap, so Tab leaves it rather than
+    walking 25 nodes.
+  - The selected node lives in **the URL**, so it survives the breakpoint change §13.5
+    requires and a node is linkable.
+  - Nothing in the panel writes progress. §5.7: "Learners cannot mark modules as done
+    manually" — a test asserts no control offers to.
+- **`/app/roadmap/:id`** replaces its placeholder. 31 component tests, 8 layout tests,
+  8 end-to-end tests across the four widths.
+- `@xyflow/react`, the first new dependency since the toolchain.
+- **`src/test/viewport.ts`** — a `matchMedia` and `ResizeObserver` for jsdom, which has
+  neither. `useBreakpoint` is the one place §13.5 lets JavaScript decide layout, and it had
+  never run in a test; `setBreakpoint()` also makes "state survives a breakpoint change"
+  testable without a browser.
+
+#### Fixed
+
+- **The learner shell's main column shrank to its content.** `margin: 0 auto` on a grid
+  item turns off the default stretch, so a page whose content can collapse — the roadmap's
+  canvas beside its panel — collapsed the whole column with it: the canvas rendered 2px
+  wide. Adding `width: 100%` fixes it for every screen, not just this one. Found by
+  screenshotting the built page, which nothing in the test suite would have caught.
+- **`--text-muted` on `--surface-card-soft` measures 4.44:1**, just under the 4.5:1 §12
+  commits to. The milestone node's meta line now uses `--text-body`. Found by the contrast
+  gate, which gained six pairs for the surfaces and edges the roadmap introduced.
+
+#### Notes
+
+- **The roadmap is mock data.** `roadmap_generation` is a worker stub, so there is nothing
+  to fetch. The screen is built against the type the API should return, so wiring it later
+  is a query rather than a rewrite.
+- Four gaps between the code and the documents are recorded in `docs/task-tracker.md`
+  rather than patched quietly: §4.3 has no address for the technology choice screen that
+  §5.8 specifies; `RoadmapModuleNode` has no description although §5.7's panel shows one;
+  `sharedWithPaths` holds ids while §2.1 renders names; and the router says `/app/modules`
+  where §4.3 says `/app/explore`.
+- Four defects were introduced to check the tests earn their keep: a step type nobody
+  handles (five compile errors, which is exactly what §13.3 promises), every node in the
+  tab order, focus not returning when the panel closes, and the assistive list hidden
+  instead of clipped. All four failed the suite; all four were reverted.
+
+### 2026-09-21 — Password reset and onboarding
+
+Two of the three screens groups Phase 2 was missing. Both are specified in `design.md` but
+neither existed in the prototype, so both were designed from the copy and security rules
+rather than ported.
+
+#### Added
+
+- **`/forgot-password` and `/reset-password`** (`apps/web/src/routes/public/`).
+  - The forgot page shows **one confirmation whatever the address**, because §5.3 says the
+    page never reveals which emails are registered. There is deliberately no second,
+    cheerier state for "we really did send it" — the screen cannot know which case it is in,
+    and a test asserts no such wording appears.
+  - The reset page reads the token from the query string, checks the confirmation field
+    before calling anything, and **explains a link with no token at all without a round
+    trip** — mail clients truncate long URLs, and "invalid token" from the server would
+    leave the learner guessing.
+  - 12 tests.
+- **The onboarding API** (`apps/api/src/onboarding/`): `GET /career-paths`,
+  `GET /onboarding`, `PUT /onboarding/about`, `PUT /onboarding/target`,
+  `POST /onboarding/placement`. 20 tests.
+  - Every write is scoped to `req.user.id` from the session; a test sends another learner's
+    id in the body and asserts their row is untouched (§6.1 step 3).
+  - **Step order is enforced here, not in the browser.** Jumping ahead is a 409. Redoing a
+    finished step saves the new answer without dragging the learner backwards.
+  - `GET /career-paths` returns published paths only, so a draft is never a learner's to
+    pick — asserted for both `draft` and `archived`.
+  - Placement writes `placement_results` and queues the `roadmap_generation` job **in one
+    transaction**, so a queued job never exists without the result it was queued for.
+- **The four onboarding screens** (`apps/web/src/routes/onboarding/`), wired into the
+  router in place of their placeholders. 20 component tests, 6 end-to-end tests across the
+  four widths.
+  - `RequireOnboardingStep` sends a learner who jumps ahead back to their first unfinished
+    step, and lets them go *back* freely — that is how §5.4 says earlier answers get
+    changed. It mirrors the API's 409; it does not replace it.
+  - The generating screen polls `GET /onboarding` and leaves for `/app` when the API reports
+    `done`. **The browser decides nothing here** — the worker moves the step.
+- **`apps/web/src/app/guards.test.tsx`** — the guards had no tests at all. 13 now cover the
+  onboarding order, the learner/admin split, and that protected content never renders while
+  the session is still loading.
+
+#### Fixed
+
+- **The onboarding header scrolled sideways at 360px.** Four step labels plus the rules
+  between them need about 440px. Below `md` the header now shows "Step 2 of 4" and the full
+  indicator appears from 640px — one layout, a CSS swap, no view switcher (§11.1). Found by
+  a new 320px reflow check, not by reading the CSS.
+
+#### Notes
+
+- **Placement has no questions yet**, because the schema has no table for them and
+  `placement_results.results` is free-form jsonb (`AGENT.md` §11). The screen therefore
+  offers only the skip that §5.4 requires be available anyway, and records an empty result.
+  It says so to the learner rather than pretending to have assessed them.
+- **The generating screen waits on work that does not happen yet.** `roadmap_generation` is
+  a worker stub, so the queued job sits there. The screen is built for the real thing and
+  will complete on its own once the handler exists; the poll should become SSE then.
+- Its progress bar carries **no `aria-valuenow` and no percentage**. The wait has no
+  measurable progress, so any number would be invented. A test asserts none appears.
+- Three deliberate defects were introduced to check the tests earn their keep — a guard that
+  lets a learner jump ahead, a slack upper bound on weekly hours, and a generating screen
+  that never leaves. All three failed the suite; all three were reverted.
+
+### 2026-09-21 — Database tooling, and the project is personal, not academic
+
+#### Changed
+
+- **The project is a personal one, not a thesis.** `AGENT.md` §1 and `README.md` said
+  otherwise, and that framing had been doing real work in the reasoning — "the documents are
+  defended" was the stated reason for several decisions. The reason is now the honest one:
+  `docs/` is a specification the author wrote and intends to follow, so code matches it, and
+  where a document is wrong it gets changed rather than quietly diverged from. The rigour
+  stays; only the justification changes.
+- Corrected drift in `README.md` and `AGENT.md` §4 that had accumulated over the last few
+  tasks: both still claimed `apps/api` and `apps/web` were unscaffolded, that TanStack Query
+  and Zod were not installed, and that the API had only `/health`. The tracker still listed
+  the `?as=` dev override that was removed when `useSession` became real.
+
+#### Added
+
+- **`scripts/db.mjs`**, as `npm run db:migrate` and `npm run db:verify`.
+  - `migrate` applies every file in `supabase/migrations` in order, each in a transaction,
+    recording it in `schema_migrations` so a second run is a no-op. It refuses to silently
+    accept a migration file that changed after it was applied.
+  - **`verify` is the point.** The API's tests run against pg-mem, which executes neither
+    triggers nor plpgsql — so `claim_next_ai_job()`, `prevent_log_changes()` and
+    `set_updated_at()` have never actually run. `verify` exercises all three against the
+    real database, plus counts tables, functions and triggers.
+
+#### Notes
+
+- **Supabase itself still needs the author**: creating the project requires a login, so the
+  repo side is what was prepared. Once a connection string is in `apps/api/.env`, the two
+  commands above close the verification gap.
+- `docs/project-proposal.md` is still written as an academic study — "Proponent(s)",
+  "Adviser", a defense, and an evaluation plan built on ISO/IEC 25010 and usability
+  respondents. `database-schema.md` also refers to backups "before the defense". Those are
+  the author's own documents and were left alone; they are worth a pass if the academic
+  framing is going away entirely.
 
 ### 2026-09-21 — Phase 2 begins: the web app talks to the API
 

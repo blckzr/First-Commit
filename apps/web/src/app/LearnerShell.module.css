@@ -71,7 +71,12 @@
 
 .locked { color: var(--text-faint); }
 
+/* `width: 100%` matters: `margin: 0 auto` on a grid item turns off the default
+   stretch, so without it the main column shrinks to fit its content. A page
+   whose content can collapse — the roadmap's canvas beside its panel — then
+   collapses the whole column with it. */
 .main {
+  width: 100%;
   padding: var(--space-5);
   max-width: var(--container);
   margin: 0 auto;

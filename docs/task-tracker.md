@@ -14,6 +14,8 @@ What is planned and what is done, from an empty repository to a working platform
 
 The immediate queue. Everything here is unblocked and ready to pick up.
 
+- [~] **Create the Supabase project**, put the connection string in `apps/api/.env`, then `npm run db:migrate` and `npm run db:verify`. Tooling is ready; the project itself needs the author's login. This closes the gap where nothing has ever run against a real database.
+
 - [ ] **Security tests** — `project-proposal.md` §9.2 names these as a deliverable. Much is already covered; what is missing is a learner reaching another learner's data, which needs a second endpoint to test against.
 
 
@@ -72,7 +74,7 @@ ran ahead of Phase 1.
 - [x] Contrast gate — `contrast.test.ts` reads `tokens.css` from disk and asserts all 29 pairs, so §12 is enforced by a test, not by a one-off check
 - [x] `AdminShell` — grouped sidebar, persistent Admin indicator, admin Overview screen, and a named placeholder for the other ten §6 screens
 - [x] Playwright — 23 tests across the four §11.4 widths, plus live-resize and 320px reflow. **92 assertions passing.**
-- [x] Dev session override (`?as=admin|learner|onboarding|signedout`), so all four areas and every §4.3 redirect can be exercised
+- [x] ~~Dev session override (`?as=`)~~ — **removed** in Phase 2 when `useSession` became a real `GET /auth/me` query. Playwright now stubs the API at the network boundary (`e2e/session.ts`), which exercises the real session path instead of a development-only branch.
 - [x] Named placeholders for every specified-but-unbuilt screen, so no navigation item dead-ends. Each cites the `design.md` section that specifies it.
 
 ## Phase 2 — Learner core
@@ -84,9 +86,17 @@ The main loop: sign up → roadmap → learn → pass.
 
 - [x] Landing and Sign up (Phase 1.5)
 - [x] **Log in** — built and wired to `POST /auth/login`, with the §5.3 destination rules and the single non-leaking failure message
-- [ ] **Design + build `/forgot-password` and `/reset-password`** — not in the prototype
-- [ ] Onboarding — about you, target position, placement, generating; one page per step, resumable via `onboarding_step`
-- [ ] **Roadmap chart** — React Flow, custom nodes, side panel, the `sm` stacked layout, keyboard navigation and nested-list DOM equivalent
+- [x] **Design + build `/forgot-password` and `/reset-password`** — not in the prototype, so designed against §5.3's rules: one confirmation whatever the address, and a token-less link explained without a round trip
+- [x] **Onboarding** — about you, target position, placement, generating; one page per step, resumable via `onboarding_step`. API (`GET /career-paths`, `GET /onboarding`, `PUT /onboarding/about`, `PUT /onboarding/target`, `POST /onboarding/placement`) enforces the step order; `RequireOnboardingStep` mirrors it in the browser for the experience
+  - [ ] **Placement questions are not specified.** The schema has no question table and `placement_results.results` is free-form jsonb, so the screen currently offers only the skip §5.4 requires anyway. Settle where the questions come from, then fill the screen and the `results` shape
+  - [ ] The generating screen polls `GET /onboarding` and leaves when the step reaches `done`. Move it to SSE once `roadmap_generation` exists (Phase 3) and the worker posts to `/internal/events`
+- [x] **Roadmap chart** — React Flow, custom nodes, side panel, the `sm` stacked layout, keyboard navigation and nested-list DOM equivalent. Built on the `Roadmap` type from `design.md` §13.3 against mock data
+  - [ ] **Fetch a real roadmap** once `roadmap_generation` exists (Phase 3). `Roadmap` is already the shape the API should return, so this is a query, not a rewrite
+  - [ ] **§4.3 has no address for the technology choice screen** even though §5.8 specifies it. `/app/technology` is in the router as a placeholder; settle the route in §4.3 or change it
+  - [ ] **`RoadmapModuleNode` has no description**, but §5.7 says the side panel shows one. Add it to §13.3 or drop it from §5.7
+  - [ ] **`sharedWithPaths` holds ids, and §2.1 renders names** ("Also in: Data"). The panel says "1 other career path" until the type carries a title
+  - [ ] Reinforcement "Remove" and challenge "Skip" are disabled — both change the roadmap, so both need an endpoint
+  - [ ] `/app/modules` in the router vs `/app/explore` in §4.3 — pick one
 - [ ] Module page, lesson reading, lesson progress
 - [ ] Quiz — server-side grading, attempts, test-out
 - [ ] Coding exercise — CodeMirror, Sandpack practice, server grading via Judge0 / Vitest+jsdom, results over SSE

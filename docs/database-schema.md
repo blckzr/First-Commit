@@ -573,7 +573,17 @@ Most logic lives in the Express backend, where it is easier to read, test, and e
 ## 9.3 Setup Checklist
 
 1. **Create the Supabase project** in the region nearest your users, and copy the connection string from **Project Settings > Database**. Use the connection pooler string (port 6543) for the API, since Render restarts often and pooling avoids exhausting connections.
-2. **Run `supabase/migrations/0001_initial_schema.sql`** in the SQL Editor, or as the first migration with your migration tool (node-pg-migrate, Drizzle, or Prisma all work).
+2. **Apply the migrations.** From the repo root, with `apps/api/.env` filled in:
+
+   ```powershell
+   npm run db:migrate   # applies supabase/migrations in order, once each
+   npm run db:verify    # proves the functions and triggers actually run
+   ```
+
+   `db:verify` is the important half. The API's tests run against an in-memory
+   PostgreSQL that executes neither triggers nor plpgsql, so until this passes,
+   `claim_next_ai_job()`, `prevent_log_changes()` and `set_updated_at()` have never run.
+   Pasting the file into the SQL Editor works too, but skips that check.
 3. **Create Storage buckets:** `lesson-media` and `certificates`, both private and served through signed URLs from the backend.
 4. **Create the Express service on Render:** connect the repository, choose the Singapore region, set the build command (`npm ci && npm run build`) and start command (`node dist/index.js`), and add a health check path such as `/health`.
 5. **Add environment variables on Render:** `DATABASE_URL`, `SESSION_SECRET`, `APP_ORIGIN` (your frontend URL), `WORKER_SECRET` (shared with the local worker, so it can report a finished job), `BREVO_API_KEY`, `MAIL_FROM`, `MAIL_FROM_NAME`, and the GitHub App id, webhook secret, and private key.

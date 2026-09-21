@@ -20,6 +20,8 @@
     "lint": "npm run lint --workspaces --if-present",
     "test": "npm run test:run --workspaces --if-present",
     "e2e": "npm run e2e -w @first-commit/web",
-    "dev:api": "npm run dev -w @first-commit/api"
+    "dev:api": "npm run dev -w @first-commit/api",
+    "db:migrate": "node --env-file=apps/api/.env scripts/db.mjs migrate",
+    "db:verify": "node --env-file=apps/api/.env scripts/db.mjs verify"
   }
 }

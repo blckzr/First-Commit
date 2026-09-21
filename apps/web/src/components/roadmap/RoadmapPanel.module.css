@@ -1,0 +1,108 @@
+/* §5.7 side panel on md and lg; §11.3 bottom sheet on sm. Same content, same
+   component — the edge it comes from is a media query, not a second screen. */
+.panel {
+  display: flex;
+  flex-direction: column;
+  background: var(--surface-card);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-panel);
+  overflow: hidden;
+}
+
+.head {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-3);
+  padding: var(--pad-card);
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.heading {
+  flex: 1;
+  margin: 0;
+  font-size: var(--text-h3);
+  color: var(--text-strong);
+}
+
+/* The heading takes focus when the panel opens (§12), so it needs a ring. */
+.heading:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 4px;
+  border-radius: var(--radius-sm);
+}
+
+.body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  padding: var(--pad-card);
+  overflow-y: auto;
+}
+
+.line {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin: 0;
+  color: var(--text-body);
+  font-size: var(--text-body-sm);
+}
+
+.muted { color: var(--text-muted); }
+
+.reason {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin: 0;
+  padding: var(--space-3);
+  border-radius: var(--radius-sm);
+  background: var(--ai-tint);
+  color: var(--text-body);
+  font-size: var(--text-body-sm);
+}
+
+.facts { margin: 0; display: flex; flex-direction: column; gap: var(--space-2); }
+.facts > div { display: flex; gap: var(--space-3); font-size: var(--text-body-sm); }
+.facts dt { color: var(--text-muted); min-width: 64px; }
+.facts dd { margin: 0; color: var(--text-body); }
+
+.moduleList,
+.optionList {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.moduleList > li,
+.optionList > li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  flex-wrap: wrap;
+}
+
+.optionName { font-weight: var(--fw-semibold); color: var(--text-strong); }
+
+.actions { display: flex; flex-wrap: wrap; gap: var(--space-3); }
+
+/* On sm the panel is a sheet fixed to the bottom of the viewport, above the
+   bottom navigation. It never covers the whole screen. */
+@media (max-width: 639px) {
+  .panel {
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 20;
+    max-height: 70vh;
+    border-radius: var(--radius-panel) var(--radius-panel) 0 0;
+    box-shadow: var(--shadow-panel, 0 -8px 32px rgba(20, 22, 29, 0.18));
+  }
+}

@@ -65,6 +65,63 @@ export const api = {
   logInFails(status = 401, error = "Email or password is incorrect.") {
     server.use(http.post(`${BASE}/auth/login`, () => HttpResponse.json({ error }, { status })));
   },
+  forgotSucceeds(message = "If that email has an account, a reset link is on its way.") {
+    server.use(
+      http.post(`${BASE}/auth/password/forgot`, () => HttpResponse.json({ message })),
+    );
+  },
+  forgotFails(status: number, error: string) {
+    server.use(
+      http.post(`${BASE}/auth/password/forgot`, () => HttpResponse.json({ error }, { status })),
+    );
+  },
+  resetSucceeds(next = "/login") {
+    server.use(
+      http.post(`${BASE}/auth/password/reset`, () => HttpResponse.json({ reset: true, next })),
+    );
+  },
+  resetFails(status = 400, error = "That link has expired or has already been used. Ask for a new one.") {
+    server.use(
+      http.post(`${BASE}/auth/password/reset`, () => HttpResponse.json({ error }, { status })),
+    );
+  },
+  /** design.md §5.4 — the onboarding state the four screens read and write. */
+  onboarding(state: {
+    step: string;
+    about?: { experienceLevel: string | null; goal: string | null; weeklyHours: number | null } | null;
+    careerPathId?: string | null;
+  }) {
+    server.use(
+      http.get(`${BASE}/onboarding`, () =>
+        HttpResponse.json({
+          step: state.step,
+          about: state.about ?? null,
+          careerPathId: state.careerPathId ?? null,
+        }),
+      ),
+    );
+  },
+  careerPaths(careerPaths: { id: string; slug: string; title: string; description: string }[]) {
+    server.use(http.get(`${BASE}/career-paths`, () => HttpResponse.json({ careerPaths })));
+  },
+  /** Records what the screen sent, so a test can assert on the request body. */
+  onboardingStepSucceeds(
+    path: "about" | "target" | "placement",
+    next: string,
+    seen?: (body: unknown) => void,
+  ) {
+    const url = `${BASE}/onboarding/${path}`;
+    const handler = async ({ request }: { request: Request }) => {
+      seen?.(await request.json());
+      return HttpResponse.json({ step: path, next });
+    };
+    server.use(path === "placement" ? http.post(url, handler) : http.put(url, handler));
+  },
+  onboardingStepFails(path: "about" | "target" | "placement", status: number, error: string) {
+    const url = `${BASE}/onboarding/${path}`;
+    const handler = () => HttpResponse.json({ error }, { status });
+    server.use(path === "placement" ? http.post(url, handler) : http.put(url, handler));
+  },
   unreachable(path: string) {
     server.use(http.post(`${BASE}${path}`, () => HttpResponse.error()));
   },

@@ -1,0 +1,100 @@
+/* §12: the canvas pans inside its own region — the page never scrolls sideways. */
+.region {
+  position: relative;
+  min-height: 420px;
+  height: clamp(420px, calc(100vh - 260px), 900px);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-panel);
+  background: var(--surface-card);
+  overflow: hidden;
+}
+
+.canvas { width: 100%; height: 100%; }
+
+/* --- nodes --------------------------------------------------------------- */
+.node {
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: var(--space-2);
+  width: 100%;
+  height: 100%;
+  padding: var(--space-3) var(--space-4);
+  background: var(--surface-card);
+  border: 1px solid var(--border-control);
+  border-radius: var(--radius-tile);
+  cursor: pointer;
+  transition: var(--transition-control);
+}
+
+.node:hover { background: var(--surface-inset); }
+
+.title {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-family: var(--font-display);
+  font-weight: var(--fw-bold);
+  font-size: var(--text-body-sm);
+  color: var(--text-strong);
+  line-height: 1.25;
+}
+
+.meta {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+  font-size: var(--text-caption);
+  color: var(--text-muted);
+}
+
+.skill .title { font-size: var(--text-body); }
+.skill { background: var(--surface-card-dark); border-color: transparent; }
+.skill .title { color: var(--text-on-dark); }
+.skill .meta { color: var(--text-on-dark-muted); }
+
+.decision { border-width: 2px; border-color: var(--border-control-strong); }
+.milestone { background: var(--surface-card-soft); }
+/* --text-muted measures 4.44:1 on this surface — under the 4.5:1 §12 commits
+   to — so the meta line steps up to --text-body here. */
+.milestone .meta { color: var(--text-body); }
+
+/* Status: a coloured edge on top of a border that is already 3:1, so the
+   colour is reinforcement and the badge inside carries icon and words (§8). */
+.passed, .tested_out { border-left: 3px solid var(--verified); }
+.current { border-left: 3px solid var(--here); }
+.available { border-left: 3px solid var(--border-strong); }
+.locked { border-left: 3px solid var(--border-subtle); }
+.archived { border-left: 3px solid var(--border-subtle); opacity: 0.75; }
+
+.isSelected {
+  border-color: var(--accent-press);
+  box-shadow: 0 0 0 2px var(--accent-press);
+}
+
+/*
+  The focus ring for the node whose list item has keyboard focus. The list
+  itself is clipped, so without this a keyboard user would move through the
+  roadmap with nothing visible changing (§12 requires visible focus).
+*/
+.isFocused { outline: 2px solid var(--focus-ring); outline-offset: 2px; }
+
+.handle { opacity: 0; pointer-events: none; }
+
+/* --- connectors (§2.1: solid on the path, dashed to branches) ------------- */
+.pathEdge :global(.react-flow__edge-path) {
+  stroke: var(--border-control-strong);
+  stroke-width: 2;
+}
+
+.branchEdge :global(.react-flow__edge-path) {
+  stroke: var(--border-strong);
+  stroke-width: 1.5;
+  stroke-dasharray: 5 5;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .node { transition: none; }
+}

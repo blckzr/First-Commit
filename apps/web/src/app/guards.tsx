@@ -30,6 +30,30 @@ export function RequireLearner({ needsOnboarding = false }: { needsOnboarding?: 
   return <Outlet />;
 }
 
+/** The onboarding steps in order. Mirrors the API's own list. */
+const ONBOARDING_STEPS = ["about", "target", "placement", "generating"];
+
+/**
+ * design.md §5.4: "a learner cannot open /onboarding/placement before finishing
+ * the earlier steps and is sent back to the first unfinished step."
+ *
+ * Going *back* to a finished step is allowed — that is how Back works. Only
+ * jumping ahead is redirected. The API refuses the same jump with a 409; this
+ * only saves the learner from a page they cannot use.
+ */
+export function RequireOnboardingStep() {
+  const { onboardingStep } = useSession();
+  const { pathname } = useLocation();
+
+  const asked = ONBOARDING_STEPS.indexOf(pathname.replace("/onboarding/", ""));
+  const reached = ONBOARDING_STEPS.indexOf(onboardingStep ?? "");
+
+  if (asked > -1 && reached > -1 && asked > reached) {
+    return <Navigate to={`/onboarding/${ONBOARDING_STEPS[reached]}`} replace />;
+  }
+  return <Outlet />;
+}
+
 export function RequireAdmin() {
   const { user } = useSession();
   if (user?.role !== "admin") {

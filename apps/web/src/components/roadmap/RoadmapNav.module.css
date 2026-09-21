@@ -1,0 +1,106 @@
+/* ---------------------------------------------------------------------------
+   Two presentations of one list.
+
+   `.stacked` is the sm view (design.md §11.3): skills on the main path with
+   their modules indented beneath. `.assistive` is the same list beside the
+   chart on md and lg — clipped to a pixel rather than `display: none`, because
+   a hidden element cannot be focused and §12 needs arrow-key navigation.
+
+   Focus is never invisible: a node focused in `.assistive` is announced here
+   and shown as the focus ring on the matching chart node.
+--------------------------------------------------------------------------- */
+
+.stacked,
+.assistive {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.assistive {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+/* --- the stacked view ---------------------------------------------------- */
+.stacked { display: flex; flex-direction: column; gap: var(--space-5); }
+
+.stepItem { display: flex; flex-direction: column; gap: var(--space-3); }
+
+.moduleList {
+  list-style: none;
+  margin: 0;
+  padding: 0 0 0 var(--space-5);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  /* The dotted rule standing in for the branch connectors (§2.1). */
+  border-left: 1px dashed var(--border-strong);
+}
+
+.moduleItem { margin-left: var(--space-3); }
+
+/* --- nodes --------------------------------------------------------------- */
+.node {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-2);
+  width: 100%;
+  min-height: 44px; /* §12 touch target */
+  text-align: left;
+  font: inherit;
+  color: var(--text-strong);
+  background: var(--surface-card);
+  border: 1px solid var(--border-control);
+  border-radius: var(--radius-card);
+  padding: var(--space-3) var(--space-4);
+  cursor: pointer;
+  transition: var(--transition-control);
+}
+
+.node:hover { background: var(--surface-inset); }
+
+.node[aria-current="true"] {
+  border-color: var(--accent-press);
+  box-shadow: inset 0 0 0 1px var(--accent-press);
+}
+
+.title {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-family: var(--font-display);
+  font-weight: var(--fw-bold);
+}
+
+.meta {
+  display: inline-flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  font-size: var(--text-caption);
+  color: var(--text-muted);
+}
+
+/* Main-path nodes read as the spine: darker, heavier than their branches. */
+.spine .title { font-size: var(--text-h3); }
+/* The decision keeps a control-grade edge (--border-control-strong, not
+   --border-strong, which measures 1.62:1): the border is what identifies it. */
+.decision { border-width: 2px; border-color: var(--border-control-strong); }
+.milestone { background: var(--surface-card-soft); }
+/* --text-muted measures 4.44:1 on this surface — under the 4.5:1 §12 commits
+   to — so the meta line steps up to --text-body here. */
+.milestone .meta { color: var(--text-body); }
+
+/* Status shows as icon + text + colour (§8). The colour here is a left edge,
+   never the only signal — the badge inside carries icon and words. */
+.passed, .tested_out { border-left: 3px solid var(--verified); }
+.current { border-left: 3px solid var(--here); }
+.available { border-left: 3px solid var(--border-strong); }
+.locked { border-left: 3px solid var(--border-subtle); color: var(--text-muted); }
+.archived { border-left: 3px solid var(--border-subtle); opacity: 0.75; }

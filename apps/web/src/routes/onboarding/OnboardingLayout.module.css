@@ -1,0 +1,198 @@
+.page {
+  min-height: 100vh;
+  background: var(--surface-page);
+  display: flex;
+  flex-direction: column;
+}
+
+/* §5.4: onboarding pages show no app navigation. This bar carries the step
+   indicator and nothing that leads into the app. */
+.bar {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+  flex-wrap: wrap;
+  padding: var(--space-4) var(--space-5);
+  background: var(--surface-card);
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.wordmark {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-family: var(--font-display);
+  font-weight: var(--fw-extrabold);
+  font-size: 15px;
+  color: var(--text-strong);
+}
+
+.mark {
+  display: inline-flex;
+  width: 22px;
+  height: 22px;
+  border-radius: 7px;
+  background: var(--accent);
+  color: var(--ink-900);
+  align-items: center;
+  justify-content: center;
+}
+
+/* The four labels need about 440px, which does not fit beside the wordmark on
+   a phone. Below md the count carries the same information in a few words —
+   one layout, a CSS swap, no view switcher (§11.1). */
+.steps { display: none; }
+
+.count {
+  margin-left: auto;
+  font-size: var(--text-caption);
+  font-weight: var(--fw-semibold);
+  color: var(--text-muted);
+}
+
+.main {
+  flex: 1;
+  width: 100%;
+  max-width: var(--container-narrow);
+  margin: 0 auto;
+  padding: var(--space-7) var(--space-5) var(--space-9);
+}
+
+.title { font-size: var(--text-h1); margin-bottom: var(--space-2); }
+.lede { color: var(--text-muted); margin-bottom: var(--space-7); }
+
+.form { display: flex; flex-direction: column; gap: var(--space-7); }
+
+.field { border: 0; padding: 0; margin: 0; }
+
+.legend {
+  padding: 0;
+  font-family: var(--font-display);
+  font-size: var(--text-h3);
+  font-weight: var(--fw-bold);
+  color: var(--text-strong);
+  margin-bottom: var(--space-2);
+}
+
+.help { color: var(--text-muted); font-size: var(--text-body-sm); margin-bottom: var(--space-4); }
+
+.options { display: flex; flex-direction: column; gap: var(--space-2); }
+
+/* Footer actions. Back is never the primary action (design.md §7). */
+.actions {
+  display: flex;
+  gap: var(--space-3);
+  justify-content: space-between;
+  align-items: center;
+  margin-top: var(--space-5);
+  flex-wrap: wrap;
+}
+
+.actionsEnd { margin-left: auto; display: flex; gap: var(--space-3); }
+
+.formError {
+  margin: 0;
+  padding: var(--space-3) var(--space-4);
+  border-radius: var(--radius-sm);
+  background: var(--error-tint);
+  color: var(--error);
+  font-size: var(--text-body-sm);
+}
+
+/* --- Target step: the career path cards -------------------------------- */
+.cards {
+  display: grid;
+  gap: var(--gutter-card);
+  grid-template-columns: 1fr;
+}
+
+.card {
+  text-align: left;
+  background: var(--surface-card);
+  border: 1px solid var(--border-control);
+  border-radius: var(--radius-card);
+  padding: var(--pad-card);
+  cursor: pointer;
+  font: inherit;
+  color: inherit;
+  transition: var(--transition-control);
+}
+
+.card:hover { background: var(--surface-inset); }
+
+/* Selected inverts, the same rule the Tag component follows. */
+.cardSelected {
+  background: var(--surface-card-dark);
+  border-color: transparent;
+  color: var(--text-on-dark);
+}
+
+.cardTitle {
+  display: block;
+  font-family: var(--font-display);
+  font-size: var(--text-h3);
+  font-weight: var(--fw-bold);
+  margin-bottom: var(--space-2);
+}
+
+.cardSelected .cardTitle { color: var(--text-on-dark); }
+.cardBody { font-size: var(--text-body-sm); color: var(--text-muted); }
+.cardSelected .cardBody { color: var(--text-on-dark-muted); }
+
+.empty {
+  background: var(--surface-inset);
+  border-radius: var(--radius-card);
+  padding: var(--pad-card);
+  color: var(--text-body);
+}
+
+/* --- Generating -------------------------------------------------------- */
+.waiting {
+  background: var(--surface-card);
+  border-radius: var(--radius-panel);
+  padding: var(--pad-card-lg);
+  text-align: center;
+}
+
+.waitingLead { color: var(--text-body); margin-top: var(--space-5); }
+.waitingNote { color: var(--text-muted); font-size: var(--text-body-sm); margin-top: var(--space-4); }
+.waitingAction { margin-top: var(--space-5); }
+
+/* Indeterminate, because the wait has no measurable percentage. Decoration
+   only — it carries no progressbar role and no value (§8: the text says what
+   is happening). */
+.indeterminate {
+  width: min(360px, 100%);
+  height: 6px;
+  margin: 0 auto;
+  border-radius: var(--radius-pill);
+  background: var(--surface-inset);
+  overflow: hidden;
+}
+
+.indeterminate > span {
+  display: block;
+  width: 40%;
+  height: 100%;
+  border-radius: var(--radius-pill);
+  background: var(--accent);
+  animation: slide 1.4s var(--ease-out) infinite;
+}
+
+@keyframes slide {
+  0% { transform: translateX(-100%); }
+  100% { transform: translateX(250%); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .indeterminate > span { animation: none; width: 100%; }
+}
+
+@media (min-width: 640px) {
+  .cards { grid-template-columns: repeat(2, 1fr); }
+
+  /* Room for the labels: the indicator replaces the count rather than joining
+     it, so the step is stated once. */
+  .count { display: none; }
+  .steps { display: block; margin-left: auto; min-width: 0; }
+}

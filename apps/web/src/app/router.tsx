@@ -1,12 +1,19 @@
 import { lazy, Suspense } from "react";
 import { createBrowserRouter } from "react-router";
-import { RequireAdmin, RequireAuth, RequireLearner } from "./guards";
+import { RequireAdmin, RequireAuth, RequireLearner, RequireOnboardingStep } from "./guards";
 import { LearnerShell } from "./LearnerShell";
 import { Landing } from "../routes/public/Landing";
 import { SignUp } from "../routes/public/SignUp";
 import { LogIn } from "../routes/public/LogIn";
+import { ForgotPassword } from "../routes/public/ForgotPassword";
+import { ResetPassword } from "../routes/public/ResetPassword";
 import { NotFound } from "../routes/public/NotFound";
 import { Home } from "../routes/learner/Home";
+import { Roadmap } from "../routes/learner/Roadmap";
+import { About } from "../routes/onboarding/About";
+import { Target } from "../routes/onboarding/Target";
+import { Placement } from "../routes/onboarding/Placement";
+import { Generating } from "../routes/onboarding/Generating";
 import { Placeholder } from "../routes/Placeholder";
 import { Gallery } from "../routes/dev/Gallery";
 
@@ -35,28 +42,8 @@ const publicRoutes = [
   { path: "/", element: <Landing /> },
   { path: "/signup", element: <SignUp /> },
   { path: "/login", element: <LogIn /> },
-  {
-    path: "/forgot-password",
-    element: (
-      <Placeholder
-        standalone
-        title="Forgot password"
-        section="section 5.3"
-        purpose="Requests a reset link. The reply never reveals whether an email is registered."
-      />
-    ),
-  },
-  {
-    path: "/reset-password",
-    element: (
-      <Placeholder
-        standalone
-        title="Set a new password"
-        section="section 5.3"
-        purpose="Opened from a single-use link that expires."
-      />
-    ),
-  },
+  { path: "/forgot-password", element: <ForgotPassword /> },
+  { path: "/reset-password", element: <ResetPassword /> },
   {
     path: "/verify/:code",
     element: (
@@ -72,20 +59,17 @@ const publicRoutes = [
 
 /** design.md §5.4 — one page per step, each with its own address. */
 const onboardingRoutes = [
-  { path: "about", title: "About you", purpose: "Four to six questions on experience, goals, and weekly hours." },
-  { path: "target", title: "Target position", purpose: "The job the learner is working toward." },
-  { path: "placement", title: "Placement", purpose: "Finds what the learner already knows, so the roadmap can skip it. No time limit." },
-  { path: "generating", title: "Building your roadmap", purpose: "Waits for the Roadmap AI, then moves on by itself." },
-].map(({ path, title, purpose }) => ({
-  path: `/onboarding/${path}`,
-  element: <Placeholder standalone title={title} section="section 5.4" purpose={purpose} />,
-}));
+  { path: "/onboarding/about", element: <About /> },
+  { path: "/onboarding/target", element: <Target /> },
+  { path: "/onboarding/placement", element: <Placement /> },
+  { path: "/onboarding/generating", element: <Generating /> },
+];
 
 /** design.md §5 — the learner app, inside LearnerShell. */
 const learnerRoutes = [
   { index: true, element: <Home /> },
   { path: "roadmaps", title: "My roadmaps", section: "section 5.12", purpose: "Switch between roadmaps, or start one for another career." },
-  { path: "roadmap/:id", title: "Roadmap", section: "section 5.7", purpose: "The roadmap chart: progress, what is next, and what unlocks each module." },
+  { path: "roadmap/:id", element: <Roadmap /> },
   { path: "modules", title: "Explore modules", section: "section 5.13", purpose: "Search and take any published module, inside a roadmap or not." },
   { path: "module/:id", title: "Module", section: "section 5.9", purpose: "Lessons in order, with the quiz and exercise at the end." },
   { path: "exercise/:id", title: "Coding exercise", section: "section 5.11", purpose: "Write code, run tests, and read the feedback grounded in those results." },
@@ -93,9 +77,13 @@ const learnerRoutes = [
   { path: "certificates", title: "Certificates", section: "section 5.15", purpose: "View, download, and share what has been earned." },
   { path: "resume", title: "Resume", section: "section 5.16", purpose: "Built only from verified skills, certificates, and completed projects." },
   { path: "notifications", title: "Notifications", section: "section 5.17", purpose: "Module updates, roadmap changes, milestones, and certificates." },
+  // §5.8 specifies this screen but §4.3's route map has no address for it.
+  // `/app/technology` is our choice, recorded in docs/task-tracker.md so §4.3
+  // can settle it rather than the router deciding by accident.
+  { path: "technology", title: "Technology choice", section: "section 5.8", purpose: "Compare the framework options, try a taster lesson, and choose." },
   { path: "settings", title: "Settings", section: "section 5.18", purpose: "Profile, password, GitHub connection, and deleting your data." },
 ].map((route) =>
-  "index" in route
+  "element" in route
     ? route
     : {
         path: route.path,
@@ -113,7 +101,7 @@ export const router = createBrowserRouter([
     children: [
       {
         element: <RequireLearner needsOnboarding />,
-        children: onboardingRoutes,
+        children: [{ element: <RequireOnboardingStep />, children: onboardingRoutes }],
       },
       {
         element: <RequireLearner />,

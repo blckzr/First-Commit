@@ -1,0 +1,45 @@
+.page { display: flex; flex-direction: column; gap: var(--space-5); }
+
+.header { display: flex; flex-direction: column; gap: var(--space-4); }
+
+.titleRow {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-4);
+  flex-wrap: wrap;
+}
+
+.title { margin: 0; font-size: var(--text-h1); color: var(--text-strong); }
+.track { margin: var(--space-1) 0 0; color: var(--text-muted); }
+
+.legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+/* Mobile first: one column. The panel is a bottom sheet at this width, so it
+   is taken out of the flow by RoadmapPanel's own media query. */
+.body { display: flex; flex-direction: column; gap: var(--space-5); }
+
+.canvasArea { min-width: 0; }
+
+@media (min-width: 640px) {
+  /* §5.7: canvas beside a side panel. `minmax(0, 1fr)` so a wide node cannot
+     push the grid past the viewport and bring back horizontal scrolling. */
+  .body {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    align-items: start;
+  }
+
+  .body:has(.panelArea) { grid-template-columns: minmax(0, 1fr) 320px; }
+}
+
+@media (min-width: 1024px) {
+  .body:has(.panelArea) { grid-template-columns: minmax(0, 1fr) 380px; }
+}
