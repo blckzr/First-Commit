@@ -1,16 +1,16 @@
-import type { Roadmap, RoadmapModuleNode } from "./types";
+import type { Roadmap, RoadmapModuleNode } from "../features/roadmap/types";
 
 /**
- * A stand-in roadmap, until the Roadmap AI can produce one.
+ * The roadmap the tests and the Playwright stubs serve.
  *
- * `roadmap_generation` is a worker stub (AGENT.md §7), so there is nothing to
- * fetch yet. This is the roadmap design.md §2.1 draws — Junior Web Developer,
- * Frontend, 6 of 16 passed — filled out far enough to exercise **every** branch
- * the components have to handle: all six statuses, all five module kinds, an
- * unmade decision, and three milestones.
+ * It is the roadmap design.md §2.1 draws — Junior Web Developer, Frontend,
+ * 6 of 16 passed — filled out far enough to exercise **every** branch the
+ * components have to handle: all six statuses, all five module kinds, an
+ * unmade decision, and three milestones. A real one from the API rarely has all
+ * six statuses at once, so this stays as the thorough case.
  *
- * It lives beside the types rather than in a test file on purpose: the chart is
- * built against it, so a type change breaks it immediately.
+ * It is typed as `Roadmap`, so a change to §13.3's types breaks it here rather
+ * than at the first render.
  */
 
 const DATA_ANALYST = "aa000000-0000-0000-0000-00000000000d";

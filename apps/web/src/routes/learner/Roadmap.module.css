@@ -43,3 +43,15 @@
 @media (min-width: 1024px) {
   .body:has(.panelArea) { grid-template-columns: minmax(0, 1fr) 380px; }
 }
+
+.loading { color: var(--text-muted); }
+
+.empty {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  align-items: flex-start;
+  max-width: var(--container-narrow);
+}
+
+.emptyActions { display: flex; gap: var(--space-3); }

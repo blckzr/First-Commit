@@ -1762,6 +1762,30 @@ export interface Roadmap {
   totalCount: number;
 }
 
+// --- Lesson content -------------------------------------------------------
+// `lessons.content` is jsonb. This is the shape it holds.
+//
+// A block list, not a rich-text document and not markdown. The reading column
+// in Section 5.9 needs exactly these five things, a block list renders without
+// a parser or an editor library, and a runnable example stays its own block
+// with its own language rather than something extracted from prose. The admin
+// lesson editor produces this; the module page renders it.
+//
+// `text` is plain text with one exception: `backticks` mark inline code. There
+// is no other inline markup, so nothing in a lesson can inject markup into the
+// page.
+
+export type LessonBlock =
+  | { type: "paragraph"; text: string }
+  | { type: "heading"; text: string }
+  | { type: "list"; ordered?: boolean; items: string[] }
+  | { type: "code"; language: string; code: string; caption?: string }
+  | { type: "callout"; tone: "info" | "notice"; text: string };
+
+export interface LessonContent {
+  blocks: LessonBlock[];
+}
+
 export type CheckStatus = "passed" | "failed" | "running";
 
 export interface MilestoneAttempt {

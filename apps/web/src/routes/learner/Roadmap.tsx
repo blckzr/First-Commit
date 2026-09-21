@@ -1,27 +1,67 @@
+import { useParams } from "react-router";
 import { Badge } from "../../components/core/Badge";
+import { LinkButton } from "../../components/core/LinkButton";
 import { ProgressBar } from "../../components/learning/ProgressBar";
 import { RoadmapChart } from "../../components/roadmap/RoadmapChart";
 import { RoadmapPanel } from "../../components/roadmap/RoadmapPanel";
 import { RoadmapStacked } from "../../components/roadmap/RoadmapStacked";
 import { useBreakpoint } from "../../hooks/useBreakpoint";
-import { mockRoadmap } from "../../features/roadmap/mock";
+import { useRoadmap } from "../../features/roadmap/useRoadmap";
 import { useRoadmapNav } from "../../features/roadmap/useRoadmapNav";
+import { ApiError } from "../../api/client";
+import type { Roadmap as RoadmapData } from "../../features/roadmap/types";
 import styles from "./Roadmap.module.css";
 
 /**
  * design.md §5.7 — the roadmap chart.
- *
- * **The roadmap is mock data.** `roadmap_generation` is a worker stub
- * (AGENT.md §7), so there is no roadmap to fetch yet. The screen is built
- * against the `Roadmap` type the API will return, so wiring it later is one
- * query, not a rewrite.
  *
  * `useBreakpoint` appears here and nowhere else on this screen: the chart and
  * the stacked list are different *structures*, which §13.5 names as the one
  * case a media query cannot cover. Everything else about the layout is CSS.
  */
 export function Roadmap() {
-  const roadmap = mockRoadmap;
+  const { id } = useParams();
+  const { data, isPending, error } = useRoadmap(id);
+
+  if (isPending) {
+    return (
+      <p role="status" aria-live="polite" className={styles.loading}>
+        Loading your roadmap…
+      </p>
+    );
+  }
+
+  if (error || !data) {
+    const notFound = error instanceof ApiError && error.status === 404;
+    return (
+      <div className={styles.empty}>
+        <h1 className={styles.title}>
+          {notFound ? "We couldn't find that roadmap" : "Your roadmap isn't available right now"}
+        </h1>
+        <p>
+          {notFound
+            ? "It may belong to another account, or it may have been archived."
+            : "This is usually temporary. Your progress is safe — try again in a moment."}
+        </p>
+        <div className={styles.emptyActions}>
+          <LinkButton to="/app/roadmaps" icon="arrow-right">
+            See your roadmaps
+          </LinkButton>
+        </div>
+      </div>
+    );
+  }
+
+  return <RoadmapView roadmap={data} />;
+}
+
+/**
+ * Split out so the nav hook is only created once there is a roadmap to walk.
+ * Hooks cannot be called conditionally, and a hook over an absent roadmap would
+ * need a fake empty one — which is exactly the sort of stand-in that ends up
+ * rendering to a learner.
+ */
+function RoadmapView({ roadmap }: { roadmap: RoadmapData }) {
   const nav = useRoadmapNav(roadmap);
   const breakpoint = useBreakpoint();
 
@@ -34,7 +74,7 @@ export function Roadmap() {
         <div className={styles.titleRow}>
           <div>
             <h1 className={styles.title}>{roadmap.careerPathTitle}</h1>
-            <p className={styles.track}>{roadmap.trackTitle} track</p>
+            {roadmap.trackTitle && <p className={styles.track}>{roadmap.trackTitle} track</p>}
           </div>
         </div>
 

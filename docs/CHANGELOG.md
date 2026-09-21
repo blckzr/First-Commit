@@ -11,6 +11,308 @@ lives under `[Unreleased]` until there is something to version.
 
 ## [Unreleased]
 
+### 2026-09-21 — The roadmap becomes finishable
+
+Every generated roadmap has a technology decision on it, and the screen behind it was a
+placeholder — so the five technology modules in the seeded path could never appear, and the
+roadmap was decorative past that node. Choosing now rebuilds the plan around the answer.
+
+Verified against the live database: the test learner's roadmap went from 12 modules to 14
+on choosing React, stayed at 14 when switching to Vue (React's two archived, Vue's two
+added), and `module_completions` was untouched throughout.
+
+#### Added
+
+- **`GET` and `POST /roadmaps/:roadmapId/decisions/:decisionId`** — 23 tests.
+  - Nested under the roadmap because that is where the answer lives:
+    `roadmap_technology_choices` is keyed on `(roadmap_id, decision_id)`, so the same
+    decision on two of a learner's roadmaps is two separate choices. It also puts both ids
+    in the URL, where both get checked against the session on every call.
+  - **Choosing rebuilds the technology part of the roadmap**: the chosen framework's
+    modules are appended in the admin's order, and every other framework's are set to
+    `status = 'removed'`.
+  - **Nothing touches `module_completions`.** §5.8 promises "your 3 passed React modules
+    stay on your resume", and a switch changes the *plan*, never the evidence (§6 rules 1
+    and 5). Archiving rather than deleting also means switching back finds the original
+    plan instead of a duplicate — there is a test for exactly that.
+  - The body carries `technologyId` and nothing else, `.strict()`, so a request trying to
+    name its own module list is a 400.
+- **The technology choice screen** (§5.8) at
+  `/app/roadmap/:id/technology/:decisionId` — 23 tests.
+  - §5.8's two confirmations: "Your roadmap will use React" on a first choice, and the full
+    switch explanation otherwise — core modules stay passed, the passed framework modules
+    stay on the resume, the new framework's modules replace the old.
+  - The AI panel renders only when there is a recommendation. `technology_recommendation`
+    is not built, so today there never is — absent, rather than filled with a guess.
+  - The recommended option is marked **in words** (§12), not by colour.
+- The roadmap side panel's decision action now goes to the real screen instead of a
+  placeholder route.
+
+#### Fixed
+
+- Comparison labels were title case ("Learning Curve"). §9 commits to sentence case for
+  labels, so `learningCurve` now reads "Learning curve". Caught by a test asserting the
+  copy rule rather than by reading the output.
+
+#### Notes
+
+- **Three pg-mem incompatibilities**, all found by tests that could not otherwise have run:
+  `for update of <alias>` does not parse (widened to plain `for update`, which locks the
+  roadmap row too and is the safer lock anyway); an `update … as alias … from` does not
+  resolve the target (rewritten as a subquery).
+- **Four ownership and evidence filters were removed to test them**, and the first pass
+  caught two. Both survivors were missing cases rather than working code:
+  - a technology that is a valid option *of another decision* — choosing Express on the
+    Frontend decision would put Backend modules on a Frontend roadmap. The obvious test
+    used a technology with no `decision_options` row at all, which fails either way.
+  - the passed-module count read every learner's completions, so another learner's
+    progress would appear in this learner's switch dialog.
+  Re-run afterwards, all four failed.
+- On the browser side, three more: sending a module list alongside the choice, skipping the
+  confirmation, and dropping the resume promise from the switch dialog. All three caught.
+- **Taster lessons are not built.** §5.8 offers one per option and the schema has nowhere
+  for it — it is not a module (not on the roadmap) and not a lesson (belongs to no
+  version). Left out rather than rendered as a dead button, and recorded.
+
+### 2026-09-21 — Home stops lying
+
+Home was the last screen still on mock data, and it is the first thing a learner sees after
+onboarding — so it was the most visible falsehood left in the app. It now answers §5.6's
+one question, "what do I do next?", from the database.
+
+Verified against the live database: the test learner who passed HTML basics earlier sees
+`1 of 12 passed` and a Continue panel pointing at `Forms and semantics`, which is exactly
+what the roadmap says.
+
+#### Added
+
+- **`GET /home`** — §5.6's three panels. 16 tests.
+  - **It reuses `buildRoadmap` rather than recomputing.** "You are here" is decided in one
+    place, so Home and the chart can never disagree about which module the learner is on —
+    the drift that makes a dashboard untrustworthy. It costs a few extra queries; Home is
+    not a hot path and agreeing is worth more than the milliseconds.
+  - The Continue panel resolves the lesson the learner actually stopped at, falling back to
+    the first when they have not started or when their bookmark points at a lesson the
+    version no longer has.
+  - `ContinuePanel` is a **union with one member**. §5.6 says the capstone replaces the
+    lesson panel with a milestone one, so shaping it now means the browser's exhaustive
+    switch will refuse to compile until that variant is rendered.
+  - **Updates are derived, not read from `notifications`.** Nothing writes that table yet,
+    and these are statements about the roadmap as it stands — "the AI added this", "a
+    module you passed moved on" — which stay true until acted on. An event log belongs on
+    §5.17's screen, where a dealt-with event still makes sense.
+- **The Home screen**, rewritten against the API. 18 tests, including §5.6's empty state
+  ("Choose a target job to build your first roadmap"), a loading state, a failure that
+  reassures rather than blames, and an unparseable response treated as a failure rather
+  than an empty Home.
+- The Playwright `signedIn` helper now stubs `/home` too, since every `/app` page renders
+  the learner shell and several specs land on Home on the way elsewhere.
+
+#### Notes
+
+- **Three ownership filters were removed to test them**, and the first pass caught only
+  one. Both survivors were test gaps, not working code:
+  - the active-roadmap lookup is backstopped by `buildRoadmap`, which filters by user
+    anyway — so the obvious "don't show another learner's roadmap" test passed either way.
+    The case that actually bites is a learner who **has** a roadmap when someone else's is
+    newer: their own would vanish from Home. That test now exists.
+  - a version-update notice read `module_completions` across all learners. The module is on
+    both roadmaps, so only `user_id` tells them apart, and there was no test for it.
+  All three were then re-run and all three failed.
+- Home writes nothing, and a test asserts that reading it leaves `module_completions`,
+  `module_enrollments` and `lesson_progress` untouched.
+- §5.6's Updates panel offers "[Remove]" on an AI-added module. That changes the roadmap,
+  so it is left out rather than rendered as a dead button — the same endpoint the roadmap
+  side panel's Remove is waiting on.
+
+### 2026-09-21 — The module page and the quiz: the platform writes evidence
+
+Before this, `module_completions` had never been written by any code path, so every
+roadmap sat permanently at "nothing passed". This is the loop that moves it — and it is
+where AGENT.md §6 rule 1 stops being a rule in a document and becomes code.
+
+Verified end to end against real PostgreSQL: grading the seeded HTML basics quiz 6/6 turned
+`HTML basics` from `current` to `passed (100%)`, moved "You are here" to
+`Forms and semantics`, unlocked `CSS basics`, and took the roadmap from 0 to 1 of 12.
+
+#### Added
+
+- **The lesson format**, settled and written into `design.md` §13.3 as `LessonContent`: a
+  block list of five types. Not a rich-text document and not markdown — the §5.9 reading
+  column needs exactly these five things, a block list renders without a parser, and a
+  runnable example stays its own block with its own language.
+  - `text` is plain with **one** inline rule: `backticks` mark inline code. There is no
+    other markup and no escape hatch, which is what lets the renderer put everything in a
+    text node. A test renders `<strong>bold</strong>` from a lesson and asserts no
+    `<strong>` element exists — a lesson teaching HTML is full of tags in prose.
+- **9 lessons seeded** for the three modules that have quizzes, and every quiz question now
+  links to the lesson it came from, which is what §5.10's failed-quiz screen needs. The
+  seed validator rejects a question pointing at a lesson that does not exist.
+- **`GET /modules/:id`, `POST /modules/:id/start`, `POST /lessons/:id/complete`** and the
+  module page (§5.9). 29 API tests.
+  - Starting a module **pins the learner to the version published now** (§6 rule 6). A
+    later publish shows a notice and never repoints them; the page has both of §5.9's
+    notices, one for a learner mid-module and one for a learner who already passed.
+  - The bookmark moves forward and never back, so re-reading lesson 1 does not undo
+    reaching lesson 3.
+  - A lesson's ownership check is that it belongs to a version the learner is enrolled in.
+- **`GET /assessments/:id` and `POST /assessments/:id/attempts`** — the quiz, and the
+  grading behind it.
+  - **The body carries chosen option ids and nothing else.** The Zod schema is `.strict()`,
+    so a body with `score` or `passed` alongside is a 400, not something silently ignored —
+    the refusal is visible in a test and in a log.
+  - The score is computed from `quiz_answer_keys`, which no learner endpoint selects from.
+    The question endpoint withholds the explanations too, because an explanation usually
+    states the answer.
+  - §5.10: **a wrong answer gets no correct option and no explanation back**, so a retake
+    still means something. It gets the lesson to go back to instead.
+  - A retake keeps the better score, and never turns a test-out into an ordinary pass.
+- **The quiz screen** (§5.10): one question at a time, no time limit and it says so,
+  answers kept while moving between questions, and a result screen with §5.10's three
+  states. 20 tests.
+- **`LessonBody`** — renders the block list with an exhaustive `switch`, so a block type
+  added to the format without a renderer is a compile error rather than a gap in someone's
+  lesson.
+
+#### Fixed
+
+- **pg-mem cannot resolve a correlated subquery against an outer alias.** The module page's
+  question and attempt counts were subqueries in the select list; they threw
+  `column "a.id" does not exist`, which meant the endpoint could not be tested at all.
+  Rewritten as three plain queries merged in JS.
+- `xmax = 0` (to detect an insert versus an update) and `update … from` are PostgreSQL-only
+  and pg-mem runs neither. Both replaced with a read-then-write, which is clearer anyway.
+- The module page's Previous button disappeared on the first lesson instead of being
+  disabled, which moved the Next button under the reader's cursor. §5.9 shows Previous on
+  every lesson.
+
+#### Notes
+
+- **Four deliberate defects were introduced into grading**, the most security-critical code
+  in the repo so far: handing back the answer for a wrong response, accepting an option
+  from another question, letting a retake lower the recorded score, and dropping `.strict()`
+  from the body. The first pass caught only two — both surviving defects were **my tests
+  asserting the wrong thing**, not the code being right:
+  - the option-from-another-question check does not change the *grade* (the comparison is
+    per question); it protects the **stored attempt**, which is what an admin reads in a
+    dispute. The test now asserts that.
+  - a failing retake never reaches the completion at all, so it proves nothing about which
+    score is kept. The test now uses a *passing* retake that scores lower.
+  Both were then re-run and all four failed the suite.
+- A fifth defect — rendering lesson text through `dangerouslySetInnerHTML` — survived the
+  first pass too, because the only test used text *with* backticks and the shortcut only
+  applied to text without them. The no-backticks test above was added, and it catches it.
+- §5.10's "After a second failed attempt, the Roadmap AI may add a reinforcement module" is
+  not built. `roadmap_adaptation` is in the job-type enum and nothing queues it.
+- §4.3 still has no address for the quiz, as it has none for the technology choice.
+  `/app/quiz/:id` is the router's choice, recorded in the tracker.
+
+### 2026-09-21 — Sign up now leads to a real roadmap
+
+Before this, the learner journey dead-ended: `career_paths` was empty, so the onboarding
+target step had nothing to offer, and `/onboarding/generating` waited forever because
+`roadmap_generation` was a worker stub. Three pieces close that loop — content to choose
+from, a worker that plans a roadmap from it, and an endpoint the chart reads.
+
+#### Added
+
+- **`npm run db:seed`** — `scripts/seed.mjs` loads `supabase/seed/junior-web-developer.mjs`:
+  one career path, 2 tracks (Frontend, Backend), 4 technologies, 8 skills, 19 modules with
+  published versions and prerequisites, 2 technology decisions, and 3 quizzes with answer
+  keys. 74 rows in all.
+  - The content is **data in its own file**; the script is only the loader. Until an admin
+    content editor exists, that file is what "an admin defined" means.
+  - **Idempotent by slug**, so re-running after an edit applies the edit. Two runs produce
+    identical row counts — checked, not assumed.
+  - **It validates before it writes**, and `--dry-run` does that with no database:
+    prerequisite cycles, dangling references, a technology module with no technology, an
+    answer key pointing outside its options, and a core module depending on a track's
+    concept module (which would strand every learner on the other track). Five deliberate
+    defects were introduced; all five were reported at once.
+  - It never deletes and never touches learner data.
+- **`roadmap_generation` in the worker** — `apps/worker/src/roadmap/`, plus a versioned
+  prompt. 24 tests.
+  - `catalogue.ts` reads the published content and the real learner from the database,
+    **never from the job payload** — a payload is a snapshot someone else wrote.
+  - `validate.ts` is the part AGENT.md §7 rests on: real module ids, no duplicates, no
+    technology modules (those arrive with the learner's choice), full core coverage, the
+    track's own modules, and prerequisite order. It returns **one message at a time**,
+    because that message is fed back to the model as the next turn, and six complaints
+    make a worse prompt than one instruction.
+  - The prompt presents the catalogue **already in a valid order**, so a model that changes
+    nothing still returns something valid. Choosing the track, what to skip and how to
+    sequence within the constraints is still entirely its own.
+  - Prompts register themselves in `ai_prompts` on startup and the version is recorded on
+    each job. The worker **refuses to start** if the stored text for a version differs from
+    the code — which is how "never change a prompt in place" stops being a rule people
+    remember and starts being one the process enforces.
+- **`GET /roadmaps/:id` and `GET /roadmaps`** — `apps/api/src/roadmaps/`, 24 tests.
+  `buildRoadmap` assembles the `Roadmap` object design.md §13.3 defines, computing every
+  status from `module_completions` and `module_enrollments`.
+  - Ownership is the whole job: the first query filters on `user_id`, and a roadmap that is
+    not the caller's is a **404, not a 403** — a 403 would confirm it exists. Mutation-tested
+    by removing both ownership filters; both tests failed.
+  - Six tests assert the absence of a write path: no POST, PUT, PATCH or DELETE exists on
+    either route, sent with a valid Origin so the 404 proves there is no route rather than
+    that CSRF stopped it.
+- **The roadmap screen fetches its roadmap.** `api/roadmaps.ts` validates the response with
+  a Zod discriminated union on `type`, so a step type the API adds before the browser knows
+  about it is a parse failure rather than a node that renders nothing. Loading, not-found
+  and unparseable responses each have copy and a test.
+- **`npm run try:roadmap -- <userId> <slug> [--stub]`** — generates one roadmap against the
+  real database. `--stub` skips Ollama and uses the catalogue's own order, which puts the
+  catalogue query, the validator and the writes under test with no GPU. The stub plan goes
+  through the same validator and would be rejected the same way.
+- Vitest in `apps/worker`, which had no test runner at all.
+
+#### Changed
+
+- **`POST /onboarding/placement` now creates the roadmap row** and passes its id as the
+  job's `source_id`. The API owns business rules, so whose roadmap it is comes from the
+  session — the worker refuses a job without a `source_id` it can verify belongs to that
+  learner and career path. Previously `source_id` was `gen_random_uuid()`, which pointed at
+  nothing.
+- **The worker sets `onboarding_step = 'done'`** in the same transaction that writes the
+  roadmap. That is what the generating screen has been waiting for; it polls, sees `done`,
+  and leaves for the app.
+- **`weeklySchedule` removed from `RoadmapPlan`.** Nothing stored it, and §5.5's
+  "about 14 weeks at 6 hours a week" is `sum(estimated_hours) / weekly_hours` — arithmetic
+  the platform does exactly. Asking a model for it is what §7 exists to prevent, and it
+  costs tokens on an 8GB budget.
+- The mock roadmap moved from `features/roadmap/mock.ts` to `src/test/roadmap.ts`. It is
+  now a fixture shared by the component tests and the Playwright stubs, not something the
+  app ships.
+
+#### Fixed
+
+- **`= any($1::uuid[])` returns nothing under pg-mem.** Four lookups in the roadmap builder
+  — prerequisites, version numbers, shared paths, archived modules — silently returned
+  empty, which showed up as modules reporting `available` when their prerequisites were not
+  met. Rewritten as joins back to `roadmap_items`, which is better SQL anyway. Caught
+  because the status tests asserted the whole status map rather than one module.
+- The test schema now handles `unique nulls not distinct` (PostgreSQL 15+, which pg-mem
+  cannot parse), in a named list of exceptions rather than a general cleanup.
+- The validator crashed on the first dangling module reference instead of reporting every
+  problem. Found by feeding it five defects at once.
+
+#### Notes
+
+- **The model has never been asked.** Ollama was not running, so `roadmap_generation` is
+  verified end to end against real PostgreSQL with the plan stubbed — catalogue, validator,
+  writes, and the resulting `Roadmap` the chart reads. The prompt itself is unexercised.
+  Start Ollama and run `npm run try:roadmap` without `--stub`.
+- **Placement can barely skip anything, and that is correct.** Skipping writes no
+  `module_completions` row, so a skipped module cannot be required for the certificate
+  (the learner could never earn it) and cannot be a prerequisite of anything on the roadmap
+  (it would never unlock). Only testing out really skips a module, because only that
+  produces evidence. §5.4 reads as though placement removes modules and should say this.
+  The first version of the rule allowed a skipped prerequisite; a test caught it.
+- **`pathColor` has no column.** §13.3 has it, `career_paths` does not, so the API derives
+  it from the path id — stable, because a roadmap that changes colour reads as a different
+  roadmap. Recorded for §13.3 or the schema to settle.
+- A test learner (`roadmap-check@example.invalid`) exists in the development database with
+  a generated roadmap, from verifying the pipeline. It can be deleted.
+
 ### 2026-09-21 — The roadmap chart
 
 The screen the whole product is named after (`design.md` §2.1, §5.7): a vertical main path

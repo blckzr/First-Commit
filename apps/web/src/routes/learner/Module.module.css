@@ -1,0 +1,158 @@
+.page { display: flex; flex-direction: column; gap: var(--space-5); }
+
+.header { display: flex; flex-direction: column; gap: var(--space-3); align-items: flex-start; }
+
+.titleRow {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: var(--space-4);
+  flex-wrap: wrap;
+  width: 100%;
+}
+
+.title { margin: 0; font-size: var(--text-h1); color: var(--text-strong); }
+.meta { margin: var(--space-1) 0 0; color: var(--text-muted); font-size: var(--text-body-sm); }
+.headerBadges { display: flex; gap: var(--space-2); flex-wrap: wrap; }
+.description { margin: 0; color: var(--text-body); max-width: 720px; }
+
+.notice {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin: 0;
+  padding: var(--space-3) var(--space-4);
+  border-radius: var(--radius-sm);
+  background: var(--info-tint);
+  color: var(--text-body);
+  font-size: var(--text-body-sm);
+}
+
+/* Mobile first: the lesson list above the reading column. */
+.body { display: flex; flex-direction: column; gap: var(--space-5); }
+
+.lessonNav { display: flex; flex-direction: column; gap: var(--space-4); }
+
+.lessonList {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.lessonLink {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  width: 100%;
+  min-height: 44px; /* §12 touch target */
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  background: none;
+  font: inherit;
+  color: var(--text-body);
+  text-align: left;
+  cursor: pointer;
+  transition: var(--transition-control);
+}
+
+.lessonLink:hover { background: var(--surface-inset); }
+
+.lessonCurrent {
+  background: var(--surface-card);
+  border-color: var(--border-control);
+  color: var(--text-strong);
+  font-weight: var(--fw-semibold);
+}
+
+.lessonNumber {
+  flex: none;
+  width: 22px;
+  font-family: var(--font-mono);
+  font-size: var(--text-caption);
+  color: var(--text-muted);
+}
+
+.lessonTitle { flex: 1; }
+.lessonDone { flex: none; display: inline-flex; color: var(--verified); }
+
+.assessments {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding-top: var(--space-4);
+  border-top: 1px solid var(--border-subtle);
+}
+
+.assessmentMeta { margin: 0; font-size: var(--text-caption); color: var(--text-muted); }
+
+.reading { min-width: 0; }
+
+.article { display: flex; flex-direction: column; gap: var(--space-5); }
+.lessonHeading { margin: 0; font-size: var(--text-h2); color: var(--text-strong); }
+
+.lessonActions {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: var(--space-3);
+  flex-wrap: wrap;
+  max-width: 720px;
+  padding-top: var(--space-4);
+  border-top: 1px solid var(--border-subtle);
+}
+
+.unwritten {
+  margin: 0;
+  padding: var(--pad-card);
+  border-radius: var(--radius-card);
+  background: var(--surface-inset);
+  color: var(--text-body);
+  max-width: 720px;
+}
+
+.testOut {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+  margin: var(--space-6) 0 0;
+  color: var(--text-muted);
+  font-size: var(--text-body-sm);
+}
+
+.loading { color: var(--text-muted); }
+
+.empty {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  align-items: flex-start;
+  max-width: var(--container-narrow);
+}
+
+.srOnly {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+/* §5.9: the lesson list beside the reading column from md up. */
+@media (min-width: 640px) {
+  .body {
+    display: grid;
+    grid-template-columns: 220px minmax(0, 1fr);
+    gap: var(--space-6);
+    align-items: start;
+  }
+}
+
+@media (min-width: 1024px) {
+  .body { grid-template-columns: 260px minmax(0, 1fr); }
+}

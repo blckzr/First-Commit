@@ -122,6 +122,104 @@ export const api = {
     const handler = () => HttpResponse.json({ error }, { status });
     server.use(path === "placement" ? http.post(url, handler) : http.put(url, handler));
   },
+  /** design.md §5.7 — the roadmap the chart reads. */
+  roadmap(roadmap: unknown, id = "r1") {
+    server.use(http.get(`${BASE}/roadmaps/${id}`, () => HttpResponse.json({ roadmap })));
+  },
+  roadmapFails(status: number, error = "Not found", id = "r1") {
+    server.use(http.get(`${BASE}/roadmaps/${id}`, () => HttpResponse.json({ error }, { status })));
+  },
+  roadmapList(roadmaps: unknown[]) {
+    server.use(http.get(`${BASE}/roadmaps`, () => HttpResponse.json({ roadmaps })));
+  },
+  /** design.md §5.9, §5.10 — the module page and the quiz. */
+  /**
+   * `id` is what the URL asks for; the start handler follows the module's own
+   * `moduleId`, which is what the screen actually posts to.
+   */
+  module(module: { moduleId?: string } | unknown, id = "m1") {
+    const moduleId = (module as { moduleId?: string }).moduleId ?? id;
+    server.use(http.get(`${BASE}/modules/${id}`, () => HttpResponse.json({ module })));
+    server.use(
+      http.post(`${BASE}/modules/${moduleId}/start`, () => HttpResponse.json({ started: true })),
+    );
+  },
+  moduleFails(status: number, error = "Not found", id = "m1") {
+    server.use(http.get(`${BASE}/modules/${id}`, () => HttpResponse.json({ error }, { status })));
+  },
+  lessonCompletes(seen?: (lessonId: string) => void) {
+    server.use(
+      http.post(`${BASE}/lessons/:lessonId/complete`, ({ params }) => {
+        seen?.(params.lessonId as string);
+        return HttpResponse.json({ completed: true });
+      }),
+    );
+  },
+  quiz(assessment: unknown, id = "a1") {
+    server.use(http.get(`${BASE}/assessments/${id}`, () => HttpResponse.json({ assessment })));
+  },
+  quizFails(status: number, error = "Not found", id = "a1") {
+    server.use(http.get(`${BASE}/assessments/${id}`, () => HttpResponse.json({ error }, { status })));
+  },
+  /** Records the submitted body, so a test can prove what the browser sent. */
+  quizGrades(result: unknown, seen?: (body: unknown) => void, id = "a1") {
+    server.use(
+      http.post(`${BASE}/assessments/${id}/attempts`, async ({ request }) => {
+        seen?.(await request.json());
+        return HttpResponse.json({ result });
+      }),
+    );
+  },
+  quizGradeFails(status: number, error: string, id = "a1") {
+    server.use(
+      http.post(`${BASE}/assessments/${id}/attempts`, () =>
+        HttpResponse.json({ error }, { status }),
+      ),
+    );
+  },
+  /** design.md §5.6 — what Home shows. */
+  home(home: unknown) {
+    server.use(http.get(`${BASE}/home`, () => HttpResponse.json({ home })));
+  },
+  homeFails(status: number, error = "Something went wrong.") {
+    server.use(http.get(`${BASE}/home`, () => HttpResponse.json({ error }, { status })));
+  },
+  /** design.md §5.8 — the technology decision. */
+  decision(decision: unknown, roadmapId = "r1", decisionId = "d1") {
+    server.use(
+      http.get(`${BASE}/roadmaps/${roadmapId}/decisions/${decisionId}`, () =>
+        HttpResponse.json({ decision }),
+      ),
+    );
+  },
+  decisionFails(status: number, error = "Not found", roadmapId = "r1", decisionId = "d1") {
+    server.use(
+      http.get(`${BASE}/roadmaps/${roadmapId}/decisions/${decisionId}`, () =>
+        HttpResponse.json({ error }, { status }),
+      ),
+    );
+  },
+  /** Records the body, so a test can prove the browser sends only the option. */
+  choiceSucceeds(
+    result: unknown,
+    seen?: (body: unknown) => void,
+    roadmapId = "r1",
+    decisionId = "d1",
+  ) {
+    server.use(
+      http.post(`${BASE}/roadmaps/${roadmapId}/decisions/${decisionId}`, async ({ request }) => {
+        seen?.(await request.json());
+        return HttpResponse.json({ result });
+      }),
+    );
+  },
+  choiceFails(status: number, error: string, roadmapId = "r1", decisionId = "d1") {
+    server.use(
+      http.post(`${BASE}/roadmaps/${roadmapId}/decisions/${decisionId}`, () =>
+        HttpResponse.json({ error }, { status }),
+      ),
+    );
+  },
   unreachable(path: string) {
     server.use(http.post(`${BASE}${path}`, () => HttpResponse.error()));
   },

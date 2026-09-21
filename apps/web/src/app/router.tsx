@@ -10,6 +10,9 @@ import { ResetPassword } from "../routes/public/ResetPassword";
 import { NotFound } from "../routes/public/NotFound";
 import { Home } from "../routes/learner/Home";
 import { Roadmap } from "../routes/learner/Roadmap";
+import { Module } from "../routes/learner/Module";
+import { Quiz } from "../routes/learner/Quiz";
+import { TechnologyChoice } from "../routes/learner/TechnologyChoice";
 import { About } from "../routes/onboarding/About";
 import { Target } from "../routes/onboarding/Target";
 import { Placement } from "../routes/onboarding/Placement";
@@ -70,17 +73,20 @@ const learnerRoutes = [
   { index: true, element: <Home /> },
   { path: "roadmaps", title: "My roadmaps", section: "section 5.12", purpose: "Switch between roadmaps, or start one for another career." },
   { path: "roadmap/:id", element: <Roadmap /> },
+  // §5.8 specifies this screen; §4.3 gives it no address. Nested under the
+  // roadmap because the answer belongs to a roadmap, not to the track — the
+  // same decision on two roadmaps is two separate choices.
+  { path: "roadmap/:id/technology/:decisionId", element: <TechnologyChoice /> },
   { path: "modules", title: "Explore modules", section: "section 5.13", purpose: "Search and take any published module, inside a roadmap or not." },
-  { path: "module/:id", title: "Module", section: "section 5.9", purpose: "Lessons in order, with the quiz and exercise at the end." },
+  { path: "module/:id", element: <Module /> },
+  // §4.3 has no address for the quiz; §5.10 specifies the screen. Recorded in
+  // docs/task-tracker.md alongside the technology choice, which has the same gap.
+  { path: "quiz/:id", element: <Quiz /> },
   { path: "exercise/:id", title: "Coding exercise", section: "section 5.11", purpose: "Write code, run tests, and read the feedback grounded in those results." },
   { path: "capstone", title: "Capstone project", section: "section 5.14", purpose: "Choose a brief, connect a repository, and track milestones." },
   { path: "certificates", title: "Certificates", section: "section 5.15", purpose: "View, download, and share what has been earned." },
   { path: "resume", title: "Resume", section: "section 5.16", purpose: "Built only from verified skills, certificates, and completed projects." },
   { path: "notifications", title: "Notifications", section: "section 5.17", purpose: "Module updates, roadmap changes, milestones, and certificates." },
-  // §5.8 specifies this screen but §4.3's route map has no address for it.
-  // `/app/technology` is our choice, recorded in docs/task-tracker.md so §4.3
-  // can settle it rather than the router deciding by accident.
-  { path: "technology", title: "Technology choice", section: "section 5.8", purpose: "Compare the framework options, try a taster lesson, and choose." },
   { path: "settings", title: "Settings", section: "section 5.18", purpose: "Profile, password, GitHub connection, and deleting your data." },
 ].map((route) =>
   "element" in route

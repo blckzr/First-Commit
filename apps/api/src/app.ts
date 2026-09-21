@@ -12,6 +12,10 @@ import { loginRoutes } from "./auth/login.js";
 import { verificationRoutes } from "./auth/verification.js";
 import { passwordResetRoutes } from "./auth/password-reset.js";
 import { onboardingRoutes } from "./onboarding/routes.js";
+import { roadmapRoutes } from "./roadmaps/routes.js";
+import { moduleRoutes } from "./modules/routes.js";
+import { homeRoutes } from "./home/routes.js";
+import { decisionRoutes } from "./decisions/routes.js";
 import { requireSameOrigin } from "./middleware/csrf.js";
 import { EventHub } from "./events/hub.js";
 import { eventRoutes, internalEventRoutes } from "./events/routes.js";
@@ -95,6 +99,10 @@ export function createApp(deps: AppDeps = {}) {
   app.use(verificationRoutes(pool));
   app.use(passwordResetRoutes(pool));
   app.use(onboardingRoutes(pool));
+  app.use(roadmapRoutes(pool));
+  app.use(moduleRoutes(pool));
+  app.use(homeRoutes(pool));
+  app.use(decisionRoutes(pool));
   app.use(eventRoutes(hub));
 
   /** The session the browser currently has. Drives useSession in the web app. */

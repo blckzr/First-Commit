@@ -89,29 +89,48 @@ The main loop: sign up → roadmap → learn → pass.
 - [x] **Design + build `/forgot-password` and `/reset-password`** — not in the prototype, so designed against §5.3's rules: one confirmation whatever the address, and a token-less link explained without a round trip
 - [x] **Onboarding** — about you, target position, placement, generating; one page per step, resumable via `onboarding_step`. API (`GET /career-paths`, `GET /onboarding`, `PUT /onboarding/about`, `PUT /onboarding/target`, `POST /onboarding/placement`) enforces the step order; `RequireOnboardingStep` mirrors it in the browser for the experience
   - [ ] **Placement questions are not specified.** The schema has no question table and `placement_results.results` is free-form jsonb, so the screen currently offers only the skip §5.4 requires anyway. Settle where the questions come from, then fill the screen and the `results` shape
-  - [ ] The generating screen polls `GET /onboarding` and leaves when the step reaches `done`. Move it to SSE once `roadmap_generation` exists (Phase 3) and the worker posts to `/internal/events`
+  - [x] The generating screen now completes: the worker sets `onboarding_step = 'done'` in the same transaction that writes the roadmap
+  - [ ] Move the generating screen from polling to SSE — the worker already posts to `/internal/events`, so this is a subscription, not new plumbing
+  - [ ] **§5.5 Roadmap Review does not exist.** Onboarding currently ends at `/app`, skipping the review the document specifies ("Track [ Frontend ▾ ]", "Adjust weekly hours", "Start learning")
 - [x] **Roadmap chart** — React Flow, custom nodes, side panel, the `sm` stacked layout, keyboard navigation and nested-list DOM equivalent. Built on the `Roadmap` type from `design.md` §13.3 against mock data
-  - [ ] **Fetch a real roadmap** once `roadmap_generation` exists (Phase 3). `Roadmap` is already the shape the API should return, so this is a query, not a rewrite
-  - [ ] **§4.3 has no address for the technology choice screen** even though §5.8 specifies it. `/app/technology` is in the router as a placeholder; settle the route in §4.3 or change it
+  - [x] **Fetch a real roadmap** — `GET /roadmaps/:id` builds the §13.3 object from the database; the screen no longer holds mock data
+  - [ ] **§4.3 has no address for the technology choice screen** even though §5.8 specifies it, and none for the quiz although §5.10 specifies it. `/app/roadmap/:id/technology/:decisionId` and `/app/quiz/:id` are the router's choices; settle both in §4.3
+  - [ ] **`pathColor` has no column.** §13.3 has it, `career_paths` does not, so the API derives it from the path id. Either §13.3 drops it or the schema gains it
   - [ ] **`RoadmapModuleNode` has no description**, but §5.7 says the side panel shows one. Add it to §13.3 or drop it from §5.7
   - [ ] **`sharedWithPaths` holds ids, and §2.1 renders names** ("Also in: Data"). The panel says "1 other career path" until the type carries a title
   - [ ] Reinforcement "Remove" and challenge "Skip" are disabled — both change the roadmap, so both need an endpoint
   - [ ] `/app/modules` in the router vs `/app/explore` in §4.3 — pick one
-- [ ] Module page, lesson reading, lesson progress
-- [ ] Quiz — server-side grading, attempts, test-out
+- [x] **Module page, lesson reading, lesson progress** — `GET /modules/:id`, `POST /modules/:id/start`, `POST /lessons/:id/complete`. §5.9's lesson list, 720px reading column, both version notices, and test-out. The open lesson is in the URL
+- [x] **Quiz — server-side grading, attempts, test-out** — `GET /assessments/:id` (questions, never the key) and `POST /assessments/:id/attempts` (chosen options only). **The first place the platform writes evidence**; mutation-tested with four deliberate defects
+  - [ ] §5.10: "After a second failed attempt, the Roadmap AI may add a reinforcement module, and the result screen says so." The `roadmap_adaptation` job type exists in the enum; nothing queues it
+  - [ ] §5.10 shows "I don't know yet" as a quiz option. It is content, and the seeded questions do not offer it
+  - [ ] "Review answers" is not built — the result screen shows topics to review and the explanations for correct answers, which is what §5.10 requires, but not a full answer review
+  - [ ] Only 3 of 19 modules have a quiz, and none has a coding exercise
 - [ ] Coding exercise — CodeMirror, Sandpack practice, server grading via Judge0 / Vitest+jsdom, results over SSE
-- [x] Home (Phase 1.5)
+- [x] **Home on real data** — `GET /home`: the Continue panel, roadmap progress, and §5.6's Updates. It reuses `buildRoadmap`, so Home and the chart can never disagree about "You are here"
+  - [ ] §5.6: "During the capstone, the Continue panel shows the current milestone instead of a lesson." `ContinuePanel` is a union with one member; the milestone variant arrives with Phase 4
+  - [ ] Updates are **derived**, not read from `notifications` — nothing writes that table yet. §5.17's screen is where an event history belongs
+  - [ ] §5.6's Updates panel offers "[Remove]" on an AI-added module. That changes the roadmap, so it needs the same endpoint the roadmap panel's Remove is waiting on
 - [ ] My roadmaps, Explore modules, Settings
 - [ ] **Design + build `/app/notifications`** — not in the prototype
 - [ ] Reconcile `/app/profile` vs `design.md` §4.3, which folds profile into Settings
 
 ## Phase 3 — AI components
 
-`code_feedback` already works; the other three are stubs with schemas written.
+`code_feedback` and `roadmap_generation` work; the other two are stubs with schemas written.
 
-- [ ] **`roadmap_generation`** — handler, prompt, validation against real module IDs, prerequisite order, full core coverage; reject and regenerate on invalid
+- [x] **Seed content** — `npm run db:seed` loads the Junior Web Developer path from `supabase/seed/`: 2 tracks, 8 skills, 19 modules with prerequisites, 2 technology decisions, 3 quizzes. Idempotent by slug, and it validates the content (cycles, dangling references, core-depends-on-concept) before writing anything
+  - [x] **Lesson format settled** — a block list, written into `design.md` §13.3 as `LessonContent`. Five block types, and `text` is plain except for backticks marking inline code, so nothing in a lesson can inject markup. 9 lessons seeded for the three modules with quizzes
+  - [ ] This replaces an admin content editor, which is still unbuilt
+- [x] **`roadmap_generation`** — handler, prompt, validation against real module IDs, prerequisite order, full core coverage; reject and regenerate on invalid. 24 tests on the validator
+  - [ ] **Not yet run against the model.** Ollama was not running, so the catalogue query, the validator and the writes are verified against real PostgreSQL (`npm run try:roadmap -- <userId> <slug> --stub`) but the prompt has never been sent. Start Ollama and run it without `--stub`
+  - [ ] **Placement can barely skip anything**, by design: skipping writes no evidence, so a skipped module cannot be required for the certificate *and* cannot be a prerequisite of anything on the roadmap. Only testing out really skips a module. Worth saying plainly in §5.4, which currently reads as though placement removes modules
+  - [ ] `weeklySchedule` was removed from `RoadmapPlan` — nothing stored it, and §5.5's "about 14 weeks" is arithmetic the platform does
 - [ ] **Roadmap review screen** — AI rationale panel, track override, weekly hours, flag control
-- [ ] **Technology decision** — comparison, taster lessons, AI recommendation, switching
+- [x] **Technology decision** — comparison, switching, and the AI panel when there is a recommendation to show. `GET`/`POST /roadmaps/:id/decisions/:decisionId`; choosing adds that framework's modules to the roadmap, switching archives the old ones. 23 API tests, 23 screen tests
+  - [ ] **Taster lessons are not built.** §5.8 offers "Try taster lesson" per option — "the same small counter in each framework, about 10 minutes" — and the schema has nowhere for one. It is not a module (it is not on the roadmap) and not a lesson (it belongs to no version). Settle where it lives before building it
+  - [ ] **`technology_recommendation` is not built**, so the AI panel is absent rather than filled in. The job type is in the enum and `roadmap_technology_choices` already has `recommended_technology_id` and `recommendation_reason`
+  - [ ] "Is this wrong?" is disabled until `ai_feedback_flags` has an endpoint
 - [ ] **Adaptive modules** — reinforcement after repeated low scores, challenge after high ones
 - [ ] **`milestone_review`** — diff-only, split by file, `AI_CONTEXT_LARGE`
 - [ ] **`resume_generation`** — evidence-only, cross-checked against verified skills

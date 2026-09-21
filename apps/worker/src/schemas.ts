@@ -23,12 +23,29 @@ export const CodeFeedback = z.object({
 });
 export type CodeFeedback = z.infer<typeof CodeFeedback>;
 
-/** Roadmap plan. Module IDs must exist; the worker checks prerequisites after parsing. */
+/**
+ * Roadmap plan.
+ *
+ * Zod only proves the shape. Everything that makes a roadmap *correct* — real
+ * module ids, prerequisite order, full core coverage — is checked afterwards by
+ * `roadmap/validate.ts` against the catalogue read from the database, and
+ * invalid output is fed back and regenerated (AGENT.md §7).
+ *
+ * **`weeklySchedule` was removed.** An earlier draft asked the model for a
+ * week-by-week plan, but nothing stores one and design.md §5.5 shows a figure
+ * the platform can compute exactly — "16 modules, about 14 weeks at 6 hours a
+ * week" is `sum(estimated_hours) / weekly_hours`. Asking a model to do
+ * arithmetic the platform already has is the thing §7 exists to prevent, and it
+ * costs tokens on an 8GB budget.
+ */
 export const RoadmapPlan = z.object({
-  skipModuleIds: z.array(z.string()).describe("Core modules the learner proved in placement"),
-  recommendedTrackId: z.string(),
-  orderedModuleIds: z.array(z.string()),
-  weeklySchedule: z.array(z.object({ week: z.number().int().min(1), moduleIds: z.array(z.string()) })),
+  recommendedTrackId: z.string().describe("The id of one published track"),
+  skipModuleIds: z
+    .array(z.string())
+    .describe("Modules the placement result proves the learner already knows"),
+  orderedModuleIds: z
+    .array(z.string())
+    .describe("Every module the learner will take, in the order to take them"),
   explanation: z.string().describe("Two or three sentences shown on the roadmap review page"),
 });
 export type RoadmapPlan = z.infer<typeof RoadmapPlan>;

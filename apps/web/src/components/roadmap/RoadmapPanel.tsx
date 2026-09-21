@@ -84,7 +84,7 @@ function Details({ roadmap, selection }: { roadmap: Roadmap; selection: RoadmapS
     case "skill":
       return <SkillDetails step={step} />;
     case "decision":
-      return <DecisionDetails step={step} />;
+      return <DecisionDetails step={step} roadmapId={roadmap.id} />;
     case "certificate":
     case "capstone":
     case "project_certificate":
@@ -237,7 +237,7 @@ function SkillDetails({ step }: { step: SkillStep }) {
   );
 }
 
-function DecisionDetails({ step }: { step: DecisionStep }) {
+function DecisionDetails({ step, roadmapId }: { step: DecisionStep; roadmapId: string }) {
   const chosen = step.options.find((o) => o.id === step.chosenOptionId);
   return (
     <>
@@ -261,7 +261,7 @@ function DecisionDetails({ step }: { step: DecisionStep }) {
         ))}
       </ul>
       <div className={styles.actions}>
-        <LinkButton to="/app/technology" icon="arrow-right">
+        <LinkButton to={`/app/roadmap/${roadmapId}/technology/${step.id}`} icon="arrow-right">
           {chosen ? "Review your choice" : "Choose your technology"}
         </LinkButton>
       </div>

@@ -1,0 +1,117 @@
+.page {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+  max-width: var(--container-narrow);
+}
+
+.header { display: flex; flex-direction: column; gap: var(--space-3); align-items: flex-start; }
+
+.title { margin: 0; font-size: var(--text-h1); color: var(--text-strong); }
+.lede { margin: 0; color: var(--text-body); }
+
+/* §5.8's AI panel. Labelled, with its reason, and flaggable. */
+.aiPanel {
+  display: flex;
+  align-items: flex-start;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+  padding: var(--pad-card);
+  border-radius: var(--radius-card);
+  background: var(--ai-tint);
+}
+
+.aiText { flex: 1 1 260px; margin: 0; color: var(--text-body); }
+
+.error {
+  margin: 0;
+  padding: var(--space-3) var(--space-4);
+  border-radius: var(--radius-sm);
+  background: var(--error-tint);
+  color: var(--error);
+  font-size: var(--text-body-sm);
+}
+
+/* Mobile first: one card per row, side by side from md. */
+.options {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: var(--gutter-card);
+}
+
+.card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding: var(--pad-card);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-card);
+  background: var(--surface-card);
+}
+
+.cardHead {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: var(--space-3);
+  flex-wrap: wrap;
+}
+
+.cardTitle { margin: 0; font-size: var(--text-h2); color: var(--text-strong); }
+.cardBadges { display: flex; gap: var(--space-2); flex-wrap: wrap; }
+.cardBody { margin: 0; color: var(--text-body); }
+
+.comparison { margin: 0; display: flex; flex-direction: column; gap: var(--space-2); }
+.comparison > div { display: flex; flex-direction: column; gap: 2px; }
+.comparison dt { font-size: var(--text-caption); color: var(--text-muted); }
+.comparison dd { margin: 0; color: var(--text-body); font-size: var(--text-body-sm); }
+
+.cardMeta { margin: 0; font-size: var(--text-caption); color: var(--text-muted); }
+.cardActions { margin-top: auto; padding-top: var(--space-2); }
+
+/* The confirmation. Not a modal: it does not trap focus or block the page, so
+   a learner can still read the cards while deciding (§5.8 calls it a
+   confirmation, not a dialog that takes over). */
+.confirm {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding: var(--pad-card-lg);
+  border: 1px solid var(--border-control);
+  border-radius: var(--radius-panel);
+  background: var(--surface-card);
+}
+
+.confirmTitle { margin: 0; font-size: var(--text-h3); color: var(--text-strong); }
+
+.confirmTitle:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 4px;
+  border-radius: var(--radius-sm);
+}
+
+.confirmLine { margin: 0; color: var(--text-body); font-size: var(--text-body-sm); }
+
+.confirmActions {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--space-3);
+  flex-wrap: wrap;
+  margin-top: var(--space-2);
+}
+
+.loading { color: var(--text-muted); }
+
+.empty {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  align-items: flex-start;
+}
+
+@media (min-width: 640px) {
+  .options { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}

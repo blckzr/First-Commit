@@ -39,6 +39,45 @@ export async function signedIn(
       body: JSON.stringify({ user, onboardingStep }),
     }),
   );
+  await stubHome(page);
+}
+
+/**
+ * Serves the fixture roadmap for any id.
+ *
+ * It is the same object the component tests use — one fixture, so a change to
+ * the `Roadmap` type breaks both at once rather than leaving the slower suite
+ * quietly testing an older shape.
+ */
+export async function stubRoadmap(page: Page): Promise<void> {
+  const { mockRoadmap } = await import("../src/test/roadmap.js");
+  await page.route("**/roadmaps/*", (route) => {
+    if (route.request().isNavigationRequest()) return route.fallback();
+    return route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({ roadmap: mockRoadmap }),
+    });
+  });
+}
+
+/**
+ * Serves Home's summary.
+ *
+ * Folded into `signedIn` because every `/app` page renders the learner shell
+ * and many specs land on Home on the way somewhere else — an unstubbed request
+ * there would fail the navigation for reasons unrelated to what is under test.
+ */
+async function stubHome(page: Page): Promise<void> {
+  const { mockHome } = await import("../src/test/home.js");
+  await page.route("**/home", (route) => {
+    if (route.request().isNavigationRequest()) return route.fallback();
+    return route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({ home: mockHome }),
+    });
+  });
 }
 
 export async function signedOut(page: Page): Promise<void> {

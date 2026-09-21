@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { layoutRoadmap, SPINE_WIDTH } from "./layout";
-import { mockRoadmap } from "./mock";
+import { mockRoadmap } from "../../test/roadmap";
 import { allModules } from "./types";
 
 /**

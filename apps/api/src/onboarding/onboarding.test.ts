@@ -202,6 +202,31 @@ describe("POST /onboarding/placement", () => {
     expect(job.status).toBe("queued");
   });
 
+  /**
+   * The worker fills in a roadmap; it does not decide whose it is. The API
+   * creates the row from the session and hands the worker its id, so a job can
+   * never be pointed at another learner's roadmap by anything the browser sent.
+   */
+  it("creates the roadmap and points the job at it", async () => {
+    const res = await send("/onboarding/placement").send({ careerPathId: pathId, results: {} });
+
+    const roadmap = db.rows("roadmaps")[0];
+    const learner = db.rows("users").find((u) => u.email === ACCOUNT.email)!;
+    expect(roadmap.user_id).toBe(learner.id);
+    expect(roadmap.career_path_id).toBe(pathId);
+    expect(res.body.roadmapId).toBe(roadmap.id);
+
+    // source_id is documented as the roadmap id, and the worker refuses a job
+    // without one it can verify.
+    expect(db.rows("ai_jobs")[0].source_id).toBe(roadmap.id);
+  });
+
+  /** §5.5 shows "about 14 weeks at 6 hours a week", which needs the hours stored. */
+  it("carries the learner's weekly hours onto the roadmap", async () => {
+    await send("/onboarding/placement").send({ careerPathId: pathId, results: {} });
+    expect(db.rows("roadmaps")[0].weekly_hours).toBe(5);
+  });
+
   /** §5.4: "I don't know yet" is always available, so an empty result is valid. */
   it("accepts an empty result", async () => {
     const res = await send("/onboarding/placement").send({ careerPathId: pathId, results: {} });

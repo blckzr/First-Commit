@@ -10,8 +10,11 @@
   "scripts": {
     "check": "tsx src/check-setup.ts",
     "try:feedback": "tsx src/examples/code-feedback.ts",
+    "try:roadmap": "tsx src/examples/roadmap.ts",
     "worker": "tsx src/worker.ts",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "test": "vitest",
+    "test:run": "vitest run"
   },
   "dependencies": {
     "dotenv": "^17.4.2",
@@ -22,6 +25,7 @@
     "@types/node": "^22.20.3",
     "@types/pg": "^8.23.1",
     "tsx": "^4.23.13",
-    "typescript": "^5.9.3"
+    "typescript": "^5.9.3",
+    "vitest": "^5.0.1"
   }
 }

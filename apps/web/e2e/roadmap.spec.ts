@@ -1,5 +1,5 @@
 import { expect, test } from "@playwright/test";
-import { signedIn } from "./session";
+import { signedIn, stubRoadmap } from "./session";
 
 /**
  * The roadmap where jsdom cannot go: real layout, a real canvas, and a real
@@ -14,6 +14,9 @@ const ROADMAP = "/app/roadmap/10000000-0000-0000-0000-000000000001";
 
 test.beforeEach(async ({ page }) => {
   await signedIn(page);
+  // The screen fetches its roadmap now, so the stub is at the network boundary
+  // like every other one — the app runs its real query, parse and render.
+  await stubRoadmap(page);
 });
 
 test("shows the roadmap once, whatever the width", async ({ page }) => {

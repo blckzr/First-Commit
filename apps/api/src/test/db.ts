@@ -38,11 +38,61 @@ const TABLES = [
   "ai_outputs",
   // Onboarding
   "career_paths",
+  "tracks",        // roadmaps references it
   "placement_results",
+  "roadmaps",
+  // The roadmap chart
+  "skills",
+  "technologies",
+  "technology_decisions",
+  "decision_options",
+  "path_skills",
+  "modules",
+  "module_versions",
+  "lessons",       // module_enrollments references it
+  "module_prerequisites",
+  "path_skill_modules",
+  "roadmap_technology_choices",
+  "roadmap_items",
+  "module_enrollments",
+  "module_completions",
+  // The module page and the quiz
+  "lesson_progress",
+  "assessments",
+  "quiz_questions",
+  "quiz_options",
+  "quiz_answer_keys",
+  "assessment_attempts",
+  // certificates.project_id points into the capstone chain, so the whole chain
+  // has to exist even though nothing here reads it yet.
+  "capstone_briefs",
+  "capstone_brief_versions",
+  "capstone_projects",
+  "certificates",
 ];
 
 function readMigration(): string {
   return readFileSync(MIGRATION, "utf8").replace(/\r\n/g, "\n");
+}
+
+/**
+ * The handful of things pg-mem cannot parse.
+ *
+ * Kept to a **named, explained list** rather than a general cleanup, because
+ * the whole point of reading the real migration is that a difference between
+ * test and production has to be deliberate. Anything rewritten here is
+ * something the tests genuinely cannot cover, and is covered by
+ * `npm run db:verify` against real PostgreSQL instead.
+ */
+function forPgMem(statement: string): string {
+  return (
+    statement
+      // `unique nulls not distinct` is PostgreSQL 15+. pg-mem parses neither the
+      // clause nor its meaning — under it, two core path_skills rows (track_id
+      // null) would not conflict. Nothing in the API relies on that conflict;
+      // the seed loader does, and it runs against the real database.
+      .replace(/unique nulls not distinct/g, "unique")
+  );
 }
 
 function extractStatements(sql: string): string[] {
@@ -57,7 +107,7 @@ function extractStatements(sql: string): string[] {
     const re = new RegExp(String.raw`create table ${table} \([\s\S]*?\n\);`);
     const match = sql.match(re);
     if (!match) throw new Error(`Could not find "create table ${table}" in the migration`);
-    statements.push(match[0]);
+    statements.push(forPgMem(match[0]));
   }
 
   // The case-insensitive email uniqueness the sign-up conflict path relies on.

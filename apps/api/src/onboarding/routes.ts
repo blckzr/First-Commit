@@ -188,8 +188,8 @@ export function onboardingRoutes(pool: Pool): Router {
     const parsed = PlacementBody.safeParse(req.body);
     if (!parsed.success) throw new HttpError(400, parsed.error.issues[0].message);
 
-    const { rows } = await pool.query<{ onboarding_step: string }>(
-      `select onboarding_step from learner_profiles where user_id = $1`,
+    const { rows } = await pool.query<{ onboarding_step: string; weekly_hours: number | null }>(
+      `select onboarding_step, weekly_hours from learner_profiles where user_id = $1`,
       [user.id],
     );
     if (!rows[0]) throw new HttpError(404, "Not found");
@@ -205,6 +205,23 @@ export function onboardingRoutes(pool: Pool): Router {
         [user.id, parsed.data.careerPathId, JSON.stringify(parsed.data.results)],
       );
 
+      /**
+       * The roadmap row is created here, empty, and the worker fills it in.
+       *
+       * The API owns business rules (AGENT.md §2), so whose roadmap this is and
+       * which path it is for is decided here from the session — not by the
+       * worker, and not from anything the browser sent. It also gives the job a
+       * real `source_id`: `ai_jobs.source_id` is documented as the roadmap id,
+       * and the worker refuses to run without one it can verify belongs to this
+       * learner.
+       */
+      const roadmap = await client.query<{ id: string }>(
+        `insert into roadmaps (user_id, career_path_id, weekly_hours, status)
+         values ($1, $2, $3, 'active')
+         returning id`,
+        [user.id, parsed.data.careerPathId, rows[0].weekly_hours],
+      );
+
       const next = advance(rows[0].onboarding_step, "generating");
       await client.query(
         `update learner_profiles set onboarding_step = $1, updated_at = now()
@@ -213,19 +230,18 @@ export function onboardingRoutes(pool: Pool): Router {
       );
 
       /**
-       * The Roadmap AI job. The worker has no `roadmap_generation` handler yet
-       * (Phase 3), so this row sits queued — which is the honest state: the
-       * generating screen waits, exactly as §5.4 describes, and will start
-       * completing once the handler exists.
+       * The Roadmap AI job. The worker claims it, checks its output against the
+       * published catalogue, writes `roadmap_items`, and moves the learner's
+       * step to `done` — which is what the generating screen is waiting for.
        */
       await client.query(
         `insert into ai_jobs (type, user_id, source_id, payload)
-         values ('roadmap_generation', $1, gen_random_uuid(), $2)`,
-        [user.id, JSON.stringify({ careerPathId: parsed.data.careerPathId })],
+         values ('roadmap_generation', $1, $2, $3)`,
+        [user.id, roadmap.rows[0].id, JSON.stringify({ careerPathId: parsed.data.careerPathId })],
       );
 
       await client.query("commit");
-      res.json({ step: next, next: "/onboarding/generating" });
+      res.json({ step: next, next: "/onboarding/generating", roadmapId: roadmap.rows[0].id });
     } catch (err) {
       await client.query("rollback").catch(() => {});
       throw err;
