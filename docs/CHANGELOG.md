@@ -11,6 +11,76 @@ lives under `[Unreleased]` until there is something to version.
 
 ## [Unreleased]
 
+### 2026-09-25 — The curriculum is finished
+
+The remaining nine modules are written. **All 19 published modules now have three lessons
+and a five-question quiz**, so a learner can walk the whole Junior Web Developer path —
+core skills, the technology choice, and the modules on either side of it — without meeting
+an empty reading column.
+
+#### Added
+
+**Three concept modules**, taught before the technology choice and shared by both tracks:
+
+- **What are components** — one description used many times, props flowing one way, state
+  versus derived values, and lifting state to a shared parent. Deliberately
+  framework-independent: everything in it is true of React and Vue alike, which is why it
+  sits before the decision.
+- **How the web talks** — a request and a response, why `GET` being safe is a promise to
+  caches and prefetchers rather than to you, the five status families, and why `401` and
+  `403` send people to different places.
+- **Fetching data** — `await` pausing a function and not the page, `Promise.all`, the fact
+  that **`fetch` does not reject on a 404 or a 500**, and modelling loading / loaded /
+  failed as one status rather than two booleans that can both be true.
+
+**Three technology pairs**, written as pairs on purpose — the same lessons in the same
+order, teaching the same ideas in different syntax, so §5.8's "you keep your progress on
+shared modules" means something and switching does not feel like starting over:
+
+| | React | Vue |
+|---|---|---|
+| Components | JSX as JavaScript, `className`, `children` | single-file components, `defineProps`, slots |
+| Lists | `map` and why the index is a poor `key` | `v-for` and why the index is a poor `:key` |
+| State | `useState`, stale reads, updater functions | `ref` and `.value`, `reactive`, `nextTick` |
+| Asking the parent | a callback prop | `emit`, and what `v-model` is made of |
+| Deriving | calculate in render, not in an effect | `computed`, not `watch` |
+
+**Routing in Express and Django** — a route as method-plus-path against one view per path,
+route order swallowing the specific case, where parameters and queries and bodies each come
+from, and the middleware order that decides whether a guard actually guards anything.
+
+Each pair carries the same gotchas where they genuinely rhyme (route order, path parameters
+arriving as strings) and diverges where the frameworks do (`express.json()` versus Django's
+CSRF check, `return` after `res.status(404)` versus `get_object_or_404`).
+
+#### Verified
+
+`npm run db:seed` loads **57 lessons and 19 quizzes**. Then, against the live database:
+
+- **19 of 19 modules ready** — 10 core, 3 concept, 6 technology, each with lessons and a
+  quiz.
+- **All 611 lesson blocks** validate against `LessonContent` (`design.md` §13.3): five
+  block types, two callout tones, every code block carrying both a language and its code.
+- **All 96 answer keys** point at the option the author marked correct, checked row by row
+  after the loader's rotation. Correct answers sit at position 0/1/2/3 in 31/20/22/23 of
+  them.
+- **No question links to a lesson outside its own module**, so §5.10's "topics to review"
+  always sends a learner somewhere that covers what they missed.
+- JSX, Vue single-file components and Django templates survive the round trip through
+  `jsonb` intact — `<script setup>` and `{% csrf_token %}` come back exactly as written.
+  They render as text: `LessonBody` and `CodeBlock` put every string in a text node, and
+  neither file contains `dangerouslySetInnerHTML`.
+- 255 API + 263 web + 24 worker tests, lint and typecheck clean.
+
+#### Notes
+
+- The technology modules are six modules for three topics. Written as three pairs in one
+  sitting so the two halves actually match — a React lesson and its Vue twin written weeks
+  apart would drift, and a learner switching framework would notice.
+- Still unwritten content: **placement questions** (the schema has nowhere to put them —
+  AGENT.md §11), **coding exercises** (no module has one, and §5.11's screen is unbuilt),
+  and **a capstone brief**. Those are the three remaining items on the content track.
+
 ### 2026-09-25 — The core spine has content
 
 Sixteen of nineteen published modules had nothing in them. Only HTML basics, CSS basics and

@@ -940,4 +940,975 @@ git merge origin/main`,
       ],
     },
   ],
+  "what-are-components": [
+    {
+      title: "One description, many uses",
+      blocks: [
+        p("You have built a page by finding elements and changing them. That works until the same piece of interface appears in four places, and a change has to be made four times."),
+        p("A component is the answer every framework landed on: describe a piece of interface once, as a function of its inputs, and use it wherever you need it."),
+        code(
+          "javascript",
+          `function card(shark) {
+  const el = document.createElement("article");
+  el.innerHTML = "";
+  el.append(heading(shark.name), paragraph(shark.summary));
+  return el;
+}
+
+list.append(card(greatWhite), card(hammerhead));`,
+          "The idea in plain JavaScript, before any framework",
+        ),
+        h("Why this shape"),
+        p("Because the same input always produces the same output, you can look at one function and know what it draws. No hunting through the page for the other three places that also set that heading."),
+        h("Components nest"),
+        p("A page is a component made of components. A card holds a heading and a button; a list holds cards; a screen holds the list and a sidebar. Each level only knows about the one below it."),
+        note("This is the same instinct as a function in the last module. A component is a function whose return value happens to be a piece of interface."),
+      ],
+    },
+    {
+      title: "Props: what a component is told",
+      blocks: [
+        p("A component takes inputs. They are conventionally called props, short for properties, and they come from whoever is using the component."),
+        code(
+          "javascript",
+          `card({ name: "Great white", summary: "Older than trees." });
+card({ name: "Hammerhead", summary: "Eyes on stalks." });`,
+        ),
+        p("One description, two cards. The component does not know or care where the data came from."),
+        h("Props flow one way"),
+        p("A parent passes props down to a child. The child does not reach back up and change them. This is the single rule that makes a large interface possible to reason about: if a value looks wrong on screen, it came from above, so you only have to look in one direction."),
+        h("A child asks, it does not take"),
+        p("When a child needs something to change, it tells the parent — usually by calling a function the parent passed down:"),
+        code(
+          "javascript",
+          `card({
+  name: "Great white",
+  onSelect: () => open("great-white"),
+});`,
+        ),
+        p("The parent owns the decision. The child owns the button."),
+        note("If you find yourself wanting a child to edit a prop directly, the value probably belongs to the parent and the child needs a callback instead. Every framework in this course makes props read-only for exactly this reason.", "notice"),
+      ],
+    },
+    {
+      title: "State: what a component remembers",
+      blocks: [
+        p("Props are what a component is told. State is what it remembers between one moment and the next — whether a panel is open, what someone has typed, which tab is selected."),
+        p("The difference decides your design, so it is worth a clear test:"),
+        list([
+          "Can it be worked out from props? Then it is not state — calculate it.",
+          "Does it survive being re-drawn, and does the component own it? Then it is state.",
+          "Do two components need it? Then it belongs to their nearest shared parent, not to either of them.",
+        ]),
+        h("Lifting state up"),
+        p("That third case is the one people meet first. Two cards both need to know which card is selected, so neither of them can own it — the list above them does, and passes it down:"),
+        code(
+          "javascript",
+          `// the list remembers
+let selected = null;
+
+// each card is told
+card({ name: "Great white", isSelected: selected === "great-white" });`,
+        ),
+        h("Derived values are not state"),
+        p("A total, a filtered list, a formatted date — all of these can be worked out when needed. Storing them means two things to keep in step, and one day they will not be:"),
+        code(
+          "javascript",
+          `const total = items.reduce((n, i) => n + i.price, 0);   // derive it
+// not: let total = 0; and remember to update it everywhere`,
+        ),
+        note("Everything in this lesson is true of React, Vue, Svelte and the rest. Only the syntax changes after this — which is why this module sits before you choose one."),
+      ],
+    },
+  ],
+
+  "http-basics": [
+    {
+      title: "A request and a response",
+      blocks: [
+        p("Opening a page is a conversation. Your browser sends a request; a server sends back a response. Everything else in this module is detail on those two messages."),
+        code(
+          "text",
+          `GET /sharks/great-white HTTP/1.1
+Host: example.com
+Accept: text/html`,
+          "A request: a method, a path, and some headers",
+        ),
+        code(
+          "text",
+          `HTTP/1.1 200 OK
+Content-Type: text/html; charset=utf-8
+
+<!doctype html>…`,
+          "A response: a status, some headers, a blank line, then the body",
+        ),
+        h("Each request stands alone"),
+        p("HTTP is stateless: the server does not remember your last request. Anything that has to persist — who you are signed in as — travels with every request, usually in a cookie or an Authorization header."),
+        h("A page is many requests"),
+        p("One page is rarely one request. The HTML arrives first, and the browser then requests every stylesheet, script, font and image it mentions. Open the Network tab and watch it happen once; it explains most performance advice you will ever read."),
+        note("You can read a real request and response in your browser's Network tab, on any page, right now. Nothing in this module is hidden from you."),
+      ],
+    },
+    {
+      title: "Methods, and what they promise",
+      blocks: [
+        p("The method says what kind of thing the request is. There are many; four carry almost all the traffic."),
+        list([
+          "`GET` — read something. Changes nothing.",
+          "`POST` — create something, or ask the server to do something.",
+          "`PUT` / `PATCH` — replace or amend something that exists.",
+          "`DELETE` — remove something.",
+        ]),
+        h("Safe and idempotent"),
+        p("`GET` is *safe*: it must not change anything. Browsers, caches and crawlers all assume this, so a link that deletes a record will eventually be followed by something that is not a person."),
+        p("`PUT` and `DELETE` are *idempotent*: sending the same one twice leaves the same result as sending it once. `POST` is not, which is why a double-click on a form can create two orders."),
+        code(
+          "text",
+          `GET  /orders/42      → the order
+POST /orders         → a new order, every time it is sent`,
+        ),
+        h("The method is a promise to everyone else"),
+        p("Nothing forces a `GET` handler to behave. But proxies cache `GET`, browsers re-send it on a back button, and prefetchers follow it before anyone clicks. Breaking the promise breaks things you do not control."),
+        note("This is why a sign-out link should be a form with a `POST`, not an `<a href>`. A link-prefetcher can sign your users out.", "notice"),
+      ],
+    },
+    {
+      title: "Status codes, headers, and the body",
+      blocks: [
+        p("The status code is the response in one number. The first digit is the category, and knowing the five is enough to debug most things."),
+        list([
+          "`2xx` — it worked. `200 OK`, `201 Created`, `204 No Content`.",
+          "`3xx` — look elsewhere. `301` permanent, `302`/`303` temporary.",
+          "`4xx` — the request was wrong. `400`, `401`, `403`, `404`, `409`, `429`.",
+          "`5xx` — the server was wrong. `500`, `502`, `503`.",
+        ]),
+        h("401 and 403 are different"),
+        p("`401 Unauthorized` means *we do not know who you are* — sign in. `403 Forbidden` means *we know, and you still cannot* — signing in again will not help. Sending the wrong one sends people round a loop."),
+        h("404 over 403, sometimes"),
+        p("Telling someone a record exists but is not theirs is itself a leak — it confirms the record exists. For another person's data, `404` is often the honest answer."),
+        h("Headers carry the metadata"),
+        p("`Content-Type` says what the body is, and the browser believes it. `Cache-Control` says how long it may be reused. `Set-Cookie` asks the browser to remember something and send it back."),
+        code(
+          "text",
+          `Content-Type: application/json
+Cache-Control: no-store`,
+        ),
+        note("`Content-Type: application/json` on an HTML body does not make it JSON. The header is a claim, and everything downstream acts on the claim rather than on the bytes."),
+      ],
+    },
+  ],
+
+  "fetching-data": [
+    {
+      title: "Waiting without freezing the page",
+      blocks: [
+        p("Asking a server for data takes time — tens of milliseconds on a good day, several seconds on a train. JavaScript does not wait; it starts the request and carries on, and deals with the answer when it arrives."),
+        p("A promise is that future answer. `await` is how you read it:"),
+        code(
+          "javascript",
+          `async function loadSharks() {
+  const response = await fetch("/api/sharks");
+  const sharks = await response.json();
+  return sharks;
+}`,
+        ),
+        p("`await` pauses this function, not the page. Everything else — clicks, animations, other requests — keeps running."),
+        h("await only works inside async"),
+        p("A function containing `await` must be marked `async`, and calling it gives you a promise rather than the value:"),
+        code(
+          "javascript",
+          `const sharks = loadSharks();          // a Promise
+const sharks = await loadSharks();    // the array`,
+        ),
+        h("Two requests that do not depend on each other"),
+        p("Awaiting one after the other makes the second wait for no reason. Start both, then wait:"),
+        code(
+          "javascript",
+          `const [sharks, rays] = await Promise.all([
+  fetch("/api/sharks").then((r) => r.json()),
+  fetch("/api/rays").then((r) => r.json()),
+]);`,
+        ),
+        note("An `async` function always returns a promise, even when its body has no `await` and returns a plain number. That surprises people once, usually in a test."),
+      ],
+    },
+    {
+      title: "fetch, and what can go wrong",
+      blocks: [
+        p("`fetch` makes the request. Reading the response takes a second step, because the body arrives separately from the headers:"),
+        code(
+          "javascript",
+          `const response = await fetch("/api/sharks");
+const sharks = await response.json();`,
+        ),
+        h("fetch does not throw on 404"),
+        p("This is the one that catches everyone. A `404` or a `500` is a *successful* request — the server answered. `fetch` only rejects when it could not ask at all: no network, bad host, request blocked."),
+        code(
+          "javascript",
+          `const response = await fetch("/api/sharks");
+if (!response.ok) {
+  throw new Error("The server said " + response.status);
+}`,
+        ),
+        p("`response.ok` is true for any `2xx`. Without that check, a `500` returning an HTML error page reaches `.json()` and fails with a parse error that says nothing about the real problem."),
+        h("Sending data"),
+        code(
+          "javascript",
+          `await fetch("/api/sharks", {
+  method: "POST",
+  headers: { "Content-Type": "application/json" },
+  body: JSON.stringify({ name: "Nurse shark" }),
+});`,
+        ),
+        p("The body must be a string, and the header has to say what kind — the server has no other way to know."),
+        note("Two things are not the same: `response.ok` is about the status code, and `try/catch` around `fetch` is about whether the request happened at all. Real code needs both.", "notice"),
+      ],
+    },
+    {
+      title: "Loading, loaded, failed",
+      blocks: [
+        p("Every request has three outcomes and a page has to show all three. Interfaces that only draw the happy one are the most common bug in this whole area."),
+        code(
+          "javascript",
+          `let state = { status: "loading", data: null, error: null };
+
+try {
+  const response = await fetch("/api/sharks");
+  if (!response.ok) throw new Error("Status " + response.status);
+  state = { status: "loaded", data: await response.json(), error: null };
+} catch (err) {
+  state = { status: "failed", data: null, error: err.message };
+}`,
+        ),
+        p("Modelling it as one `status` rather than two booleans means you cannot end up loading *and* failed at once — a state that should not exist should not be representable."),
+        h("Loaded and empty is not failed"),
+        p("A successful request that returns zero results is a fourth thing. \"No sharks match that search\" is a normal answer; \"Something went wrong\" is not, and saying the second when you mean the first sends people looking for a problem that is not there."),
+        h("What an error message should say"),
+        p("Not the status code. Say what happened, whether their work is safe, and what they can do:"),
+        code(
+          "text",
+          `We could not load your sharks. Nothing you have saved is lost —
+try again in a moment.`,
+        ),
+        note("Announce the result in a live region so it reaches a screen reader. A spinner that is replaced by content silently is an update nobody was told about."),
+      ],
+    },
+  ],
+  "components-in-react": [
+    {
+      title: "A component is a function that returns markup",
+      blocks: [
+        p("In React a component is a function. It takes props and returns a description of what should be on screen."),
+        code(
+          "jsx",
+          `function Card({ name, summary }) {
+  return (
+    <article className="card">
+      <h2>{name}</h2>
+      <p>{summary}</p>
+    </article>
+  );
+}`,
+        ),
+        p("That markup is JSX. It is not HTML and it is not a string — it compiles to function calls, which is why a component name must start with a capital letter: lowercase means an HTML element."),
+        h("Braces switch to JavaScript"),
+        p("Anything inside `{ }` is an expression. That is how a value gets into the markup, and it is why there is no templating language to learn:"),
+        code("jsx", `<h2>{name.toUpperCase()}</h2>`),
+        h("Two names that are not HTML"),
+        p("`class` and `for` are reserved words in JavaScript, so JSX uses `className` and `htmlFor`. Everything else is close enough to HTML that you will forget these two once and then remember forever."),
+        h("Using a component"),
+        code(
+          "jsx",
+          `<Card name="Great white" summary="Older than trees." />`,
+        ),
+        note("A component returns one element. If you need two side by side with no wrapper, use a fragment: `<>…</>`."),
+      ],
+    },
+    {
+      title: "Props, and children",
+      blocks: [
+        p("Props arrive as one object. Destructuring it in the parameter list names what this component actually uses, which doubles as documentation:"),
+        code(
+          "jsx",
+          `function Card({ name, summary, onSelect }) { … }`,
+        ),
+        p("Anything can be a prop — a string, a number, an array, another component, a function. Non-strings go in braces:"),
+        code(
+          "jsx",
+          `<Card name="Great white" lengthM={4.6} onSelect={() => open("gw")} />`,
+        ),
+        h("Props are read-only"),
+        p("A component must not assign to its props. React does not stop you, but the parent owns that value and will overwrite it on the next render — so the change appears to work and then vanishes."),
+        h("children is whatever you wrapped"),
+        p("Content between the tags arrives as the `children` prop, which is how you write a component that wraps other things:"),
+        code(
+          "jsx",
+          `function Panel({ title, children }) {
+  return (
+    <section>
+      <h2>{title}</h2>
+      {children}
+    </section>
+  );
+}
+
+<Panel title="Sharks">
+  <Card name="Great white" />
+</Panel>`,
+        ),
+        note("A default for a missing prop goes in the destructuring: `function Card({ summary = \"No description yet.\" })`."),
+      ],
+    },
+    {
+      title: "Lists and conditionals",
+      blocks: [
+        p("There is no `v-if` or `{% for %}` in React — the markup is JavaScript, so you use JavaScript."),
+        h("A list is map"),
+        code(
+          "jsx",
+          `<ul>
+  {sharks.map((shark) => (
+    <li key={shark.id}>{shark.name}</li>
+  ))}
+</ul>`,
+        ),
+        h("key is not decoration"),
+        p("`key` tells React which item is which between renders. Without it, React matches by position — so inserting at the top makes every row appear to change, and any typing inside them follows the wrong item."),
+        p("Use a stable id from your data. **Not the array index**, which is the position you were trying not to rely on:"),
+        code(
+          "jsx",
+          `{sharks.map((shark, i) => <li key={i}>…</li>)}   // no better than nothing`,
+        ),
+        h("Showing something conditionally"),
+        code(
+          "jsx",
+          `{error && <p role="alert">{error}</p>}
+{isLoading ? <Spinner /> : <List items={sharks} />}`,
+        ),
+        h("The zero trap"),
+        p("`&&` returns the left value when it is falsy, and React renders `0` as the number zero. An empty list then puts a stray \"0\" on the page:"),
+        code(
+          "jsx",
+          `{sharks.length && <List />}        // renders 0 when empty
+{sharks.length > 0 && <List />}    // renders nothing`,
+        ),
+        note("`false`, `null` and `undefined` all render as nothing. `0` and `NaN` do not, which is why that first line is a real bug and not a style preference.", "notice"),
+      ],
+    },
+  ],
+
+  "components-in-vue": [
+    {
+      title: "A single-file component",
+      blocks: [
+        p("In Vue a component is a `.vue` file with up to three blocks: the logic, the markup, and the styles that belong to it."),
+        code(
+          "vue",
+          `<script setup>
+defineProps({ name: String, summary: String });
+</script>
+
+<template>
+  <article class="card">
+    <h2>{{ name }}</h2>
+    <p>{{ summary }}</p>
+  </article>
+</template>
+
+<style scoped>
+.card { padding: 16px; }
+</style>`,
+        ),
+        p("The template is real HTML with additions, so `class` and `for` are spelled the way they are in HTML."),
+        h("Two braces interpolate"),
+        p("`{{ }}` puts a value into the text. It takes an expression, not a statement:"),
+        code("vue", `<h2>{{ name.toUpperCase() }}</h2>`),
+        h("scoped styles"),
+        p("`<style scoped>` applies only inside this component. That is the whole answer to \"which stylesheet is this rule in\" — it is in the file you are already looking at."),
+        h("Using a component"),
+        code(
+          "vue",
+          `<script setup>
+import Card from "./Card.vue";
+</script>
+
+<template>
+  <Card name="Great white" summary="Older than trees." />
+</template>`,
+        ),
+        note("`<script setup>` is the modern form. Older tutorials show `export default { … }` with an `components: { }` list — the same ideas, more ceremony."),
+      ],
+    },
+    {
+      title: "Props, and slots",
+      blocks: [
+        p("`defineProps` declares what a component takes. Declaring the type is not optional decoration — it is how Vue warns you when a parent passes the wrong thing:"),
+        code(
+          "vue",
+          `<script setup>
+defineProps({
+  name: { type: String, required: true },
+  lengthM: { type: Number, default: 0 },
+});
+</script>`,
+        ),
+        h("Binding a non-string"),
+        p("A plain attribute passes a string. `:` (short for `v-bind:`) passes the value:"),
+        code(
+          "vue",
+          `<Card name="Great white" :length-m="4.6" />`,
+        ),
+        p("Props are written `kebab-case` in the template and read `camelCase` in the script. Vue converts between them."),
+        h("Props are read-only"),
+        p("Assigning to a prop is a warning in development and a bug in production — the parent owns the value and will overwrite it on the next update."),
+        h("slots are whatever you wrapped"),
+        code(
+          "vue",
+          `<!-- Panel.vue -->
+<template>
+  <section>
+    <h2>{{ title }}</h2>
+    <slot />
+  </section>
+</template>
+
+<!-- using it -->
+<Panel title="Sharks">
+  <Card name="Great white" />
+</Panel>`,
+        ),
+        note("A slot is Vue's `children`. Named slots — `<slot name=\"footer\" />` — let one component take content in several places, which props cannot do cleanly."),
+      ],
+    },
+    {
+      title: "Lists and conditionals",
+      blocks: [
+        p("Vue puts these in the template as directives, which keeps the markup readable as markup."),
+        h("A list is v-for"),
+        code(
+          "vue",
+          `<ul>
+  <li v-for="shark in sharks" :key="shark.id">
+    {{ shark.name }}
+  </li>
+</ul>`,
+        ),
+        h("key is not decoration"),
+        p("`:key` tells Vue which item is which between updates. Without it, Vue matches by position — so inserting at the top makes every row appear to change, and any typing inside them follows the wrong item."),
+        p("Use a stable id from your data. **Not the loop index**, which is the position you were trying not to rely on."),
+        h("Showing something conditionally"),
+        code(
+          "vue",
+          `<p v-if="error" role="alert">{{ error }}</p>
+<Spinner v-else-if="isLoading" />
+<List v-else :items="sharks" />`,
+        ),
+        h("v-if and v-show are different"),
+        p("`v-if` removes the element from the page entirely. `v-show` leaves it there with `display: none`. Use `v-if` unless you are toggling often enough that rebuilding it costs more than keeping it."),
+        code(
+          "vue",
+          `<Panel v-if="isOpen" />      <!-- not in the DOM when closed -->
+<Panel v-show="isOpen" />    <!-- in the DOM, hidden -->`,
+        ),
+        note("Do not put `v-if` and `v-for` on the same element — the precedence between them is a known trap. Wrap with a `<template v-if>` instead.", "notice"),
+      ],
+    },
+  ],
+  "state-and-props-react": [
+    {
+      title: "useState: what a component remembers",
+      blocks: [
+        p("A plain variable inside a component is thrown away on every render. State is the value that survives, and changing it is what asks for the next render."),
+        code(
+          "jsx",
+          `import { useState } from "react";
+
+function Counter() {
+  const [count, setCount] = useState(0);
+
+  return (
+    <button onClick={() => setCount(count + 1)}>
+      Clicked {count} times
+    </button>
+  );
+}`,
+        ),
+        p("`useState` gives back the current value and a function to replace it. `0` is only the starting value — it is ignored on every render after the first."),
+        h("Never assign to state"),
+        code(
+          "jsx",
+          `count = count + 1;        // nothing re-renders
+setCount(count + 1);      // correct`,
+        ),
+        h("Updates are not immediate"),
+        p("`setCount` schedules a render; it does not change `count` in the line below. Reading it straight after gives the old value, which is the single most reported \"bug\" in React:"),
+        code(
+          "jsx",
+          `setCount(count + 1);
+console.log(count);       // still the old number`,
+        ),
+        h("Base a new value on the old one safely"),
+        p("Two updates in the same event both read the same stale `count`, so the second overwrites the first. Pass a function instead and each one gets the latest:"),
+        code(
+          "jsx",
+          `setCount((n) => n + 1);
+setCount((n) => n + 1);   // now definitely +2`,
+        ),
+        note("Treat state as read-only. `items.push(x)` then `setItems(items)` changes nothing on screen, because it is the same array — React compares identities. Use `setItems([...items, x])`.", "notice"),
+      ],
+    },
+    {
+      title: "Lifting state up",
+      blocks: [
+        p("When two components need the same value, neither can own it. It moves to their nearest shared parent, and comes back down as props."),
+        code(
+          "jsx",
+          `function Filters() {
+  const [query, setQuery] = useState("");
+
+  return (
+    <>
+      <SearchField value={query} onChange={setQuery} />
+      <Results query={query} />
+    </>
+  );
+}`,
+        ),
+        p("`SearchField` is told the value and given a way to ask for a new one. `Results` is told the same value. Neither remembers anything, and they cannot disagree."),
+        h("Controlled inputs"),
+        p("An input whose value comes from state is controlled — React owns what is in the box:"),
+        code(
+          "jsx",
+          `<input value={query} onChange={(e) => setQuery(e.target.value)} />`,
+        ),
+        p("Pass `value` without `onChange` and the field is frozen: every keystroke re-renders it back to the state that never changed. React warns about this in development."),
+        h("Do not copy props into state"),
+        p("This looks harmless and is a common bug:"),
+        code(
+          "jsx",
+          `const [name, setName] = useState(props.name);   // frozen at the first render`,
+        ),
+        p("`useState` ignores its argument after the first render, so when the prop changes the copy does not. If a value comes from above, read it from above."),
+        note("A good check: if two components ever show different answers to the same question, the value is stored in two places and one of them should be a prop."),
+      ],
+    },
+    {
+      title: "Effects, and when you do not need one",
+      blocks: [
+        p("`useEffect` runs code after a render, for things outside React — a network request, a subscription, a timer."),
+        code(
+          "jsx",
+          `useEffect(() => {
+  let cancelled = false;
+
+  fetch("/api/sharks")
+    .then((r) => r.json())
+    .then((data) => { if (!cancelled) setSharks(data); });
+
+  return () => { cancelled = true; };
+}, []);`,
+        ),
+        p("The array is the dependency list: `[]` means run once after the first render. Leave it out entirely and the effect runs after *every* render — including the one it caused, which is an infinite loop."),
+        h("The cleanup function"),
+        p("The returned function runs before the next effect and when the component goes away. It is what stops a slow response arriving after the learner has navigated elsewhere and setting state on nothing."),
+        h("Most effects should not exist"),
+        p("If a value can be worked out from props and state, calculate it during render — no effect, no extra state, nothing to keep in step:"),
+        code(
+          "jsx",
+          `const visible = sharks.filter((s) => s.name.includes(query));   // just do it`,
+        ),
+        p("An effect that sets state from other state is the shape to watch for. It renders twice and can drift."),
+        note("Effects are for reaching outside React. If nothing outside React is involved, there is usually a simpler answer one line up."),
+      ],
+    },
+  ],
+
+  "state-and-props-vue": [
+    {
+      title: "ref: what a component remembers",
+      blocks: [
+        p("A plain variable in `<script setup>` is not reactive — changing it updates nothing. `ref` wraps a value so Vue can watch it."),
+        code(
+          "vue",
+          `<script setup>
+import { ref } from "vue";
+
+const count = ref(0);
+</script>
+
+<template>
+  <button @click="count++">Clicked {{ count }} times</button>
+</template>`,
+        ),
+        h(".value in script, not in the template"),
+        p("A `ref` holds its value in `.value`. The template unwraps it for you; your script does not:"),
+        code(
+          "vue",
+          `count.value++;        // in <script>
+{{ count }}           // in <template> — no .value`,
+        ),
+        p("Forgetting `.value` in script is the mistake everyone makes first. It fails quietly: you are incrementing an object, not a number."),
+        h("reactive, for objects"),
+        code(
+          "vue",
+          `import { reactive } from "vue";
+
+const filters = reactive({ query: "", onlyBig: false });
+filters.query = "hammer";     // no .value`,
+        ),
+        p("`reactive` takes an object and needs no `.value`, but it cannot be reassigned wholesale and does not survive destructuring. Most code uses `ref` for everything and accepts the `.value`."),
+        h("Updates are batched"),
+        p("Changing a ref schedules an update rather than applying it immediately. If you need the DOM after it lands, wait for it:"),
+        code(
+          "vue",
+          `import { nextTick } from "vue";
+
+count.value++;
+await nextTick();
+// the DOM now reflects the new count`,
+        ),
+        note("`ref` replaces the whole value and tracks it. `reactive` tracks properties of one object. Mixing both in one component is legal and usually confusing — pick one per file.", "notice"),
+      ],
+    },
+    {
+      title: "Lifting state up, and emits",
+      blocks: [
+        p("When two components need the same value, it moves to their nearest shared parent and comes back down as props."),
+        code(
+          "vue",
+          `<script setup>
+import { ref } from "vue";
+const query = ref("");
+</script>
+
+<template>
+  <SearchField :value="query" @change="query = $event" />
+  <Results :query="query" />
+</template>`,
+        ),
+        h("A child asks with emit"),
+        p("A child cannot write to a prop, so it emits an event and the parent decides what to do:"),
+        code(
+          "vue",
+          `<script setup>
+defineProps({ value: String });
+const emit = defineEmits(["change"]);
+</script>
+
+<template>
+  <input :value="value" @input="emit('change', $event.target.value)">
+</template>`,
+        ),
+        h("v-model is those two together"),
+        p("`v-model` is shorthand for passing a value down and listening for the update coming back:"),
+        code(
+          "vue",
+          `<input v-model="query">                  <!-- on an element -->
+<SearchField v-model="query" />          <!-- on a component -->`,
+        ),
+        p("On a component it passes `modelValue` and listens for `update:modelValue`, which is worth knowing the first time you write one yourself."),
+        h("Do not copy a prop into a ref"),
+        code(
+          "vue",
+          `const local = ref(props.name);   // frozen at setup`,
+        ),
+        p("`setup` runs once, so the copy never hears about the prop changing. If a value comes from above, read it from above — or use `computed`."),
+        note("If two components ever show different answers to the same question, the value is stored twice and one of them should be a prop."),
+      ],
+    },
+    {
+      title: "computed, and watch when you need it",
+      blocks: [
+        p("A value worked out from other values is `computed`. It caches, and recalculates only when something it reads has changed."),
+        code(
+          "vue",
+          `import { computed } from "vue";
+
+const visible = computed(() =>
+  sharks.value.filter((s) => s.name.includes(query.value)),
+);`,
+        ),
+        p("Read it like a ref — `visible.value` in script, `{{ visible }}` in the template. It is read-only, which is the point: it has no state of its own to drift."),
+        h("computed, not watch"),
+        p("Watching one ref to set another is the shape to avoid. It runs after the fact, stores a second copy, and can disagree with the first:"),
+        code(
+          "vue",
+          `// avoid
+watch(query, () => { visible.value = filter(query.value); });
+
+// prefer
+const visible = computed(() => filter(query.value));`,
+        ),
+        h("What watch is actually for"),
+        p("Reaching outside Vue — a request, a timer, writing to storage:"),
+        code(
+          "vue",
+          `watch(query, async (next) => {
+  results.value = await search(next);
+});`,
+        ),
+        h("Side effects on mount"),
+        code(
+          "vue",
+          `import { onMounted, onUnmounted } from "vue";
+
+onMounted(() => { timer = setInterval(tick, 1000); });
+onUnmounted(() => { clearInterval(timer); });`,
+        ),
+        note("Every subscription, interval and listener started in `onMounted` needs undoing in `onUnmounted`. A timer left running on a component that is gone is a leak that only shows up after a while."),
+      ],
+    },
+  ],
+  "routing-in-express": [
+    {
+      title: "A route is a method plus a path",
+      blocks: [
+        p("A server's job is to turn a request into a response. A route says which requests one piece of code is responsible for — the method and the path together."),
+        code(
+          "javascript",
+          `import express from "express";
+
+const app = express();
+
+app.get("/sharks", (req, res) => {
+  res.json([{ name: "Great white" }]);
+});
+
+app.listen(3000);`,
+        ),
+        p("`app.get` matches only `GET`. `POST /sharks` is a different route with different code, which is exactly the separation the method promised in the last module."),
+        h("Order matters"),
+        p("Express tries routes top to bottom and stops at the first match. A general pattern above a specific one swallows it:"),
+        code(
+          "javascript",
+          `app.get("/sharks/:id", …);      // matches /sharks/new too
+app.get("/sharks/new", …);      // never reached`,
+        ),
+        p("Put the specific route first. This is the cause of most \"my route does nothing\" questions."),
+        h("res ends the request"),
+        p("`res.json`, `res.send` and `res.status(…).end()` all finish it. Sending twice throws, and sending nothing leaves the browser waiting until it times out:"),
+        code(
+          "javascript",
+          `app.get("/sharks/:id", (req, res) => {
+  if (!shark) {
+    res.status(404).json({ error: "Not found" });
+    return;                                        // without this, both send
+  }
+  res.json(shark);
+});`,
+        ),
+        note("Returning after sending is a habit worth forming early. `if (!x) res.status(404)…` with no `return` is a bug that only appears on the unhappy path, which is the path nobody tests by hand.", "notice"),
+      ],
+    },
+    {
+      title: "Parameters, queries, and bodies",
+      blocks: [
+        p("Three places data arrives from, and they are not interchangeable."),
+        h("Path parameters name a thing"),
+        code(
+          "javascript",
+          `app.get("/sharks/:id", (req, res) => {
+  req.params.id;        // "42"
+});`,
+        ),
+        p("Always a string, even when it looks like a number. `/sharks/42` gives you `\"42\"`."),
+        h("The query string modifies a request"),
+        code(
+          "javascript",
+          `// GET /sharks?big=true&sort=name
+req.query.big;        // "true" — a string, not a boolean
+req.query.sort;       // "name"`,
+        ),
+        p("Use the path for *which* resource and the query for *how* you want it — filtering, sorting, paging."),
+        h("The body carries what you are sending"),
+        p("Express does not parse a body unless you ask it to. Without this line `req.body` is `undefined`, which is the second most common Express surprise:"),
+        code(
+          "javascript",
+          `app.use(express.json());
+
+app.post("/sharks", (req, res) => {
+  req.body.name;
+});`,
+        ),
+        h("Nothing that arrives is trustworthy"),
+        p("Every one of these comes from outside. Validate before you use any of it, and never build SQL by concatenating it:"),
+        code(
+          "javascript",
+          `const id = Number(req.params.id);
+if (!Number.isInteger(id)) {
+  return res.status(400).json({ error: "id must be a number" });
+}`,
+        ),
+        note("A path parameter that looks like a number is still a string. `req.params.id === 42` is false for `/sharks/42`, and it fails silently."),
+      ],
+    },
+    {
+      title: "Middleware, and the order it runs in",
+      blocks: [
+        p("Middleware is a function that sees the request before the route does. Everything in Express is built out of it — body parsing, sessions, logging, authentication."),
+        code(
+          "javascript",
+          `function requireAuth(req, res, next) {
+  if (!req.session.userId) {
+    return res.status(401).json({ error: "Sign in first" });
+  }
+  next();
+}`,
+        ),
+        p("`next()` hands on to whatever comes after. Not calling it — and not responding — leaves the request hanging forever."),
+        h("It runs in the order you add it"),
+        code(
+          "javascript",
+          `app.use(express.json());          // every route gets a parsed body
+app.get("/sharks", handler);      // public
+app.post("/sharks", requireAuth, handler);   // this one is not`,
+        ),
+        p("A middleware added *after* a route does not apply to it. If a guard is not firing, check whether it is registered below the thing it was meant to protect."),
+        h("Errors"),
+        p("An error handler takes four arguments, and that signature is how Express recognises it:"),
+        code(
+          "javascript",
+          `app.use((err, req, res, next) => {
+  console.error(err);
+  res.status(500).json({ error: "Something went wrong" });
+});`,
+        ),
+        p("It goes last. Send the client a short, honest message and keep the detail in the log — a stack trace in a response tells an attacker about your dependencies."),
+        note("In Express 5 a rejected promise in an async handler reaches this automatically. In Express 4 it does not, and the request hangs — which is why so much Express 4 code wraps every handler."),
+      ],
+    },
+  ],
+
+  "routing-in-django": [
+    {
+      title: "urls.py maps a path to a view",
+      blocks: [
+        p("A server's job is to turn a request into a response. In Django the mapping lives in `urls.py`, and the code that answers is a view."),
+        code(
+          "python",
+          `# urls.py
+from django.urls import path
+from . import views
+
+urlpatterns = [
+    path("sharks/", views.shark_list),
+    path("sharks/<int:pk>/", views.shark_detail),
+]`,
+        ),
+        code(
+          "python",
+          `# views.py
+from django.http import JsonResponse
+
+def shark_list(request):
+    return JsonResponse({"sharks": [{"name": "Great white"}]})`,
+        ),
+        h("One view, every method"),
+        p("Unlike Express, a path maps to one view whatever the method. The view decides:"),
+        code(
+          "python",
+          `def shark_list(request):
+    if request.method == "POST":
+        return create(request)
+    return JsonResponse({"sharks": []})`,
+        ),
+        h("Order matters"),
+        p("Django tries patterns top to bottom and stops at the first match, so a general pattern above a specific one swallows it:"),
+        code(
+          "python",
+          `path("sharks/<str:slug>/", views.detail),   # matches "new" too
+path("sharks/new/", views.new),            # never reached`,
+        ),
+        h("Including another file"),
+        p("Each app keeps its own `urls.py`, and the project's file mounts them:"),
+        code(
+          "python",
+          `path("api/", include("sharks.urls")),`,
+        ),
+        note("Django's trailing slash is a convention it takes seriously: with `APPEND_SLASH` on, a request to `/sharks` is redirected to `/sharks/`. A `POST` does not survive that redirect, which is a confusing five minutes the first time.", "notice"),
+      ],
+    },
+    {
+      title: "Parameters and query strings",
+      blocks: [
+        p("Two places data arrives from in a URL, and Django treats them differently."),
+        h("Path converters name a thing, and type it"),
+        code(
+          "python",
+          `path("sharks/<int:pk>/", views.shark_detail)
+
+def shark_detail(request, pk):
+    pk    # already an int`,
+        ),
+        p("`<int:…>` converts and also refuses to match anything that is not a number, so a bad URL is a 404 rather than a crash inside your view. `<str:…>`, `<slug:…>` and `<uuid:…>` work the same way."),
+        h("The query string modifies a request"),
+        code(
+          "python",
+          `# GET /sharks/?big=true&sort=name
+request.GET.get("big")            # "true" — a string
+request.GET.get("sort", "name")   # with a default`,
+        ),
+        p("Use `.get()` rather than `request.GET[\"big\"]`: a missing key raises, and a missing query parameter is normal."),
+        h("The body"),
+        code(
+          "python",
+          `import json
+
+def create(request):
+    data = json.loads(request.body)
+    data["name"]`,
+        ),
+        h("Naming a route"),
+        p("Give a path a name and build URLs from the name, so changing the path does not mean finding every string that mentioned it:"),
+        code(
+          "python",
+          `path("sharks/<int:pk>/", views.shark_detail, name="shark-detail")
+
+from django.urls import reverse
+reverse("shark-detail", args=[42])   # "/sharks/42/"`,
+        ),
+        note("A path converter is validation you get for free. `<int:pk>` means no view ever has to check that `pk` is a number."),
+      ],
+    },
+    {
+      title: "Returning a response",
+      blocks: [
+        p("A view must return a response object. Returning nothing raises — Django will not guess."),
+        code(
+          "python",
+          `from django.http import JsonResponse, HttpResponse
+
+JsonResponse({"name": "Great white"})
+JsonResponse({"sharks": [...]}, safe=False)     # a list needs safe=False
+HttpResponse(status=204)`,
+        ),
+        h("Status codes are an argument"),
+        code(
+          "python",
+          `JsonResponse({"error": "Not found"}, status=404)`,
+        ),
+        h("404 without the if"),
+        p("The common case has a shortcut that raises the right response for you:"),
+        code(
+          "python",
+          `from django.shortcuts import get_object_or_404
+
+shark = get_object_or_404(Shark, pk=pk)`,
+        ),
+        h("POST needs the CSRF token"),
+        p("Django rejects an unauthenticated `POST` without a CSRF token — that is a feature, and the first thing people disable when they should not. For a form, include the tag:"),
+        code(
+          "python",
+          `<form method="post">
+  {% csrf_token %}
+  …
+</form>`,
+        ),
+        p("For a JSON API called from your own front end, send the token in the `X-CSRFToken` header. `@csrf_exempt` removes the protection rather than satisfying it."),
+        h("Middleware wraps every request"),
+        p("Sessions, authentication and CSRF are all middleware, listed in `settings.py` and applied in order. A request passes down the list and the response comes back up it."),
+        note("If a POST returns 403 with no obvious reason, it is the CSRF check nine times out of ten. Send the token; do not exempt the view."),
+      ],
+    },
+  ],
 };

@@ -966,6 +966,77 @@ export const modules = [
         "The idea every framework shares: describe a piece of interface once, then use it wherever you need it. Framework-independent.",
       estimatedHours: 3,
     },
+    quiz: {
+      title: "Components quiz",
+      instructions: "Five questions on the idea of a component. Nothing here is specific to a framework. There is no time limit.",
+      questions: [
+        {
+          prompt: "What problem do components solve?",
+          explanation:
+            "The same piece of interface appearing in several places, described once instead of repeated. A change then happens in one place rather than four.",
+          options: [
+            "Describing a piece of interface once and using it wherever needed",
+            "Making pages load faster",
+            "Replacing CSS with JavaScript",
+            "Letting a page work without JavaScript",
+          ],
+          lesson: 1,
+          correct: 0,
+        },
+        {
+          prompt: "Which way do props flow?",
+          explanation:
+            "From parent to child, one way. If a value looks wrong on screen it came from above, so there is only one direction to look in.",
+          options: [
+            "Down from parent to child",
+            "Up from child to parent",
+            "Both ways at once",
+            "Sideways between components at the same level",
+          ],
+          lesson: 2,
+          correct: 0,
+        },
+        {
+          prompt: "A child needs a value to change. What should it do?",
+          explanation:
+            "Call a function the parent passed down. The parent owns the decision and the child owns the button, which keeps ownership in one place.",
+          options: [
+            "Call a function the parent gave it",
+            "Assign a new value to the prop",
+            "Store its own copy and change that",
+            "Re-render the parent directly",
+          ],
+          lesson: 2,
+          correct: 0,
+        },
+        {
+          prompt: "Two sibling components need the same value. Where does it belong?",
+          explanation:
+            "In their nearest shared parent, passed down to both. Neither sibling can own it, because the other one would not see the change.",
+          options: [
+            "In their nearest shared parent",
+            "Duplicated in both siblings",
+            "In whichever sibling changes it",
+            "In a global variable",
+          ],
+          lesson: 3,
+          correct: 0,
+        },
+        {
+          prompt: "Should a total calculated from a list be kept in state?",
+          explanation:
+            "No — derive it when needed. Storing it means two things to keep in step, and one day they will disagree.",
+          options: [
+            "No, work it out from the list when you need it",
+            "Yes, so it does not have to be recalculated",
+            "Yes, but only if the list is long",
+            "Only if the total is shown more than once",
+          ],
+          lesson: 3,
+          correct: 0,
+        },
+      ],
+    },
   },
   {
     slug: "components-in-react",
@@ -978,6 +1049,67 @@ export const modules = [
       title: "Components in React",
       description: "Writing components with JSX, passing props, and composing them into a screen.",
       estimatedHours: 6,
+    },
+    quiz: {
+      title: "Components in React quiz",
+      instructions: "Five questions on JSX, props and rendering lists. There is no time limit.",
+      questions: [
+        {
+          prompt: "Why must a React component's name start with a capital letter?",
+          explanation:
+            "JSX compiles to function calls, and a lowercase name is treated as an HTML element. Capitalised means it is your component.",
+          options: [
+            "Lowercase is treated as an HTML element",
+            "It is only a naming convention",
+            "Otherwise the file will not import",
+            "It is required for props to be passed",
+          ],
+          lesson: 1,
+          correct: 0,
+        },
+        {
+          prompt: "Why does JSX use className instead of class?",
+          explanation:
+            "class is a reserved word in JavaScript, and JSX is JavaScript. htmlFor exists for the same reason.",
+          options: [
+            "class is a reserved word in JavaScript",
+            "React styles work differently from CSS",
+            "class only works on HTML elements",
+            "It is a leftover from an older version",
+          ],
+          lesson: 1,
+          correct: 0,
+        },
+        {
+          prompt: "How does a component receive the content written between its tags?",
+          explanation:
+            "As the children prop. That is how you write a component that wraps other things.",
+          options: ["As the children prop", "As a slot", "Through a content attribute", "It cannot — use a prop instead"],
+          lesson: 2,
+          correct: 0,
+        },
+        {
+          prompt: "Why is the array index a poor choice of key?",
+          explanation:
+            "key exists so React does not have to match by position. Using the index gives it the position back, so inserting at the top makes every row look changed.",
+          options: [
+            "It is the position, which is what key exists to avoid relying on",
+            "Indexes are not unique",
+            "React rejects numeric keys",
+            "It is fine — index is the recommended key",
+          ],
+          lesson: 3,
+          correct: 0,
+        },
+        {
+          prompt: "What does {sharks.length && <List />} render when the list is empty?",
+          explanation:
+            'A zero. && returns the left value when it is falsy, and React renders 0 as text. Compare with > 0 instead.',
+          options: ["The number 0", "Nothing", "An empty list", "It throws"],
+          lesson: 3,
+          correct: 0,
+        },
+      ],
     },
   },
   {
@@ -992,6 +1124,72 @@ export const modules = [
       description: "Writing single-file components, passing props, and composing them into a screen.",
       estimatedHours: 6,
     },
+    quiz: {
+      title: "Components in Vue quiz",
+      instructions: "Five questions on single-file components, props and rendering lists. There is no time limit.",
+      questions: [
+        {
+          prompt: "What are the three blocks of a single-file component?",
+          explanation:
+            "script, template and style — the logic, the markup, and the styles that belong to this component.",
+          options: [
+            "script, template and style",
+            "props, state and render",
+            "setup, mount and update",
+            "import, export and default",
+          ],
+          lesson: 1,
+          correct: 0,
+        },
+        {
+          prompt: "What does <style scoped> do?",
+          explanation:
+            "Applies the styles only inside this component, so the answer to which stylesheet a rule is in is the file you are already looking at.",
+          options: [
+            "Limits the styles to this component",
+            "Compiles the CSS ahead of time",
+            "Removes unused rules",
+            "Makes the styles global but prefixed",
+          ],
+          lesson: 1,
+          correct: 0,
+        },
+        {
+          prompt: 'What is the difference between name="4.6" and :length-m="4.6"?',
+          explanation:
+            "A plain attribute passes the string. The : prefix is v-bind, which passes the value — here a number.",
+          options: [
+            "The first passes a string, the second passes the value",
+            "They are identical",
+            "The second only works on components",
+            "The second is the older syntax",
+          ],
+          lesson: 2,
+          correct: 0,
+        },
+        {
+          prompt: "How does a component receive the content written between its tags?",
+          explanation:
+            "Through a slot. Named slots let one component take content in several places, which props cannot do cleanly.",
+          options: ["Through a <slot />", "As the children prop", "Through a content attribute", "It cannot — use a prop"],
+          lesson: 2,
+          correct: 0,
+        },
+        {
+          prompt: "What is the difference between v-if and v-show?",
+          explanation:
+            "v-if removes the element from the page. v-show leaves it there with display: none, so it is cheaper to toggle and still occupies the DOM.",
+          options: [
+            "v-if removes the element; v-show hides it with CSS",
+            "v-show removes the element; v-if hides it",
+            "v-show only works on components",
+            "They are the same with different names",
+          ],
+          lesson: 3,
+          correct: 0,
+        },
+      ],
+    },
   },
   {
     slug: "state-and-props-react",
@@ -1005,6 +1203,77 @@ export const modules = [
       description: "What a component remembers, what it is told, and why the difference decides your design.",
       estimatedHours: 6,
     },
+    quiz: {
+      title: "State and props in React quiz",
+      instructions: "Five questions on useState, lifting state, and effects. There is no time limit.",
+      questions: [
+        {
+          prompt: "What does the argument to useState(0) do after the first render?",
+          explanation:
+            "Nothing. It is only the starting value; every render after the first ignores it. That is why copying a prop into useState freezes it.",
+          options: [
+            "Nothing — it is only the initial value",
+            "Resets the state on every render",
+            "Sets a minimum value",
+            "Runs on every render to recompute the default",
+          ],
+          lesson: 1,
+          correct: 0,
+        },
+        {
+          prompt: "Why does reading count straight after setCount give the old value?",
+          explanation:
+            "setCount schedules a render rather than changing the variable. The new value arrives on the next render, not on the next line.",
+          options: [
+            "The update is scheduled, not applied immediately",
+            "count is a constant",
+            "The console logs asynchronously",
+            "It is a bug fixed in React 19",
+          ],
+          lesson: 1,
+          correct: 0,
+        },
+        {
+          prompt: "Why does items.push(x) then setItems(items) change nothing on screen?",
+          explanation:
+            "It is the same array, and React compares identities. Pass a new one: setItems([...items, x]).",
+          options: [
+            "It is the same array, so React sees no change",
+            "push is not allowed inside a component",
+            "setItems only accepts objects",
+            "The render happens before the push",
+          ],
+          lesson: 1,
+          correct: 0,
+        },
+        {
+          prompt: "An input has value but no onChange. What happens?",
+          explanation:
+            "It is frozen — every keystroke re-renders it back to the state that never changed. React warns about it in development.",
+          options: [
+            "The field cannot be typed in",
+            "It works, but slowly",
+            "The value is ignored",
+            "React throws on the first keystroke",
+          ],
+          lesson: 2,
+          correct: 0,
+        },
+        {
+          prompt: "What does useEffect with no dependency array do?",
+          explanation:
+            "Runs after every render — including renders it caused by setting state, which is an infinite loop. [] means once.",
+          options: [
+            "Runs after every render, which can loop",
+            "Runs once after the first render",
+            "Never runs",
+            "Runs only when props change",
+          ],
+          lesson: 3,
+          correct: 0,
+        },
+      ],
+    },
   },
   {
     slug: "state-and-props-vue",
@@ -1017,6 +1286,77 @@ export const modules = [
       title: "State and props in Vue",
       description: "What a component remembers, what it is told, and why the difference decides your design.",
       estimatedHours: 6,
+    },
+    quiz: {
+      title: "State and props in Vue quiz",
+      instructions: "Five questions on refs, emits and computed. There is no time limit.",
+      questions: [
+        {
+          prompt: "Where do you need .value on a ref?",
+          explanation:
+            "In script. The template unwraps it for you, which is why forgetting it in script is the mistake everyone makes first.",
+          options: [
+            "In <script>, but not in the template",
+            "In the template, but not in script",
+            "In both",
+            "In neither — .value is optional",
+          ],
+          lesson: 1,
+          correct: 0,
+        },
+        {
+          prompt: "What is the main difference between ref and reactive?",
+          explanation:
+            "ref wraps any value and replaces it through .value; reactive tracks the properties of one object, cannot be reassigned wholesale, and does not survive destructuring.",
+          options: [
+            "ref wraps any value; reactive tracks an object's properties",
+            "ref is for numbers and reactive is for strings",
+            "reactive is the older API",
+            "ref works only inside components",
+          ],
+          lesson: 1,
+          correct: 0,
+        },
+        {
+          prompt: "A child needs a prop's value to change. What should it do?",
+          explanation:
+            "Emit an event and let the parent decide. A child cannot write to a prop.",
+          options: [
+            "Emit an event for the parent to handle",
+            "Assign to the prop directly",
+            "Copy it into a ref and change that",
+            "Call the parent component's function by name",
+          ],
+          lesson: 2,
+          correct: 0,
+        },
+        {
+          prompt: "Why does const local = ref(props.name) not follow the prop?",
+          explanation:
+            "setup runs once, so the copy is taken once and never hears about the prop changing. Read it from above, or use computed.",
+          options: [
+            "setup runs once, so the copy is never updated",
+            "refs cannot hold strings",
+            "props are not available in setup",
+            "It does follow — this is the recommended pattern",
+          ],
+          lesson: 2,
+          correct: 0,
+        },
+        {
+          prompt: "You need a filtered list from a query. computed or watch?",
+          explanation:
+            "computed. It caches, recalculates when its inputs change, and has no state of its own to drift. watch is for reaching outside Vue.",
+          options: [
+            "computed — it derives, with nothing to keep in step",
+            "watch — it reacts to the query changing",
+            "Either; they are equivalent",
+            "Neither; filter in the template",
+          ],
+          lesson: 3,
+          correct: 0,
+        },
+      ],
     },
   },
 
@@ -1033,6 +1373,77 @@ export const modules = [
         "Asking a server for data, waiting for it without freezing the page, and showing the three states every request has: loading, loaded, failed.",
       estimatedHours: 5,
     },
+    quiz: {
+      title: "Fetching data quiz",
+      instructions: "Five questions on promises, fetch, and the three states. There is no time limit.",
+      questions: [
+        {
+          prompt: "What does await pause?",
+          explanation:
+            "Only the async function it is in. Clicks, animations and other requests carry on, which is the whole point.",
+          options: [
+            "Only the async function it appears in",
+            "The whole page until the answer arrives",
+            "Every request in flight",
+            "Nothing — it is a hint to the engine",
+          ],
+          lesson: 1,
+          correct: 0,
+        },
+        {
+          prompt: "Two requests do not depend on each other. What is wrong with awaiting them one after the other?",
+          explanation:
+            "The second waits for the first for no reason. Promise.all starts both and waits once.",
+          options: [
+            "The second waits for the first with no need to",
+            "Only one fetch can be in flight at a time",
+            "The results arrive in the wrong order",
+            "Nothing — this is the correct approach",
+          ],
+          lesson: 1,
+          correct: 0,
+        },
+        {
+          prompt: "The server returns 500. Does fetch reject?",
+          explanation:
+            "No. The server answered, so the request succeeded. fetch only rejects when it could not ask at all — no network, bad host, blocked request.",
+          options: [
+            "No — check response.ok yourself",
+            "Yes, any status above 399 rejects",
+            "Yes, but only for 5xx",
+            "Only if you pass throwOnError",
+          ],
+          lesson: 2,
+          correct: 0,
+        },
+        {
+          prompt: "Why send Content-Type with a POST body?",
+          explanation:
+            "The body is a string. The header is the only way the server knows what kind of string it is.",
+          options: [
+            "It is how the server knows what the body is",
+            "Without it the body is not sent",
+            "It compresses the body",
+            "It is required for CORS",
+          ],
+          lesson: 2,
+          correct: 0,
+        },
+        {
+          prompt: "A search returns zero results. Which state is that?",
+          explanation:
+            'Loaded and empty — a normal answer. Showing "something went wrong" sends people looking for a problem that is not there.',
+          options: [
+            "Loaded, with an empty result",
+            "Failed",
+            "Still loading",
+            "It depends on the status code",
+          ],
+          lesson: 3,
+          correct: 0,
+        },
+      ],
+    },
   },
 
   // --- Backend: Servers and HTTP -------------------------------------------
@@ -1047,6 +1458,77 @@ export const modules = [
       description:
         "Requests, responses, methods and status codes — what actually crosses the wire when you open a page.",
       estimatedHours: 4,
+    },
+    quiz: {
+      title: "How the web talks quiz",
+      instructions: "Five questions on requests, methods and status codes. There is no time limit.",
+      questions: [
+        {
+          prompt: "What does it mean that HTTP is stateless?",
+          explanation:
+            "The server does not remember your last request, so anything that has to persist — who you are signed in as — travels with every request.",
+          options: [
+            "The server does not remember previous requests",
+            "Responses cannot contain data",
+            "Requests cannot be cached",
+            "Each page can only make one request",
+          ],
+          lesson: 1,
+          correct: 0,
+        },
+        {
+          prompt: "What does it mean that GET is safe?",
+          explanation:
+            "It must not change anything. Caches, back buttons and prefetchers all assume this and will send a GET without anyone clicking.",
+          options: [
+            "It must not change anything on the server",
+            "It is encrypted",
+            "It cannot be intercepted",
+            "It always succeeds",
+          ],
+          lesson: 2,
+          correct: 0,
+        },
+        {
+          prompt: "Why should signing out be a POST rather than a link?",
+          explanation:
+            "A link is a GET, and a prefetcher or a crawler can follow it without anyone clicking — signing your users out for them.",
+          options: [
+            "Something may follow the link without a person clicking it",
+            "Links cannot send cookies",
+            "GET requests are slower",
+            "A link cannot reach a different page",
+          ],
+          lesson: 2,
+          correct: 0,
+        },
+        {
+          prompt: "What is the difference between 401 and 403?",
+          explanation:
+            "401 means we do not know who you are, so signing in helps. 403 means we know and you still cannot, so it will not.",
+          options: [
+            "401 means sign in; 403 means signing in will not help",
+            "They are interchangeable",
+            "401 is for pages, 403 is for APIs",
+            "403 means the page does not exist",
+          ],
+          lesson: 3,
+          correct: 0,
+        },
+        {
+          prompt: "Why might an API return 404 for a record that exists but is not yours?",
+          explanation:
+            "Saying it exists is itself a leak — it confirms the record to someone with no right to know. 404 gives nothing away.",
+          options: [
+            "Confirming it exists would leak information",
+            "404 is faster to produce",
+            "403 is not valid for APIs",
+            "It is a bug, and 403 is always correct",
+          ],
+          lesson: 3,
+          correct: 0,
+        },
+      ],
     },
   },
 
@@ -1063,6 +1545,72 @@ export const modules = [
       description: "Turning a URL and a method into a handler, and passing a request through middleware.",
       estimatedHours: 6,
     },
+    quiz: {
+      title: "Routing in Express quiz",
+      instructions: "Five questions on routes, parameters and middleware. There is no time limit.",
+      questions: [
+        {
+          prompt: 'app.get("/sharks/:id") is listed above app.get("/sharks/new"). What happens?',
+          explanation:
+            'Express stops at the first match, so /sharks/new is handled by the :id route with id = "new". Put the specific route first.',
+          options: [
+            'The :id route handles /sharks/new as well',
+            "Both handlers run in turn",
+            "Express refuses to start",
+            "The more specific route wins whatever the order",
+          ],
+          lesson: 1,
+          correct: 0,
+        },
+        {
+          prompt: "A handler calls res.status(404).json(...) and then res.json(shark). What goes wrong?",
+          explanation:
+            "Sending twice throws. The first send ends the request, so the handler needs a return after it.",
+          options: [
+            "It throws — the response was already sent",
+            "The second response replaces the first",
+            "The client receives both",
+            "Nothing; Express merges them",
+          ],
+          lesson: 1,
+          correct: 0,
+        },
+        {
+          prompt: "req.body is undefined on a POST. What is missing?",
+          explanation:
+            "Express does not parse a body unless asked. app.use(express.json()) has to be registered before the route.",
+          options: [
+            "app.use(express.json())",
+            "A Content-Length header",
+            "An async handler",
+            "A body-parser route parameter",
+          ],
+          lesson: 2,
+          correct: 0,
+        },
+        {
+          prompt: "What type is req.params.id for GET /sharks/42?",
+          explanation:
+            'A string — "42". Comparing it to 42 with === is false, and it fails silently.',
+          options: ["A string", "A number", "A BigInt", "It depends on the route pattern"],
+          lesson: 2,
+          correct: 0,
+        },
+        {
+          prompt: "A middleware neither calls next() nor sends a response. What happens?",
+          explanation:
+            "The request hangs until it times out. next() hands on; a response ends it; doing neither leaves the client waiting.",
+          options: [
+            "The request hangs until it times out",
+            "Express calls next() automatically",
+            "The route runs anyway",
+            "A 500 is returned",
+          ],
+          lesson: 3,
+          correct: 0,
+        },
+      ],
+    },
   },
   {
     slug: "routing-in-django",
@@ -1075,6 +1623,77 @@ export const modules = [
       title: "Routing in Django",
       description: "Mapping URLs to views, reading parameters, and returning a response.",
       estimatedHours: 6,
+    },
+    quiz: {
+      title: "Routing in Django quiz",
+      instructions: "Five questions on urls.py, views and responses. There is no time limit.",
+      questions: [
+        {
+          prompt: "How many views does one path map to?",
+          explanation:
+            "One, whatever the method. The view inspects request.method and decides — unlike Express, where each method is its own route.",
+          options: [
+            "One, and the view checks request.method",
+            "One per HTTP method",
+            "One per app",
+            "As many as are listed under it",
+          ],
+          lesson: 1,
+          correct: 0,
+        },
+        {
+          prompt: "What does <int:pk> do beyond naming the parameter?",
+          explanation:
+            "It converts to an int and refuses to match anything that is not a number, so a bad URL is a 404 rather than a crash inside the view.",
+          options: [
+            "Converts it, and does not match non-numbers at all",
+            "Only documents the expected type",
+            "Casts it, matching anything",
+            "Requires the value to be a primary key",
+          ],
+          lesson: 2,
+          correct: 0,
+        },
+        {
+          prompt: 'Why use request.GET.get("big") rather than request.GET["big"]?',
+          explanation:
+            "A missing key raises with square brackets, and a missing query parameter is a normal thing for a request not to have.",
+          options: [
+            "A missing parameter raises with square brackets",
+            "Square brackets are deprecated",
+            "get() converts the type",
+            "They behave identically",
+          ],
+          lesson: 2,
+          correct: 0,
+        },
+        {
+          prompt: "Why give a path a name and use reverse()?",
+          explanation:
+            "So changing the path does not mean hunting down every string that mentioned it. The name stays stable while the URL moves.",
+          options: [
+            "So the URL can change without breaking every reference",
+            "It makes resolution faster",
+            "Names are required for path converters",
+            "It enables caching",
+          ],
+          lesson: 2,
+          correct: 0,
+        },
+        {
+          prompt: "A POST returns 403 with no obvious reason. What is the usual cause?",
+          explanation:
+            "The CSRF check. Send the token — in the form or in the X-CSRFToken header. @csrf_exempt removes the protection instead of satisfying it.",
+          options: [
+            "A missing CSRF token",
+            "The URL is missing its trailing slash",
+            "The view returned nothing",
+            "POST is not allowed by default",
+          ],
+          lesson: 3,
+          correct: 0,
+        },
+      ],
     },
   },
 ];

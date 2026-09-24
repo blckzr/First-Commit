@@ -165,7 +165,7 @@ The main loop: sign up → roadmap → learn → pass.
   - [ ] "Review answers" is not built — the result screen shows topics to review and the explanations for correct answers, which is what §5.10 requires, but not a full answer review
   - [x] ~~Only 3 of 19 modules have a quiz~~ — **all 10 core modules** now have three lessons and a five-question quiz. The 9 still empty are concept and technology modules, which come after the technology choice
   - [x] ~~The correct answer was option 0 in all 51 questions~~ — the seed loader rotates each question's options by an amount derived from its prompt, so clicking the top option no longer passes every quiz on the platform
-  - [ ] No module has a coding exercise
+  - [ ] No module has a coding exercise — the content and §5.11's screen need doing together
 - [ ] Coding exercise — CodeMirror, Sandpack practice, server grading via Judge0 / Vitest+jsdom, results over SSE
 - [x] **Home on real data** — `GET /home`: the Continue panel, roadmap progress, and §5.6's Updates. It reuses `buildRoadmap`, so Home and the chart can never disagree about "You are here"
   - [ ] §5.6: "During the capstone, the Continue panel shows the current milestone instead of a lesson." `ContinuePanel` is a union with one member; the milestone variant arrives with Phase 4
@@ -235,9 +235,8 @@ The main loop: sign up → roadmap → learn → pass.
 Not code, but the MVP is not demonstrable without it (`project-proposal.md` §2.2).
 
 - [x] **Junior Web Developer career path** — 2 tracks, 8 skills, 19 modules, 2 technology decisions
-- [x] **Core skill modules — HTML, CSS, JavaScript, Git.** All 10 written: 3 lessons and a 5-question quiz each, every question linked to the lesson that taught it
-- [ ] **Concept modules** — What are components, Fetching data, How the web talks. These come after the technology choice, so a learner reaches them later
-- [ ] **Technology modules** — Components and State/props in React and Vue, Routing in Express and Django
-- [ ] Placement assessment questions
-- [ ] Coding exercises — no module has one yet, and §5.11's screen is unbuilt
+- [x] **All 19 modules written** — 57 lessons and 96 quiz questions. 10 core, 3 concept, 6 technology; three lessons and a five-question quiz each, every question linked to the lesson that taught it
+  - The technology modules are three **pairs** — React/Vue components, React/Vue state, Express/Django routing — written together so the two halves teach the same ideas in the same order. §5.8 promises that switching keeps your progress on shared modules, and that only means something if the pairs match
+- [ ] **Placement assessment questions** — blocked: the schema has nowhere to put them (AGENT.md §11)
+- [ ] **Coding exercises** — no module has one, and §5.11's screen is unbuilt. Content and screen need designing together
 - [ ] At least one capstone brief with milestones, checks, and starter templates for both technologies
