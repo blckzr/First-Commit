@@ -105,6 +105,8 @@ export const api = {
     step: string;
     /** The Roadmap AI job's status, as `GET /onboarding` reports it. */
     generation?: "queued" | "running" | "completed" | "failed" | null;
+    /** design.md §5.4 — the skills to rate and the checks behind them. */
+    placement?: { skills: unknown[] };
     about?: { experienceLevel: string | null; goal: string | null; weeklyHours: number | null } | null;
     careerPathId?: string | null;
   }) {
@@ -113,6 +115,7 @@ export const api = {
         HttpResponse.json({
           step: state.step,
           generation: state.generation ?? null,
+          placement: state.placement ?? { skills: [] },
           about: state.about ?? null,
           careerPathId: state.careerPathId ?? null,
         }),

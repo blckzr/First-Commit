@@ -1,4 +1,4 @@
-import { readFileSync } from "node:fs";
+import { readdirSync, readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { DataType, newDb } from "pg-mem";
 import { randomUUID } from "node:crypto";
@@ -17,7 +17,22 @@ import type { Pool } from "pg";
  * types. Anything relying on a trigger still needs a real database.
  */
 
-const MIGRATION = resolve(process.cwd(), "../../supabase/migrations/0001_initial_schema.sql");
+const MIGRATIONS_DIR = resolve(process.cwd(), "../../supabase/migrations");
+
+/**
+ * Every migration, in order — not just the first one.
+ *
+ * `0002` is the first migration to change a table `0001` created, and reading
+ * only `0001` would have meant the tests knew a schema the database no longer
+ * had: `assessments.skill_id` missing, `module_version_id` still `not null`.
+ * The failure would have looked like a broken endpoint rather than a stale
+ * harness.
+ */
+function migrationFiles(): string[] {
+  return readdirSync(MIGRATIONS_DIR)
+    .filter((f) => f.endsWith(".sql"))
+    .sort();
+}
 
 /**
  * Tables the endpoints under test touch. Add to this as endpoints are built —
@@ -72,7 +87,10 @@ const TABLES = [
 ];
 
 function readMigration(): string {
-  return readFileSync(MIGRATION, "utf8").replace(/\r\n/g, "\n");
+  return migrationFiles()
+    .map((f) => readFileSync(resolve(MIGRATIONS_DIR, f), "utf8"))
+    .join("\n")
+    .replace(/\r\n/g, "\n");
 }
 
 /**
@@ -108,6 +126,15 @@ function extractStatements(sql: string): string[] {
     const match = sql.match(re);
     if (!match) throw new Error(`Could not find "create table ${table}" in the migration`);
     statements.push(forPgMem(match[0]));
+  }
+
+  /**
+   * Then every `alter table` from the later migrations, in file order, so a
+   * column added in `0002` exists here too. `create index` and `comment on`
+   * are left out: no test reads them, and pg-mem's index support is partial.
+   */
+  for (const statement of sql.matchAll(/^alter table [\s\S]*?;$/gm)) {
+    statements.push(forPgMem(statement[0]));
   }
 
   // The case-insensitive email uniqueness the sign-up conflict path relies on.

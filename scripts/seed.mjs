@@ -31,6 +31,7 @@ import {
   tracks,
 } from "../supabase/seed/junior-web-developer.mjs";
 import { lessons as lessonsBySlug } from "../supabase/seed/lessons.mjs";
+import { placement } from "../supabase/seed/placement.mjs";
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 void ROOT;
@@ -173,7 +174,110 @@ function validate() {
     }
   }
 
+  /**
+   * Placement checks. A check for a skill that is not on the path would never
+   * be reachable, and one whose skill has no core modules could never clear
+   * anything — both are authoring mistakes worth catching before they load.
+   */
+  const coreSkills = new Set(modules.filter((m) => m.kind === "core").map((m) => m.skill));
+
+  for (const [slug, check] of Object.entries(placement)) {
+    if (!skillSlugs.has(slug)) {
+      problems.push(`placement check "${slug}": no such skill`);
+      continue;
+    }
+    if (!coreSkills.has(slug)) {
+      problems.push(
+        `placement check "${slug}": that skill has no core modules, so passing it would clear nothing`,
+      );
+    }
+    for (const [i, q] of check.questions.entries()) {
+      if (q.correct < 0 || q.correct >= q.options.length) {
+        problems.push(`placement check "${slug}": question ${i + 1}'s correct answer is out of range`);
+      }
+      if (q.lesson !== undefined) {
+        problems.push(
+          `placement check "${slug}": question ${i + 1} links to a lesson. A placement question ` +
+            `must be answerable by someone who learned the skill elsewhere.`,
+        );
+      }
+    }
+    /**
+     * Sized to what a pass buys: roughly 2.5 questions per module cleared.
+     * Too few and a module of certificate credit costs one or two answers.
+     */
+    const covered = modules.filter((m) => m.kind === "core" && m.skill === slug).length;
+    if (check.questions.length < covered * 2) {
+      problems.push(
+        `placement check "${slug}": ${check.questions.length} questions clears ${covered} modules — ` +
+          `at least ${covered * 2} needed`,
+      );
+    }
+  }
+
   return problems;
+}
+
+/**
+ * Writes a question set, its options and its answer keys.
+ *
+ * Shared by module quizzes and placement checks so the two cannot drift —
+ * most importantly the option rotation, which is the thing standing between a
+ * learner and passing every assessment on the platform by clicking the top
+ * answer.
+ */
+async function writeQuestions(assessmentId, questions, lessonIds = []) {
+for (const [i, q] of questions.entries()) {
+  const questionId = await upsert(
+    `insert into quiz_questions (assessment_id, sort_order, prompt, explanation, linked_lesson_id)
+     values ($1, $2, $3, $4, $5)
+     on conflict (assessment_id, sort_order) do update
+       set prompt = excluded.prompt,
+           explanation = excluded.explanation,
+           linked_lesson_id = excluded.linked_lesson_id
+     returning id`,
+    [assessmentId, i, q.prompt, q.explanation, q.lesson ? lessonIds[q.lesson - 1] : null],
+  );
+
+  /**
+   * **The stored order is rotated, so the answer is not always first.**
+   *
+   * Writing the correct option first is the natural way to author a
+   * question, and every question in this file does it — which meant every
+   * answer sat at position 0 in the database too. `GET /assessments/:id`
+   * returns options in `sort_order`, so a learner could pass every quiz on
+   * the platform by clicking the top option, and the pass would be written
+   * to `module_completions` as evidence (§6 rule 1). Real evidence, worth
+   * nothing.
+   *
+   * The rotation comes from the prompt, so it is the same on every
+   * re-seed: the upsert below stays idempotent, and a learner part-way
+   * through a quiz does not watch the options move.
+   */
+  const shift = rotate(q.prompt, q.options.length);
+  const ordered = q.options.map((_, j) => q.options[(j + shift) % q.options.length]);
+  const correctAt = (q.correct - shift + q.options.length) % q.options.length;
+
+  const optionIds = [];
+  for (const [j, text] of ordered.entries()) {
+    optionIds.push(
+      await upsert(
+        `insert into quiz_options (question_id, sort_order, text) values ($1, $2, $3)
+         on conflict (question_id, sort_order) do update set text = excluded.text
+         returning id`,
+        [questionId, j, text],
+      ),
+    );
+  }
+
+  // The answer key lives in its own table so a learner endpoint selecting
+  // from quiz_options can never return it (AGENT.md §6 rule 2).
+  await client.query(
+    `insert into quiz_answer_keys (question_id, correct_option_id) values ($1, $2)
+     on conflict (question_id) do update set correct_option_id = excluded.correct_option_id`,
+    [questionId, optionIds[correctAt]],
+  );
+}
 }
 
 async function seed() {
@@ -418,62 +522,43 @@ async function seed() {
       [assessmentId, m.quiz.title, m.quiz.instructions],
     );
 
-    for (const [i, q] of m.quiz.questions.entries()) {
-      const questionId = await upsert(
-        `insert into quiz_questions (assessment_id, sort_order, prompt, explanation, linked_lesson_id)
-         values ($1, $2, $3, $4, $5)
-         on conflict (assessment_id, sort_order) do update
-           set prompt = excluded.prompt,
-               explanation = excluded.explanation,
-               linked_lesson_id = excluded.linked_lesson_id
-         returning id`,
-        [assessmentId, i, q.prompt, q.explanation, q.lesson ? lessonIds[q.lesson - 1] : null],
-      );
-
-      /**
-       * **The stored order is rotated, so the answer is not always first.**
-       *
-       * Writing the correct option first is the natural way to author a
-       * question, and every question in this file does it — which meant every
-       * answer sat at position 0 in the database too. `GET /assessments/:id`
-       * returns options in `sort_order`, so a learner could pass every quiz on
-       * the platform by clicking the top option, and the pass would be written
-       * to `module_completions` as evidence (§6 rule 1). Real evidence, worth
-       * nothing.
-       *
-       * The rotation comes from the prompt, so it is the same on every
-       * re-seed: the upsert below stays idempotent, and a learner part-way
-       * through a quiz does not watch the options move.
-       */
-      const shift = rotate(q.prompt, q.options.length);
-      const ordered = q.options.map((_, j) => q.options[(j + shift) % q.options.length]);
-      const correctAt = (q.correct - shift + q.options.length) % q.options.length;
-
-      const optionIds = [];
-      for (const [j, text] of ordered.entries()) {
-        optionIds.push(
-          await upsert(
-            `insert into quiz_options (question_id, sort_order, text) values ($1, $2, $3)
-             on conflict (question_id, sort_order) do update set text = excluded.text
-             returning id`,
-            [questionId, j, text],
-          ),
-        );
-      }
-
-      // The answer key lives in its own table so a learner endpoint selecting
-      // from quiz_options can never return it (AGENT.md §6 rule 2).
-      await client.query(
-        `insert into quiz_answer_keys (question_id, correct_option_id) values ($1, $2)
-         on conflict (question_id) do update set correct_option_id = excluded.correct_option_id`,
-        [questionId, optionIds[correctAt]],
-      );
-    }
+    await writeQuestions(assessmentId, m.quiz.questions, lessonIds);
     quizzes++;
   }
   console.log(ok(`${versions} published module versions`));
   console.log(ok(`${lessonCount} lessons`));
   console.log(ok(`${quizzes} quizzes with answer keys`));
+
+  /**
+   * Placement checks — one per skill, owned by the skill rather than by a
+   * module version (migration 0002). Passing one clears that skill's modules
+   * on the learner's roadmap, so which modules it covers is decided at grading
+   * time and not stored here.
+   */
+  let checks = 0;
+  for (const [skillSlug, check] of Object.entries(placement)) {
+    const skillId = skillIds.get(skillSlug);
+
+    const found = await client.query(
+      `select id from assessments where skill_id = $1`,
+      [skillId],
+    );
+    const assessmentId =
+      found.rows[0]?.id ??
+      (await upsert(
+        `insert into assessments (skill_id, type, title, instructions, passing_score, sort_order)
+         values ($1, 'quiz', $2, $3, $4, 0) returning id`,
+        [skillId, check.title, check.instructions, check.passingScore],
+      ));
+    await client.query(
+      `update assessments set title = $2, instructions = $3, passing_score = $4 where id = $1`,
+      [assessmentId, check.title, check.instructions, check.passingScore],
+    );
+
+    await writeQuestions(assessmentId, check.questions);
+    checks += 1;
+  }
+  console.log(ok(`${checks} placement checks with answer keys`));
 
   await client.query("commit");
 }

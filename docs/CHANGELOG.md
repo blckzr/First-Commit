@@ -11,6 +11,115 @@ lives under `[Unreleased]` until there is something to version.
 
 ## [Unreleased]
 
+### 2026-09-25 — Placement, and the measurement that decided its shape
+
+`design.md` §5.4 introduced placement with "this short check helps us skip what you already
+know". **The platform could not keep that promise.** Measured against the live catalogue:
+
+```
+0 of 13 modules can be skipped by placement
+```
+
+Every module on the Junior Web Developer path is `required_for_certificate`, and
+`validate.ts` rejects a roadmap that leaves one out — because a skipped module writes no
+evidence, so skipping a certificate requirement would make the certificate unreachable.
+
+So placement does not skip. It **rates, then checks**: a learner says what they already
+know, and anything they claim is tested before the platform believes it. Passing a skill's
+check writes `module_completions` with `method = 'tested_out'` — the same evidence testing
+out of one module produces, counting the same toward the certificate.
+
+#### Why not the other shapes
+
+Batching each module's own quiz at onboarding is **51 questions before the roadmap opens**,
+which for a product whose first promise is "here is what to do next" is fatal. Generating
+questions with the model would have put an AI-written answer key behind a certificate,
+which is the one thing AGENT.md §7 exists to prevent — the model never decides what is
+correct — and §9.2 would have had nothing fixed to evaluate.
+
+One check per skill, sized to what a pass buys, is **25 questions**: short enough to sit
+before a learner has seen anything, long enough that a pass means something.
+
+#### Added
+
+- **Migration `0002`** — an assessment now belongs to *either* a module version *or* a
+  skill, never both and never neither, enforced by a check constraint.
+  `module_version_id` became nullable and `skill_id` arrived beside it, with a partial
+  unique index giving a skill at most one placement check.
+- **`supabase/seed/placement.mjs`** — 25 questions across HTML, CSS, JavaScript and Git.
+  Every one is answerable by somebody who learned the skill elsewhere: none refers to a
+  First Commit lesson, uses our wording, or depends on a convention only this platform
+  follows. The loader rejects a placement question that links to a lesson.
+- **`gradePlacement`** (`apps/api/src/onboarding/placement.ts`) — the second place the
+  platform writes evidence. Grades from `quiz_answer_keys`, clears the skill's core
+  modules on *that learner's* path, and records the ratings and scores.
+- **The placement screen**, rebuilt: rate four skills, then answer the checks for anything
+  rated "comfortable", on one page. "I'm new to all of this" fills every row and asks
+  nothing more, which is §5.4's "I don't know yet" kept as a single click.
+- **13 API tests and 5 web tests** on the grading and the screen.
+
+#### Decisions, and the reasons
+
+| | |
+|---|---|
+| **Pass mark 80**, not the 70 a module quiz uses | One pass clears several modules at once, so it should cost more to earn |
+| **All-or-nothing per skill** | Ten JavaScript questions over four modules is 2.5 per module; splitting it per module would make each one worth two answers |
+| **Only "comfortable" triggers a check** | Someone who can use a skill *with help* should do the module, and their answers do not clear it even if they give them |
+| **No retake at onboarding** | Failing changes nothing, and the per-module test-out — longer and stronger — is still there when they reach the module. That assessment *is* the retake |
+
+#### Changed
+
+- **`GET /onboarding`** returns the skills to rate and their questions — options only, never
+  the key, which lives in a table no learner endpoint selects from (§6 rule 2).
+- **`POST /onboarding/placement`** takes `{ ratings, answers }` and is `.strict()`, so a body
+  carrying `score` or `passed` is **rejected** rather than quietly ignored (§6 rule 1).
+- **The Roadmap AI prompt** no longer says to skip what placement shows. It cannot: a
+  module proved at placement already has a completion, and belongs on the roadmap marked
+  passed rather than missing from it. Ratings now decide **order** — what a learner is least
+  sure of comes earlier. `PROMPT_VERSION` → 2.
+- **`apps/api/src/test/db.ts` reads every migration**, not just `0001`. `0002` is the first
+  migration to change a table `0001` created, and a harness stuck on the first file would
+  have tested a schema the database no longer had — failing as a broken endpoint rather
+  than as a stale harness.
+
+#### Mutation-tested: five vulnerabilities, one gap found
+
+Introduced, confirmed caught, reverted:
+
+1. any rating triggers a check, not just "comfortable" — **caught**
+2. modules cleared regardless of the score — **caught**
+3. a placement pass overwrites a real pass (`do update` instead of `do nothing`) — **caught**
+4. the score divided by the number of answers the browser sent — **not caught**
+5. modules cleared on any path, not the learner's — **caught**
+
+**Number 4 was a real hole.** With `Object.keys(answers).length` as the denominator, a
+learner could send **one** correct answer, omit the rest, and score 100% — clearing a
+skill's modules onto their certificate. Two tests now cover it: a single correct answer
+scores 25 and clears nothing, and an answer to a question outside the check counts for
+nothing. Re-running the mutation fails both.
+
+The validator was mutation-tested too: too few questions for what a pass clears, a check
+for a skill with no core modules, a placement question linked to a lesson, and an
+out-of-range answer index — all four rejected before anything is written.
+
+#### Verified
+
+`npm run db:migrate` applied `0002`; `npm run db:seed` loads 4 placement checks with answer
+keys, 25 questions, at 2.5 questions per module cleared, all passing at 80. The 19 module
+quizzes are untouched. **270 API + 266 web + 24 worker tests**, 152 Playwright, lint and
+typecheck clean.
+
+#### Notes
+
+- One e2e assertion changed: the step's heading was the word "Placement" and is now the
+  question it asks. §5.4 still calls the step Placement; the page no longer names itself.
+- AGENT.md §11 #3 is closed by this.
+- **Open, and worth revisiting:** all 13 modules being certificate-required is what made
+  skipping impossible. If any core module is genuinely optional for the certificate — the
+  candidate is Branching and merging — placement could drop it outright for someone who
+  proves Git, and "skip what you already know" becomes literally true. That is a curriculum
+  judgement, not a code one.
+
 ### 2026-09-25 — The curriculum is finished
 
 The remaining nine modules are written. **All 19 published modules now have three lessons

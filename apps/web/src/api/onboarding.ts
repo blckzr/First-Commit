@@ -28,8 +28,46 @@ export type AboutAnswers = z.infer<typeof AboutAnswers>;
 export const GenerationStatus = z.enum(["queued", "running", "completed", "failed"]);
 export type GenerationStatus = z.infer<typeof GenerationStatus>;
 
+/** design.md §5.4 — what a learner says they already know. */
+export const Rating = z.enum(["new", "seen", "with_help", "comfortable"]);
+export type Rating = z.infer<typeof Rating>;
+
+const PlacementQuestion = z.object({
+  id: z.string(),
+  prompt: z.string(),
+  // No answer key: the API grades, and §6 rule 2 keeps the key server-side.
+  options: z.array(z.object({ id: z.string(), text: z.string() })),
+});
+
+export const PlacementSkill = z.object({
+  id: z.string(),
+  slug: z.string(),
+  name: z.string(),
+  description: z.string(),
+  /** How many modules a pass would clear. Shown so the trade is visible. */
+  moduleCount: z.number(),
+  check: z.object({
+    title: z.string(),
+    instructions: z.string(),
+    questions: z.array(PlacementQuestion),
+  }),
+});
+export type PlacementSkill = z.infer<typeof PlacementSkill>;
+
+export const CheckResult = z.object({
+  skill: z.string(),
+  name: z.string(),
+  score: z.number(),
+  passed: z.boolean(),
+  clearedCount: z.number(),
+});
+export type CheckResult = z.infer<typeof CheckResult>;
+
 const OnboardingState = z.object({
   step: z.string(),
+  placement: z
+    .object({ skills: z.array(PlacementSkill) })
+    .default({ skills: [] }),
   generation: GenerationStatus.nullable().default(null),
   about: AboutAnswers.nullable(),
   careerPathId: z.string().nullable(),
@@ -61,11 +99,20 @@ export const onboardingApi = {
       schema: StepResult,
     }),
 
-  savePlacement: (careerPathId: string, results: Record<string, unknown>) =>
+  /**
+   * Ratings and chosen options — never a score. The API grades from the answer
+   * key and writes the evidence (AGENT.md §6 rule 1), and sending a `score`
+   * here is rejected outright rather than ignored.
+   */
+  savePlacement: (
+    careerPathId: string,
+    ratings: Record<string, Rating>,
+    answers: Record<string, string>,
+  ) =>
     apiRequest("/onboarding/placement", {
       method: "POST",
-      body: { careerPathId, results },
-      schema: StepResult,
+      body: { careerPathId, ratings, answers },
+      schema: StepResult.extend({ checks: z.array(CheckResult).default([]) }),
     }),
 
   /** Puts a failed roadmap job back on the queue. The API picks which job. */

@@ -3,6 +3,7 @@ import { z } from "zod";
 import type { Pool } from "pg";
 import { HttpError } from "../middleware/errors.js";
 import { requireAuth, sessionUser } from "../middleware/session.js";
+import { gradePlacement, RATINGS } from "./placement.js";
 
 /**
  * Onboarding (design.md §5.4).
@@ -57,17 +58,24 @@ const TargetBody = z.object({
 });
 
 /**
- * Placement answers, keyed by skill.
+ * Placement answers (design.md §5.4).
  *
- * **The schema has no placement question table** — `placement_results.results`
- * is free-form jsonb, and nothing defines where the questions come from. Until
- * that is settled, this accepts whatever the browser collected and records it
- * as-is. See AGENT.md §11.
+ * `ratings` is what the learner says they know, keyed by skill slug.
+ * `answers` is `{ questionId: optionId }` for the checks they triggered.
+ *
+ * **There is no score in here and never will be** (AGENT.md §6 rule 1).
+ * Passing a check writes `module_completions`, so the grading happens on the
+ * server from `quiz_answer_keys`; the browser only says which option it chose.
+ * `.strict()` so a body carrying `score` or `passed` is rejected outright
+ * rather than quietly ignored.
  */
-const PlacementBody = z.object({
-  careerPathId: z.string().uuid(),
-  results: z.record(z.string(), z.unknown()).default({}),
-});
+const PlacementBody = z
+  .object({
+    careerPathId: z.string().uuid(),
+    ratings: z.record(z.string(), z.enum(RATINGS)).default({}),
+    answers: z.record(z.string().uuid(), z.string().uuid()).default({}),
+  })
+  .strict();
 
 interface ProfileRow {
   experience_level: string | null;
@@ -125,9 +133,105 @@ export function onboardingRoutes(pool: Pool): Router {
       [user.id],
     );
 
+    /**
+     * The skills to rate, and the check behind each one.
+     *
+     * §6 rule 2: the options come from `quiz_options`, and the key lives in
+     * `quiz_answer_keys`, which this never touches. Only skills with core
+     * modules on the path appear — passing a check for a skill that clears
+     * nothing would be a question asked for no reason.
+     */
+    const pathId =
+      (profile.survey_answers.careerPathId as string | undefined) ??
+      placement.rows[0]?.career_path_id ??
+      null;
+
+    /**
+     * Three queries merged in JavaScript rather than one with a correlated
+     * subquery and `= any($1::uuid[])`. pg-mem supports neither — the
+     * subquery fails with `column "s.id" does not exist`, and the array
+     * comparison silently matches nothing — so the endpoint tests would have
+     * been testing something the database never runs.
+     */
+    const skills = pathId
+      ? await pool.query<{
+          id: string;
+          slug: string;
+          name: string;
+          description: string;
+          assessment_id: string;
+          title: string;
+          instructions: string;
+        }>(
+          `select s.id, s.slug, s.name, s.description,
+                  a.id as assessment_id, a.title, a.instructions
+             from path_skills ps
+             join skills s on s.id = ps.skill_id
+             join assessments a on a.skill_id = s.id
+            where ps.career_path_id = $1
+            order by ps.sort_order, s.name`,
+          [pathId],
+        )
+      : { rows: [] };
+
+    const coreCounts = skills.rows.length
+      ? await pool.query<{ skill_id: string; n: string }>(
+          `select skill_id, count(*) as n from modules
+            where kind = 'core' and status = 'published'
+            group by skill_id`,
+        )
+      : { rows: [] };
+    const bySkill = new Map(coreCounts.rows.map((r) => [r.skill_id, Number(r.n)]));
+
+    const questions = skills.rows.length
+      ? await pool.query<{
+          id: string;
+          assessment_id: string;
+          prompt: string;
+          option_id: string;
+          text: string;
+        }>(
+          `select q.id, q.assessment_id, q.prompt, o.id as option_id, o.text
+             from quiz_questions q
+             join quiz_options o on o.question_id = q.id
+             join assessments a on a.id = q.assessment_id
+            where a.skill_id is not null
+            order by q.sort_order, o.sort_order`,
+        )
+      : { rows: [] };
+
     res.json({
       step: profile.onboarding_step,
       generation: job.rows[0]?.status ?? null,
+      placement: {
+        // A check for a skill with no core modules would clear nothing, so
+        // asking about it would be a question with no consequence.
+        skills: skills.rows
+          .filter((r) => (bySkill.get(r.id) ?? 0) > 0)
+          .map((r) => {
+            const byQuestion = new Map<
+              string,
+              { id: string; prompt: string; options: { id: string; text: string }[] }
+            >();
+            for (const q of questions.rows.filter((x) => x.assessment_id === r.assessment_id)) {
+              const existing = byQuestion.get(q.id) ?? { id: q.id, prompt: q.prompt, options: [] };
+              existing.options.push({ id: q.option_id, text: q.text });
+              byQuestion.set(q.id, existing);
+            }
+            return {
+              id: r.id,
+              slug: r.slug,
+              name: r.name,
+              description: r.description,
+              moduleCount: bySkill.get(r.id) ?? 0,
+              check: {
+                title: r.title,
+                instructions: r.instructions,
+                questions: [...byQuestion.values()],
+              },
+            };
+          }),
+      },
       about:
         profile.experience_level || profile.goal || profile.weekly_hours
           ? {
@@ -216,10 +320,32 @@ export function onboardingRoutes(pool: Pool): Router {
     try {
       await client.query("begin");
 
+      /**
+       * Grade first, inside the same transaction: the completions a learner
+       * earned and the record of earning them land together or not at all.
+       */
+      const checks = await gradePlacement(client, {
+        userId: user.id,
+        careerPathId: parsed.data.careerPathId,
+        ratings: parsed.data.ratings,
+        answers: parsed.data.answers,
+      });
+
       await client.query(
         `insert into placement_results (user_id, career_path_id, results)
          values ($1, $2, $3)`,
-        [user.id, parsed.data.careerPathId, JSON.stringify(parsed.data.results)],
+        [
+          user.id,
+          parsed.data.careerPathId,
+          JSON.stringify({
+            ratings: parsed.data.ratings,
+            checks: Object.fromEntries(
+              checks
+                .filter((c) => c.score !== null)
+                .map((c) => [c.slug, { score: c.score, passed: c.passed }]),
+            ),
+          }),
+        ],
       );
 
       /**
@@ -296,7 +422,25 @@ export function onboardingRoutes(pool: Pool): Router {
       // only race the first to write the same roadmap.
 
       await client.query("commit");
-      res.json({ step: next, next: "/onboarding/generating", roadmapId: roadmap.rows[0].id });
+      res.json({
+        step: next,
+        next: "/onboarding/generating",
+        roadmapId: roadmap.rows[0].id,
+        /**
+         * What the learner earned, so the screen can say so. Scores and pass
+         * flags only — never which option was right, which the next learner
+         * would otherwise be one shared screenshot away from.
+         */
+        checks: checks
+          .filter((c) => c.score !== null)
+          .map((c) => ({
+            skill: c.slug,
+            name: c.name,
+            score: c.score,
+            passed: c.passed,
+            clearedCount: c.clearedModuleIds.length,
+          })),
+      });
     } catch (err) {
       await client.query("rollback").catch(() => {});
       throw err;

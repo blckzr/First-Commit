@@ -556,7 +556,7 @@ Each step is its own page and its own address. Answers are saved when the learne
 |---|---|---|
 | 1. About you | `/onboarding/about` | Answers 4 to 6 questions on experience, goals (company job, freelance), and weekly hours using radio groups and chips |
 | 2. Target position | `/onboarding/target` | Chooses a career path |
-| 3. Placement | `/onboarding/placement` | Answers placement questions; "I don't know yet" is always available; no time limit |
+| 3. Placement | `/onboarding/placement` | Rates what they already know per skill, then answers a check for anything rated "comfortable"; "I'm new to all of this" is always available; no time limit |
 | 4. Generating | `/onboarding/generating` | Waits while the Roadmap AI runs, then moves on automatically |
 
 ```
@@ -578,7 +578,7 @@ Each step is its own page and its own address. Answers are saved when the learne
 └─────────────────────────────────────────────────────────────┘
 ```
 
-Placement is introduced with: "This short check helps us skip what you already know."
+Placement is introduced with: "This tells us what order to put your roadmap in, and what you could test out of straight away."
 
 **What "skip" can actually mean.** A skipped module is one the roadmap leaves out — it is
 **not** a pass, and no `module_completions` row is written from a placement result (the
@@ -594,9 +594,20 @@ So placement narrows and orders the roadmap; the only thing that really removes 
 from a learner's path is **testing out of it**, which produces evidence. The copy should
 promise no more than that.
 
-> Placement questions themselves are **not specified**: there is no question table, and
-> `placement_results.results` is free-form `jsonb`. Until that is settled the screen offers
-> only the skip this section already requires be available.
+**How placement works.** Two parts, on one page.
+
+1. **Rate each skill** — New to me · I've seen it · I can use it with help · I'm comfortable with it. One control fills every row with "New to me", so the step is a single click for the person who most needs it to be. The skills asked about are the path's skills that have core modules, read from `path_skills` — so a second career path gets its placement questions without anyone writing a route.
+2. **Check anything rated "comfortable."** A rating on its own clears nothing. Passing a skill's check writes `module_completions` with `method = 'tested_out'` for that skill's modules — the same evidence testing out of one module produces, counting the same toward the certificate.
+
+| | |
+|---|---|
+| **Length** | About 2.5 questions per module a pass clears — five for a two-module skill, ten for a four-module one. Twenty-five in total for Junior Web Developer. |
+| **Pass mark** | **80**, not the 70 a module quiz uses. One pass clears several modules at once, so it costs more to earn. |
+| **Granularity** | All-or-nothing per skill. Splitting it per module would make each module worth two or three answers. |
+| **Failing** | Nothing happens. The modules stay on the roadmap, and the per-module test-out — the longer, stronger assessment — is still there when the learner reaches them. There is no retake at onboarding, because that assessment is the retake. |
+| **Questions** | Answerable by someone who learned the skill elsewhere. No question refers to a First Commit lesson or depends on a convention only this platform follows, and the seed loader rejects one that links to a lesson. |
+
+Only "comfortable" triggers a check. Someone who can use a skill *with help* should do the module, and their answers do not clear it even if they give them.
 
 **Rules for the onboarding flow**
 

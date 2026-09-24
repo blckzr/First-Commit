@@ -1,0 +1,69 @@
+.skills { display: flex; flex-direction: column; gap: var(--gutter-card); }
+
+.skill,
+.check {
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-card);
+  background: var(--surface-card);
+  padding: var(--pad-card);
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.skillName,
+.checkTitle {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 0;
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: var(--text-h4);
+  font-weight: var(--fw-bold);
+  letter-spacing: var(--ls-heading);
+  color: var(--text-strong);
+}
+
+.skillHint {
+  font-size: var(--text-body-sm);
+  font-weight: var(--fw-regular);
+  letter-spacing: var(--ls-body);
+  color: var(--text-muted);
+}
+
+.options { display: flex; flex-direction: column; gap: var(--space-2); }
+
+.aside { margin: 0; }
+
+/* --- The check ------------------------------------------------------------ */
+.question {
+  border: 0;
+  border-top: 1px solid var(--border-subtle);
+  margin: 0;
+  padding: var(--space-4) 0 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.prompt {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-3);
+  padding: 0;
+  font-size: var(--text-body-base);
+  font-weight: var(--fw-semibold);
+  line-height: var(--lh-body);
+  color: var(--text-strong);
+}
+
+.number {
+  flex: 0 0 auto;
+  font-family: var(--font-mono);
+  font-size: var(--text-caption);
+  color: var(--text-muted);
+}
+
+.remaining { margin: 0; font-size: var(--text-body-sm); color: var(--text-muted); }

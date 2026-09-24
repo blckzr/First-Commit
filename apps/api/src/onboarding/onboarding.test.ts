@@ -190,7 +190,7 @@ describe("POST /onboarding/placement", () => {
   it("records the result and queues the roadmap job", async () => {
     const res = await send("/onboarding/placement").send({
       careerPathId: pathId,
-      results: { html: "confident", css: "unsure" },
+      ratings: { html: "comfortable", css: "seen" },
     });
 
     expect(res.status).toBe(200);
@@ -208,7 +208,7 @@ describe("POST /onboarding/placement", () => {
    * never be pointed at another learner's roadmap by anything the browser sent.
    */
   it("creates the roadmap and points the job at it", async () => {
-    const res = await send("/onboarding/placement").send({ careerPathId: pathId, results: {} });
+    const res = await send("/onboarding/placement").send({ careerPathId: pathId, ratings: {} });
 
     const roadmap = db.rows("roadmaps")[0];
     const learner = db.rows("users").find((u) => u.email === ACCOUNT.email)!;
@@ -223,13 +223,13 @@ describe("POST /onboarding/placement", () => {
 
   /** §5.5 shows "about 14 weeks at 6 hours a week", which needs the hours stored. */
   it("carries the learner's weekly hours onto the roadmap", async () => {
-    await send("/onboarding/placement").send({ careerPathId: pathId, results: {} });
+    await send("/onboarding/placement").send({ careerPathId: pathId, ratings: {} });
     expect(db.rows("roadmaps")[0].weekly_hours).toBe(5);
   });
 
   /** §5.4: "I don't know yet" is always available, so an empty result is valid. */
   it("accepts an empty result", async () => {
-    const res = await send("/onboarding/placement").send({ careerPathId: pathId, results: {} });
+    const res = await send("/onboarding/placement").send({ careerPathId: pathId, ratings: {} });
     expect(res.status).toBe(200);
     expect(db.rows("ai_jobs")).toHaveLength(1);
   });
@@ -251,7 +251,7 @@ describe("step order is enforced by the API", () => {
     await put("/onboarding/about").send({
       experienceLevel: "none", goal: "freelance", weeklyHours: 5,
     });
-    const res = await send("/onboarding/placement").send({ careerPathId: pathId, results: {} });
+    const res = await send("/onboarding/placement").send({ careerPathId: pathId, ratings: {} });
     expect(res.status).toBe(409);
     expect(db.rows("ai_jobs")).toHaveLength(0);
   });
@@ -272,7 +272,7 @@ describe("POST /onboarding/generating/retry", () => {
       experienceLevel: "none", goal: "freelance", weeklyHours: 5,
     });
     await put("/onboarding/target").send({ careerPathId: pathId });
-    await send("/onboarding/placement").send({ careerPathId: pathId, results: {} });
+    await send("/onboarding/placement").send({ careerPathId: pathId, ratings: {} });
     return db.rows("ai_jobs")[0];
   };
 
@@ -351,6 +351,259 @@ describe("POST /onboarding/generating/retry", () => {
   });
 });
 
+/**
+ * Placement grading (design.md §5.4).
+ *
+ * **The second place the platform writes evidence**, so AGENT.md §6 rule 1 is
+ * either kept or broken here: passing a skill's check writes
+ * `module_completions` with `method = 'tested_out'`, which counts toward the
+ * certificate exactly as testing out of one module does. The only thing that
+ * crosses the wire is which option was chosen.
+ */
+describe("POST /onboarding/placement — grading", () => {
+  let htmlSkill: string;
+  let assessmentId: string;
+  let questionIds: string[];
+  let rightOption: Map<string, string>;
+  let wrongOption: Map<string, string>;
+  let moduleIds: string[];
+
+  /** A skill with two core modules and a four-question check that passes at 75. */
+  beforeEach(async () => {
+    const skill = await db.pool.query<{ id: string }>(
+      `insert into skills (slug, name) values ('html','HTML') returning id`,
+    );
+    htmlSkill = skill.rows[0].id;
+
+    const pathSkill = await db.pool.query<{ id: string }>(
+      `insert into path_skills (career_path_id, skill_id, layer) values ($1, $2, 'core') returning id`,
+      [pathId, htmlSkill],
+    );
+
+    moduleIds = [];
+    for (const slug of ["html-basics", "forms"]) {
+      const m = await db.pool.query<{ id: string }>(
+        `insert into modules (skill_id, kind, slug, status) values ($1,'core',$2,'published') returning id`,
+        [htmlSkill, slug],
+      );
+      moduleIds.push(m.rows[0].id);
+      await db.pool.query(
+        `insert into module_versions (module_id, version_no, title, status)
+         values ($1, 1, $2, 'published')`,
+        [m.rows[0].id, slug],
+      );
+      await db.pool.query(
+        `insert into path_skill_modules (path_skill_id, module_id) values ($1, $2)`,
+        [pathSkill.rows[0].id, m.rows[0].id],
+      );
+    }
+
+    const a = await db.pool.query<{ id: string }>(
+      `insert into assessments (skill_id, type, title, passing_score)
+       values ($1, 'quiz', 'HTML placement check', 75) returning id`,
+      [htmlSkill],
+    );
+    assessmentId = a.rows[0].id;
+
+    questionIds = [];
+    rightOption = new Map();
+    wrongOption = new Map();
+    for (let i = 0; i < 4; i += 1) {
+      const q = await db.pool.query<{ id: string }>(
+        `insert into quiz_questions (assessment_id, sort_order, prompt)
+         values ($1, $2, $3) returning id`,
+        [assessmentId, i, `Question ${i + 1}`],
+      );
+      questionIds.push(q.rows[0].id);
+
+      const opts: string[] = [];
+      for (let j = 0; j < 2; j += 1) {
+        const o = await db.pool.query<{ id: string }>(
+          `insert into quiz_options (question_id, sort_order, text) values ($1,$2,$3) returning id`,
+          [q.rows[0].id, j, `Option ${j}`],
+        );
+        opts.push(o.rows[0].id);
+      }
+      // The key is the second option, so "always pick the first" fails.
+      await db.pool.query(
+        `insert into quiz_answer_keys (question_id, correct_option_id) values ($1, $2)`,
+        [q.rows[0].id, opts[1]],
+      );
+      rightOption.set(q.rows[0].id, opts[1]);
+      wrongOption.set(q.rows[0].id, opts[0]);
+    }
+
+    await put("/onboarding/about").send({
+      experienceLevel: "comfortable", goal: "company_job", weeklyHours: 10,
+    });
+    await put("/onboarding/target").send({ careerPathId: pathId });
+  });
+
+  const answerAll = (correct: number) =>
+    Object.fromEntries(
+      questionIds.map((id, i) => [id, i < correct ? rightOption.get(id)! : wrongOption.get(id)!]),
+    );
+
+  const submit = (ratings: Record<string, string>, answers: Record<string, string>) =>
+    send("/onboarding/placement").send({ careerPathId: pathId, ratings, answers });
+
+  it("clears the skill's modules when the check is passed", async () => {
+    const res = await submit({ html: "comfortable" }, answerAll(4));
+
+    expect(res.status).toBe(200);
+    expect(res.body.checks).toEqual([
+      { skill: "html", name: "HTML", score: 100, passed: true, clearedCount: 2 },
+    ]);
+
+    const done = db.rows("module_completions");
+    expect(done).toHaveLength(2);
+    for (const row of done) {
+      expect(row.method).toBe("tested_out");
+      expect(Number(row.score)).toBe(100);
+      // §6 rule 6: progress points at the exact version taken.
+      expect(row.module_version_id).toBeTruthy();
+    }
+  });
+
+  /** 3 of 4 is 75, and the check passes at 75. */
+  it("passes exactly at the pass mark", async () => {
+    const res = await submit({ html: "comfortable" }, answerAll(3));
+    expect(res.body.checks[0]).toMatchObject({ score: 75, passed: true });
+    expect(db.rows("module_completions")).toHaveLength(2);
+  });
+
+  /**
+   * The denominator is the number of questions **on the check**, never the
+   * number the browser answered. Mutation-testing found this one: with
+   * `Object.keys(answers).length` as the divisor, sending a single correct
+   * answer and omitting the rest scores 100% and clears the skill.
+   */
+  it("scores against every question on the check, not the ones answered", async () => {
+    const onlyOne = { [questionIds[0]]: rightOption.get(questionIds[0])! };
+    const res = await submit({ html: "comfortable" }, onlyOne);
+
+    expect(res.body.checks[0]).toMatchObject({ score: 25, passed: false });
+    expect(db.rows("module_completions")).toHaveLength(0);
+  });
+
+  /** An answer to a question that is not on this check counts for nothing. */
+  it("ignores answers for questions outside the check", async () => {
+    const other = await db.pool.query<{ id: string }>(
+      `insert into quiz_questions (assessment_id, sort_order, prompt)
+       values ($1, 99, 'Not on this check') returning id`,
+      [assessmentId],
+    );
+    const res = await submit(
+      { html: "comfortable" },
+      { ...answerAll(3), [other.rows[0].id]: rightOption.get(questionIds[0])! },
+    );
+
+    // Still 3 of 4 — the extra question has no answer key, so it is not graded.
+    expect(res.body.checks[0]).toMatchObject({ score: 75 });
+  });
+
+  it("clears nothing when the check is failed", async () => {
+    const res = await submit({ html: "comfortable" }, answerAll(2));
+    expect(res.body.checks[0]).toMatchObject({ score: 50, passed: false, clearedCount: 0 });
+    expect(db.rows("module_completions")).toHaveLength(0);
+  });
+
+  /**
+   * §5.4: only "comfortable" is a claim worth checking. Someone who needs help
+   * should do the module, and their answers must not clear it anyway.
+   */
+  it("runs no check for a skill rated anything below comfortable", async () => {
+    const res = await submit({ html: "with_help" }, answerAll(4));
+    expect(res.body.checks).toEqual([]);
+    expect(db.rows("module_completions")).toHaveLength(0);
+  });
+
+  it("runs no check for a skill the learner did not rate at all", async () => {
+    const res = await submit({}, answerAll(4));
+    expect(res.body.checks).toEqual([]);
+    expect(db.rows("module_completions")).toHaveLength(0);
+  });
+
+  /**
+   * §6 rule 1: "No endpoint accepts a completion, a score, or a `passed` flag
+   * as input." `.strict()` makes that a rejection rather than a silent ignore,
+   * so a client sending one is told, not quietly disbelieved.
+   */
+  it.each(["score", "passed", "results", "clearedModuleIds"])(
+    "refuses a body carrying %s",
+    async (field) => {
+      const res = await send("/onboarding/placement").send({
+        careerPathId: pathId,
+        ratings: { html: "comfortable" },
+        answers: answerAll(0),
+        [field]: field === "score" ? 100 : true,
+      });
+      expect(res.status).toBe(400);
+      expect(db.rows("module_completions")).toHaveLength(0);
+    },
+  );
+
+  it("refuses a rating that is not one of the four", async () => {
+    const res = await submit({ html: "expert" }, {});
+    expect(res.status).toBe(400);
+  });
+
+  /**
+   * A learner who already passed a module keeps that completion. A placement
+   * check must never overwrite a real pass, and re-running must not move
+   * anyone's `completed_at`.
+   */
+  it("leaves an existing completion alone", async () => {
+    const version = await db.pool.query<{ id: string }>(
+      `select id from module_versions where module_id = $1`,
+      [moduleIds[0]],
+    );
+    await db.pool.query(
+      `insert into module_completions (user_id, module_id, module_version_id, method, score)
+       values ((select id from users where email = $1), $2, $3, 'passed', 88)`,
+      [ACCOUNT.email, moduleIds[0], version.rows[0].id],
+    );
+
+    await submit({ html: "comfortable" }, answerAll(4));
+
+    const kept = db.rows("module_completions").find((r) => r.module_id === moduleIds[0])!;
+    expect(kept.method).toBe("passed");
+    expect(Number(kept.score)).toBe(88);
+  });
+
+  it("records the ratings and the scores, and no answer key", async () => {
+    await submit({ html: "comfortable" }, answerAll(4));
+
+    const stored = db.rows("placement_results")[0].results as {
+      ratings: Record<string, string>;
+      checks: Record<string, { score: number; passed: boolean }>;
+    };
+    expect(stored.ratings).toEqual({ html: "comfortable" });
+    expect(stored.checks.html).toEqual({ score: 100, passed: true });
+    expect(JSON.stringify(stored)).not.toContain("correct");
+  });
+
+  /** §6 rule 2: an answer key is not a learner's to receive. */
+  it("serves the questions without the answers", async () => {
+    const res = await read("/onboarding");
+    const skill = res.body.placement.skills.find((s: { slug: string }) => s.slug === "html");
+
+    expect(skill.check.questions).toHaveLength(4);
+    expect(skill.moduleCount).toBe(2);
+    for (const q of skill.check.questions) {
+      expect(q.options).toHaveLength(2);
+      for (const o of q.options) expect(Object.keys(o).sort()).toEqual(["id", "text"]);
+    }
+    const body = JSON.stringify(res.body);
+    for (const id of rightOption.values()) {
+      // The option ids are in the response — they have to be, to be chosen.
+      // What must not be there is any field naming one of them as correct.
+      expect(body).toContain(id);
+    }
+    expect(body).not.toMatch(/correct|answerKey|answer_key/i);
+  });
+});
+
 describe("placement is idempotent", () => {
   const walkUp = async () => {
     await put("/onboarding/about").send({
@@ -366,27 +619,27 @@ describe("placement is idempotent", () => {
    */
   it("reuses the active roadmap instead of starting a second", async () => {
     await walkUp();
-    await send("/onboarding/placement").send({ careerPathId: pathId, results: {} });
-    await send("/onboarding/placement").send({ careerPathId: pathId, results: {} });
+    await send("/onboarding/placement").send({ careerPathId: pathId, ratings: {} });
+    await send("/onboarding/placement").send({ careerPathId: pathId, ratings: {} });
 
     expect(db.rows("roadmaps")).toHaveLength(1);
   });
 
   it("does not queue a second job while the first is still waiting", async () => {
     await walkUp();
-    await send("/onboarding/placement").send({ careerPathId: pathId, results: {} });
-    await send("/onboarding/placement").send({ careerPathId: pathId, results: {} });
+    await send("/onboarding/placement").send({ careerPathId: pathId, ratings: {} });
+    await send("/onboarding/placement").send({ careerPathId: pathId, ratings: {} });
 
     expect(db.rows("ai_jobs")).toHaveLength(1);
   });
 
   it("re-queues a failed job rather than leaving it behind", async () => {
     await walkUp();
-    await send("/onboarding/placement").send({ careerPathId: pathId, results: {} });
+    await send("/onboarding/placement").send({ careerPathId: pathId, ratings: {} });
     const job = db.rows("ai_jobs")[0];
     await db.pool.query(`update ai_jobs set status = 'failed', attempts = 3 where id = $1`, [job.id]);
 
-    await send("/onboarding/placement").send({ careerPathId: pathId, results: {} });
+    await send("/onboarding/placement").send({ careerPathId: pathId, ratings: {} });
 
     expect(db.rows("ai_jobs")).toHaveLength(1);
     expect(db.rows("ai_jobs")[0].status).toBe("queued");
@@ -405,7 +658,7 @@ describe("GET /onboarding reports the roadmap job", () => {
       experienceLevel: "none", goal: "freelance", weeklyHours: 5,
     });
     await put("/onboarding/target").send({ careerPathId: pathId });
-    await send("/onboarding/placement").send({ careerPathId: pathId, results: {} });
+    await send("/onboarding/placement").send({ careerPathId: pathId, ratings: {} });
 
     expect((await read("/onboarding")).body.generation).toBe("queued");
 
@@ -426,7 +679,7 @@ describe("GET /onboarding reports the roadmap job", () => {
       experienceLevel: "none", goal: "freelance", weeklyHours: 5,
     });
     await put("/onboarding/target").send({ careerPathId: pathId });
-    await send("/onboarding/placement").send({ careerPathId: pathId, results: {} });
+    await send("/onboarding/placement").send({ careerPathId: pathId, ratings: {} });
     await db.pool.query(
       `update ai_jobs set status = 'failed', error = 'secret-internal-detail'`,
     );

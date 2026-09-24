@@ -26,6 +26,29 @@ const PATH = {
 
 const FRESH = { step: "about" as const };
 
+/** design.md §5.4 — a skill to rate, and the check behind it. */
+const SKILL = {
+  id: "s1",
+  slug: "html",
+  name: "HTML",
+  description: "The structure of a page.",
+  moduleCount: 2,
+  check: {
+    title: "HTML placement check",
+    instructions: "Two questions.",
+    questions: [
+      { id: "q1", prompt: "What does a <section> mean?", options: [
+        { id: "q1a", text: "The content belongs together" },
+        { id: "q1b", text: "The content is centred" },
+      ] },
+      { id: "q2", prompt: "When is alt empty?", options: [
+        { id: "q2a", text: "When the image is decorative" },
+        { id: "q2b", text: "Never" },
+      ] },
+    ],
+  },
+};
+
 describe("About", () => {
   it("saves the answers and moves to the next step", async () => {
     let sent: unknown;
@@ -167,28 +190,97 @@ describe("Placement", () => {
    * specified yet (AGENT.md §11), so the skip is the whole screen — and it
    * still has to record a result and queue the roadmap.
    */
-  it("records an empty result against the chosen path", async () => {
+  /** §5.4: "I don't know yet" is always available — and it asks nothing more. */
+  it("sends ratings with no answers when nothing is claimed", async () => {
     let sent: unknown;
-    api.onboarding({ step: "placement", careerPathId: PATH.id });
+    api.onboarding({ step: "placement", careerPathId: PATH.id, placement: { skills: [SKILL] } });
     api.onboardingStepSucceeds("placement", "/onboarding/generating", (body) => (sent = body));
     render(<Placement />, { route: "/onboarding/placement" });
 
-    await waitFor(() => expect(screen.getByRole("button", { name: /continue/i })).toBeEnabled());
+    await userEvent.click(await screen.findByRole("button", { name: /new to all of this/i }));
     await userEvent.click(screen.getByRole("button", { name: /continue/i }));
 
     await waitFor(() => expect(navigate).toHaveBeenCalledWith("/onboarding/generating"));
-    expect(sent).toEqual({ careerPathId: PATH.id, results: {} });
+    expect(sent).toEqual({ careerPathId: PATH.id, ratings: { html: "new" }, answers: {} });
   });
 
-  it("says nothing here affects the certificate", async () => {
-    api.onboarding({ step: "placement", careerPathId: PATH.id });
+  /**
+   * A rating cannot clear a module on its own — every module on the path is
+   * required for the certificate — so claiming a skill leads to the check
+   * rather than straight to Continue.
+   */
+  it("asks the check only for a skill rated comfortable", async () => {
+    api.onboarding({ step: "placement", careerPathId: PATH.id, placement: { skills: [SKILL] } });
     render(<Placement />, { route: "/onboarding/placement" });
-    expect(screen.getByText(/nothing here affects your certificate/i)).toBeInTheDocument();
+
+    await userEvent.click(await screen.findByLabelText("I can use it with help"));
+    expect(screen.getByRole("button", { name: /continue/i })).toBeInTheDocument();
+
+    await userEvent.click(screen.getByLabelText("I'm comfortable with it"));
+    await userEvent.click(screen.getByRole("button", { name: /check what i know — 2 questions/i }));
+
+    expect(screen.getByText(SKILL.check.questions[0].prompt)).toBeInTheDocument();
+    expect(screen.getByText(/clears 2 modules if you pass/i)).toBeInTheDocument();
+  });
+
+  /** The browser sends the option it chose. It never sends a score (§6 rule 1). */
+  it("sends chosen options and never a score", async () => {
+    let sent: Record<string, unknown> = {};
+    api.onboarding({ step: "placement", careerPathId: PATH.id, placement: { skills: [SKILL] } });
+    api.onboardingStepSucceeds(
+      "placement",
+      "/onboarding/generating",
+      (body) => (sent = body as Record<string, unknown>),
+    );
+    render(<Placement />, { route: "/onboarding/placement" });
+
+    await userEvent.click(await screen.findByLabelText("I'm comfortable with it"));
+    await userEvent.click(screen.getByRole("button", { name: /check what i know/i }));
+    await userEvent.click(screen.getByLabelText(SKILL.check.questions[0].options[0].text));
+    await userEvent.click(screen.getByRole("button", { name: /continue/i }));
+
+    await waitFor(() => expect(navigate).toHaveBeenCalledWith("/onboarding/generating"));
+    expect(sent.ratings).toEqual({ html: "comfortable" });
+    expect(sent.answers).toEqual({ q1: "q1a" });
+    expect(Object.keys(sent)).not.toContain("score");
+    expect(Object.keys(sent)).not.toContain("passed");
+  });
+
+  /** Dropping the claim must drop the answers given under it. */
+  it("forgets the answers when a claim is withdrawn", async () => {
+    let sent: Record<string, unknown> = {};
+    api.onboarding({ step: "placement", careerPathId: PATH.id, placement: { skills: [SKILL] } });
+    api.onboardingStepSucceeds(
+      "placement",
+      "/onboarding/generating",
+      (body) => (sent = body as Record<string, unknown>),
+    );
+    render(<Placement />, { route: "/onboarding/placement" });
+
+    await userEvent.click(await screen.findByLabelText("I'm comfortable with it"));
+    await userEvent.click(screen.getByRole("button", { name: /check what i know/i }));
+    await userEvent.click(screen.getByLabelText(SKILL.check.questions[0].options[0].text));
+    await userEvent.click(screen.getByRole("button", { name: /back/i }));
+    await userEvent.click(screen.getByLabelText("I've seen it"));
+    await userEvent.click(screen.getByRole("button", { name: /continue/i }));
+
+    await waitFor(() => expect(navigate).toHaveBeenCalledWith("/onboarding/generating"));
+    expect(sent.answers).toEqual({});
+  });
+
+  it("says a wrong answer cannot set the learner back", async () => {
+    api.onboarding({ step: "placement", careerPathId: PATH.id, placement: { skills: [SKILL] } });
+    render(<Placement />, { route: "/onboarding/placement" });
+
+    await userEvent.click(await screen.findByLabelText("I'm comfortable with it"));
+    await userEvent.click(screen.getByRole("button", { name: /check what i know/i }));
+    expect(screen.getByText(/nothing here can set you back/i)).toBeInTheDocument();
   });
 
   it("has no axe violations", async () => {
-    api.onboarding({ step: "placement", careerPathId: PATH.id });
+    api.onboarding({ step: "placement", careerPathId: PATH.id, placement: { skills: [SKILL] } });
     const { container } = render(<Placement />, { route: "/onboarding/placement" });
+    await screen.findByLabelText("New to me");
     await expectNoAxeViolations(container);
   });
 });
