@@ -257,6 +257,67 @@ export const modules = [
         "Inputs, labels, and the elements that say what a part of the page is for. This is where most accessibility is won or lost.",
       estimatedHours: 5,
     },
+    quiz: {
+      title: "Forms and semantics quiz",
+      instructions: "Five questions on labels, inputs, and landmarks. There is no time limit.",
+      questions: [
+        {
+          prompt: "What joins a <label> to its input?",
+          explanation:
+            "Matching for and id. That join is what makes a screen reader announce the label, and what makes clicking the words focus the field.",
+          options: [
+            "A for attribute on the label matching the input's id",
+            "Putting them next to each other in the HTML",
+            "A matching class on both elements",
+            "The name attribute on the input",
+          ],
+          lesson: 1,
+          correct: 0,
+        },
+        {
+          prompt: "Why is a placeholder not a substitute for a label?",
+          explanation:
+            "It disappears as soon as someone types, so the field is left with no name — for them and for anyone reviewing their answers. Use a placeholder for an example of the format instead.",
+          options: [
+            "It disappears once the field has been typed in",
+            "It cannot be styled",
+            "Screen readers read it twice",
+            "It only works on text inputs",
+          ],
+          lesson: 1,
+          correct: 0,
+        },
+        {
+          prompt: "Which input type suits a phone number?",
+          explanation:
+            'type="tel" gives a number pad without the number-input behaviour. type="number" strips leading zeros and allows e, which is wrong for phone numbers, postcodes and card numbers.',
+          options: ['type="tel"', 'type="number"', 'type="text" with a pattern', 'type="search"'],
+          lesson: 2,
+          correct: 0,
+        },
+        {
+          prompt: "How many <main> elements should a page have?",
+          explanation:
+            "One. Two leaves a screen reader user with no reliable place to jump to, which is worse than having none at all.",
+          options: ["One", "One per section", "As many as the layout needs", "None — main is optional"],
+          lesson: 3,
+          correct: 0,
+        },
+        {
+          prompt: 'What is wrong with aria-label="Main navigation" on a <nav>?',
+          explanation:
+            'The role is already announced, so this is read as "Main navigation navigation". Name it "Main" and let the element supply the rest.',
+          options: [
+            'The word "navigation" is announced twice',
+            "aria-label cannot be used on <nav>",
+            "It stops the nav being a landmark",
+            "Nothing — this is the recommended label",
+          ],
+          lesson: 3,
+          correct: 0,
+        },
+      ],
+    },
   },
 
   // --- Core: CSS -----------------------------------------------------------
@@ -361,6 +422,72 @@ export const modules = [
         "Arranging a page in two dimensions, and letting it rearrange itself at different widths without a second set of pages.",
       estimatedHours: 7,
     },
+    quiz: {
+      title: "Layout quiz",
+      instructions: "Five questions on flexbox, grid, and reflow. There is no time limit.",
+      questions: [
+        {
+          prompt: "In a flex row, which property moves children along the main axis?",
+          explanation:
+            "justify-content works along the main axis and align-items across it. They swap meaning when flex-direction is column.",
+          options: ["justify-content", "align-items", "align-content", "place-self"],
+          lesson: 1,
+          correct: 0,
+        },
+        {
+          prompt: "What does repeat(auto-fit, minmax(240px, 1fr)) do?",
+          explanation:
+            "It fits as many columns as will hold 240px, each sharing the leftover space. The column count follows the container's width, so no media query has to name a screen size.",
+          options: [
+            "Fits as many columns as fit, each at least 240px",
+            "Always makes exactly 240px columns",
+            "Makes one column per child, 240px each",
+            "Repeats the first column until the row is full",
+          ],
+          lesson: 2,
+          correct: 0,
+        },
+        {
+          prompt: "Why use minmax(0, 1fr) instead of 1fr for a grid column?",
+          explanation:
+            "A grid column will not shrink below its content by default, so one long word can push the layout wider than the screen. minmax(0, 1fr) lets it shrink.",
+          options: [
+            "It lets the column shrink below its content's width",
+            "It makes the column exactly zero pixels wide",
+            "It is required for gap to work",
+            "It centres the content in the column",
+          ],
+          lesson: 2,
+          correct: 0,
+        },
+        {
+          prompt: "What does mobile-first mean in practice?",
+          explanation:
+            "The base rules are the narrow layout, and each min-width query adds to them. Going the other way, every query has to undo something.",
+          options: [
+            "The base rules are the narrow layout and queries add to it",
+            "Phones get a separate stylesheet",
+            "The page checks the device before loading",
+            "Every rule is written twice",
+          ],
+          lesson: 3,
+          correct: 0,
+        },
+        {
+          prompt: "The page scrolls sideways at 320px. What is the usual cause?",
+          explanation:
+            "Something has a fixed width that should be a maximum. img, video { max-width: 100% } fixes the most common one.",
+          options: [
+            "An element with a fixed width wider than the screen",
+            "Too many media queries",
+            "Using grid instead of flexbox",
+            "A missing viewport meta tag is the only possible cause",
+          ],
+          lesson: 3,
+          correct: 0,
+        },
+      ],
+    },
   },
 
   // --- Core: JavaScript ----------------------------------------------------
@@ -450,6 +577,67 @@ export const modules = [
         "Writing a piece of behaviour once and calling it by name: parameters, return values, and scope.",
       estimatedHours: 5,
     },
+    quiz: {
+      title: "Functions quiz",
+      instructions: "Five questions on parameters, scope, and passing functions around. There is no time limit.",
+      questions: [
+        {
+          prompt: "A function computes a value but has no return. What does the caller get?",
+          explanation:
+            "undefined. The value was computed and thrown away, and because undefined is a value nothing fails until it is used somewhere else.",
+          options: ["undefined", "The computed value", "null", "A SyntaxError"],
+          lesson: 1,
+          correct: 0,
+        },
+        {
+          prompt: "Where can a variable declared with const inside a function be read?",
+          explanation:
+            "Only inside that function. A function can see outwards to where it was written, but nothing can see inwards.",
+          options: [
+            "Only inside that function",
+            "Anywhere in the file after it is declared",
+            "Anywhere, since const is global",
+            "Only inside the block it was declared in, never the whole function",
+          ],
+          lesson: 2,
+          correct: 0,
+        },
+        {
+          prompt: "Why is var no longer used?",
+          explanation:
+            "let and const are scoped to their block; var is not, so a variable declared inside an if or a loop leaks out of it.",
+          options: [
+            "It is not scoped to the block it is declared in",
+            "It is slower than let",
+            "It cannot hold objects",
+            "It was removed from the language",
+          ],
+          lesson: 2,
+          correct: 0,
+        },
+        {
+          prompt: "What does (n) => { n * 3; } return?",
+          explanation:
+            "undefined. An arrow function returns its single expression only when there are no braces; with braces you need an explicit return.",
+          options: ["undefined", "n * 3", "A function", "It is a syntax error"],
+          lesson: 3,
+          correct: 0,
+        },
+        {
+          prompt: 'What does addEventListener("click", save()) do wrong?',
+          explanation:
+            "The parentheses call save immediately and register whatever it returned — usually undefined. Pass the function itself: addEventListener(\"click\", save).",
+          options: [
+            "It calls save straight away and registers its return value",
+            "It registers the listener twice",
+            "It only works on the first click",
+            "Nothing — this is the correct form",
+          ],
+          lesson: 3,
+          correct: 0,
+        },
+      ],
+    },
   },
   {
     slug: "js-arrays-objects",
@@ -463,6 +651,62 @@ export const modules = [
         "Storing and working with lists and grouped data, and the array methods you will use every day after this.",
       estimatedHours: 5,
     },
+    quiz: {
+      title: "Arrays and objects quiz",
+      instructions: "Five questions on lists, records, and the array methods. There is no time limit.",
+      questions: [
+        {
+          prompt: "An array has 3 items. What is at index 3?",
+          explanation:
+            "undefined — not an error. Positions start at zero, so the last item is at length - 1, and an off-by-one usually surfaces somewhere else entirely.",
+          options: ["undefined", "The last item", "The first item", "It throws a RangeError"],
+          lesson: 1,
+          correct: 0,
+        },
+        {
+          prompt: "Why does push() work on an array declared with const?",
+          explanation:
+            "const stops the variable being pointed at something else. It does not freeze the contents, so the array can still be changed.",
+          options: [
+            "const fixes the name, not the value it points at",
+            "push is a special case allowed by const",
+            "It does not — that throws a TypeError",
+            "Arrays are always mutable because they are global",
+          ],
+          lesson: 1,
+          correct: 0,
+        },
+        {
+          prompt: "What does shark.habitat?.depth give when habitat is missing?",
+          explanation:
+            "undefined. Optional chaining stops at the first missing link instead of throwing, which is what shark.habitat.depth would do.",
+          options: ["undefined", "null", "An empty object", "A TypeError"],
+          lesson: 2,
+          correct: 0,
+        },
+        {
+          prompt: "How long is the array that map() returns?",
+          explanation:
+            "Always the same length as the original — one result for each item. filter is the one that can return fewer.",
+          options: [
+            "The same length as the original",
+            "However many items passed a test",
+            "One, since it reduces to a single value",
+            "It depends on what the callback returns",
+          ],
+          lesson: 3,
+          correct: 0,
+        },
+        {
+          prompt: "Which of these changes the original array?",
+          explanation:
+            "sort works in place. map, filter and slice all return a new array and leave the original alone — copy first with [...list].sort() if that matters.",
+          options: ["sort", "map", "filter", "slice"],
+          lesson: 3,
+          correct: 0,
+        },
+      ],
+    },
   },
   {
     slug: "js-dom",
@@ -475,6 +719,72 @@ export const modules = [
       description:
         "Reading and changing a live page from JavaScript, and responding when someone clicks or types.",
       estimatedHours: 6,
+    },
+    quiz: {
+      title: "DOM quiz",
+      instructions: "Five questions on finding elements, changing them, and handling events. There is no time limit.",
+      questions: [
+        {
+          prompt: "querySelector finds nothing. What does it return?",
+          explanation:
+            "null. The next line then throws \"Cannot read properties of null\", which almost always means a selector matched nothing.",
+          options: ["null", "undefined", "An empty NodeList", "It throws immediately"],
+          lesson: 1,
+          correct: 0,
+        },
+        {
+          prompt: "A script in <head> cannot find any elements. Why?",
+          explanation:
+            "It runs before the body is parsed, so the elements do not exist yet. Put the script at the end of the body, or mark it defer.",
+          options: [
+            "It runs before the body has been parsed",
+            "Scripts in <head> cannot use querySelector",
+            "The DOM is not available until a user interacts",
+            "It needs a type attribute",
+          ],
+          lesson: 1,
+          correct: 0,
+        },
+        {
+          prompt: "Why prefer textContent over innerHTML for text from a person?",
+          explanation:
+            "innerHTML parses the string as markup, so anything in it becomes real elements. That is how a cross-site scripting bug gets in. textContent shows the string exactly as typed.",
+          options: [
+            "innerHTML parses the string as markup and can run it",
+            "textContent is faster on long strings",
+            "innerHTML only works on form fields",
+            "There is no difference in modern browsers",
+          ],
+          lesson: 2,
+          correct: 0,
+        },
+        {
+          prompt: "What does event.preventDefault() do on a form submit?",
+          explanation:
+            "It stops the browser's own behaviour — reloading the page to submit — so your code can handle it instead.",
+          options: [
+            "Stops the browser submitting and reloading the page",
+            "Stops the event reaching other listeners",
+            "Cancels the form's validation",
+            "Clears the form's fields",
+          ],
+          lesson: 3,
+          correct: 0,
+        },
+        {
+          prompt: "Why use a <button> rather than a <div> with a click handler?",
+          explanation:
+            "A button is reachable by keyboard and its click fires for Enter, Space and a screen reader's activate command. A div reaches none of them without extra work that is easy to get wrong.",
+          options: [
+            "A button works for keyboard and screen reader users already",
+            "A div cannot have a click handler",
+            "Buttons are faster to render",
+            "A div would need an id to be clickable",
+          ],
+          lesson: 3,
+          correct: 0,
+        },
+      ],
     },
   },
 
@@ -491,6 +801,77 @@ export const modules = [
         "Tracking changes, writing a commit message someone can read back, and pushing work to GitHub.",
       estimatedHours: 4,
     },
+    quiz: {
+      title: "Git basics quiz",
+      instructions: "Five questions on commits, messages, and pushing. There is no time limit.",
+      questions: [
+        {
+          prompt: "What are the three places a change moves through?",
+          explanation:
+            "The working tree is what you are editing, the staging area is what you have chosen to include, and the repository is what has been committed.",
+          options: [
+            "Working tree, staging area, repository",
+            "Local, remote, branch",
+            "Draft, review, published",
+            "Editor, terminal, GitHub",
+          ],
+          lesson: 1,
+          correct: 0,
+        },
+        {
+          prompt: "Which of these can Git not get back for you?",
+          explanation:
+            "Uncommitted changes. git restore throws them away with no undo, which is why committing early and often matters more than any other habit.",
+          options: [
+            "Changes you never committed",
+            "A commit you reverted",
+            "A commit on a deleted branch",
+            "A file deleted in an earlier commit",
+          ],
+          lesson: 1,
+          correct: 0,
+        },
+        {
+          prompt: 'Which subject line is the better commit message?',
+          explanation:
+            "Say what the commit does, in the present tense, without naming the file — the diff already shows which file changed. The body is where you explain why.",
+          options: [
+            "Fix the total on empty carts",
+            "Updated cart.js",
+            "changes",
+            "Fixed the bug and also updated the footer",
+          ],
+          lesson: 2,
+          correct: 0,
+        },
+        {
+          prompt: "What belongs in the body of a commit message?",
+          explanation:
+            "Why the change was made. The diff shows what changed; it cannot show what was wrong, what else you tried, or what you decided against.",
+          options: [
+            "Why the change was made",
+            "A list of the files you touched",
+            "The line numbers you edited",
+            "Nothing — a subject line is always enough",
+          ],
+          lesson: 2,
+          correct: 0,
+        },
+        {
+          prompt: "You committed a .env file with a real key. What actually fixes it?",
+          explanation:
+            "Rotating the key. Deleting the file in a later commit leaves the old commit — and the key — in the history for anyone who clones the repository.",
+          options: [
+            "Rotate the key, then add .env to .gitignore",
+            "Delete the file and commit again",
+            "Add it to .gitignore and push",
+            "Force push over the branch",
+          ],
+          lesson: 3,
+          correct: 0,
+        },
+      ],
+    },
   },
   {
     slug: "git-branching",
@@ -503,6 +884,72 @@ export const modules = [
       description:
         "Working on something without breaking what already works, and putting it back together afterwards.",
       estimatedHours: 4,
+    },
+    quiz: {
+      title: "Branching and merging quiz",
+      instructions: "Five questions on branches, conflicts, and sharing work. There is no time limit.",
+      questions: [
+        {
+          prompt: "What is a branch?",
+          explanation:
+            "A label pointing at one commit, which moves forward as you add more. Nothing is copied, which is why creating one is instant however large the repository.",
+          options: [
+            "A pointer to a commit that moves as you add more",
+            "A full copy of the project files",
+            "A folder inside .git holding your changes",
+            "A snapshot taken when you branched",
+          ],
+          lesson: 1,
+          correct: 0,
+        },
+        {
+          prompt: "Why keep work on a branch instead of committing straight to main?",
+          explanation:
+            "So main stays something you could ship. A branch lets you leave something half-finished without anyone else seeing a broken page.",
+          options: [
+            "So main always stays in a working state",
+            "Because commits on main cannot be undone",
+            "Because Git will not allow two people on main",
+            "It makes the repository smaller",
+          ],
+          lesson: 1,
+          correct: 0,
+        },
+        {
+          prompt: "In a conflict, what is the part above the ======= line?",
+          explanation:
+            "What is already on the branch you are merging into. Below it is what is coming in from the branch being merged.",
+          options: [
+            "What is on the branch you are merging into",
+            "What is coming in from the other branch",
+            "The version Git recommends keeping",
+            "The oldest of the two versions",
+          ],
+          lesson: 2,
+          correct: 0,
+        },
+        {
+          prompt: "A merge is going badly and you want to stop. What do you run?",
+          explanation:
+            "git merge --abort puts everything back as it was. Nothing is lost while a merge is in progress.",
+          options: ["git merge --abort", "git reset --hard", "git revert HEAD", "git checkout main"],
+          lesson: 2,
+          correct: 0,
+        },
+        {
+          prompt: "Why use --force-with-lease instead of --force?",
+          explanation:
+            "It refuses if someone else has pushed since you last looked, so you cannot overwrite work you have not seen. A plain --force deletes it without asking.",
+          options: [
+            "It refuses if someone else has pushed since you last looked",
+            "It is faster on large repositories",
+            "It keeps a backup branch automatically",
+            "It is the only one that works over HTTPS",
+          ],
+          lesson: 3,
+          correct: 0,
+        },
+      ],
     },
   },
 

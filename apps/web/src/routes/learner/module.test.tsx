@@ -33,11 +33,15 @@ describe("the module page", () => {
     await open();
 
     expect(screen.getByRole("heading", { level: 1, name: "HTML basics" })).toBeInTheDocument();
+
+    /**
+     * §5.9: the quiz is a row in the lesson list, not a control beside it —
+     * three lessons and the quiz make four rows.
+     */
     const nav = screen.getByRole("navigation", { name: "Lessons in this module" });
-    expect(within(nav).getAllByRole("listitem")).toHaveLength(3);
-    expect(within(nav).getByRole("link", { name: /take the quiz/i })).toBeInTheDocument();
+    expect(within(nav).getAllByRole("listitem")).toHaveLength(4);
+    expect(within(nav).getByRole("link", { name: /quiz/i })).toBeInTheDocument();
     expect(nav).toHaveTextContent("4 questions");
-    expect(nav).toHaveTextContent("pass at 70%");
   });
 
   it("opens the first lesson by default", async () => {

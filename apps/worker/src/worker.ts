@@ -109,7 +109,52 @@ async function registerPrompts(): Promise<void> {
 }
 
 const MAX_JOB_ATTEMPTS = 3;
+
+/**
+ * How long to wait before putting a failed job back on the queue, indexed by
+ * the attempt that just failed.
+ *
+ * **Without this the three attempts are not three attempts.** `claim_next_ai_job()`
+ * takes the oldest queued job, so a job re-queued immediately is re-claimed on
+ * the next poll — and a job that fails because Ollama is not running burns all
+ * three inside a second, against the same dead socket, and lands in `failed`
+ * before anyone can start it. That is exactly how a learner ended up stuck on
+ * the generating screen.
+ *
+ * The job stays `running` while we wait, which is honest: the worker has not
+ * finished with it. A worker killed mid-wait leaves it `running`, which
+ * `requeueStranded()` picks up at the next start.
+ */
+const RETRY_BACKOFF_MS = [15_000, 60_000];
+
 let running = true;
+
+/** Resolves early when the worker is shutting down, so Ctrl+C is not ignored. */
+async function wait(ms: number): Promise<void> {
+  const step = 500;
+  for (let waited = 0; waited < ms && running; waited += step) {
+    await new Promise((r) => setTimeout(r, Math.min(step, ms - waited)));
+  }
+}
+
+/**
+ * Puts jobs left `running` by a worker that stopped mid-job back on the queue.
+ *
+ * A job is only `running` while one worker holds it, and there is only ever one
+ * worker (§7: one job at a time on one GPU), so anything still `running` at
+ * startup was abandoned — by a crash, a Ctrl+C during the retry wait, or a
+ * machine that went to sleep. Left alone it is stranded forever, because
+ * `claim_next_ai_job()` only ever looks at `queued`.
+ */
+async function requeueStranded(): Promise<void> {
+  const { rowCount } = await pool.query(
+    `update ai_jobs
+        set status = 'queued'
+      where status = 'running'
+        and started_at < now() - interval '15 minutes'`,
+  );
+  if (rowCount) console.log(`Requeued ${rowCount} job(s) left running by a previous worker.`);
+}
 
 /**
  * Tell the API a result is ready, so it can push it to the learner's open SSE
@@ -169,11 +214,26 @@ async function processOne(): Promise<boolean> {
   } catch (err) {
     const message = (err as Error).message;
     const retry = job.attempts < MAX_JOB_ATTEMPTS;
-    await pool.query(
-      `update ai_jobs set status = $1, error = $2, model = $3 where id = $4`,
-      [retry ? "queued" : "failed", message, config.model, job.id],
-    );
-    console.error(`✕ ${job.type} ${job.id}: ${message}${retry ? " (will retry)" : ""}`);
+
+    // Recorded before the wait, so the row says what went wrong even if the
+    // worker is killed before it gets back to the queue.
+    await pool.query(`update ai_jobs set error = $1, model = $2 where id = $3`, [
+      message,
+      config.model,
+      job.id,
+    ]);
+
+    if (retry) {
+      const backoff = RETRY_BACKOFF_MS[job.attempts - 1] ?? RETRY_BACKOFF_MS.at(-1)!;
+      console.error(
+        `✕ ${job.type} ${job.id}: ${message} (retrying in ${backoff / 1000}s)`,
+      );
+      await wait(backoff);
+      await pool.query(`update ai_jobs set status = 'queued' where id = $1`, [job.id]);
+    } else {
+      await pool.query(`update ai_jobs set status = 'failed' where id = $1`, [job.id]);
+      console.error(`✕ ${job.type} ${job.id}: ${message} (gave up after ${job.attempts} attempts)`);
+    }
   }
   return true;
 }
@@ -181,6 +241,7 @@ async function processOne(): Promise<boolean> {
 async function main() {
   console.log(`First Commit AI worker started. Model ${config.model}, mode ${config.jsonMode}.`);
   await registerPrompts();
+  await requeueStranded();
   if (!db.apiUrl || !db.workerSecret) {
     console.log("API_URL or WORKER_SECRET unset: results are written but not announced.");
   }

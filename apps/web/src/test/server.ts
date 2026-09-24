@@ -103,6 +103,8 @@ export const api = {
   /** design.md §5.4 — the onboarding state the four screens read and write. */
   onboarding(state: {
     step: string;
+    /** The Roadmap AI job's status, as `GET /onboarding` reports it. */
+    generation?: "queued" | "running" | "completed" | "failed" | null;
     about?: { experienceLevel: string | null; goal: string | null; weeklyHours: number | null } | null;
     careerPathId?: string | null;
   }) {
@@ -110,6 +112,7 @@ export const api = {
       http.get(`${BASE}/onboarding`, () =>
         HttpResponse.json({
           step: state.step,
+          generation: state.generation ?? null,
           about: state.about ?? null,
           careerPathId: state.careerPathId ?? null,
         }),
@@ -132,6 +135,18 @@ export const api = {
     };
     server.use(path === "placement" ? http.post(url, handler) : http.put(url, handler));
   },
+  /** `POST /onboarding/generating/retry`, counting the calls it receives. */
+  onboardingRetry(status: "queued" | "failed" = "queued") {
+    const calls = { n: 0 };
+    server.use(
+      http.post(`${BASE}/onboarding/generating/retry`, () => {
+        calls.n += 1;
+        return HttpResponse.json({ status });
+      }),
+    );
+    return calls;
+  },
+
   onboardingStepFails(path: "about" | "target" | "placement", status: number, error: string) {
     const url = `${BASE}/onboarding/${path}`;
     const handler = () => HttpResponse.json({ error }, { status });

@@ -77,7 +77,7 @@ describe("taking a quiz", () => {
     await screen.findByRole("heading", { level: 1 });
 
     await answerAll();
-    await screen.findByRole("heading", { name: /you got 2 of 2/i });
+    await screen.findByRole("heading", { name: /you passed with 2 of 2/i });
 
     expect(sent).toEqual({ answers: { q1: "q1-a", q2: "q2-a" } });
   });
@@ -93,7 +93,7 @@ describe("taking a quiz", () => {
     expect(screen.getByText(/no penalty for not passing/i)).toBeInTheDocument();
 
     await answerAll();
-    await screen.findByRole("heading", { name: /you got 2 of 2/i });
+    await screen.findByRole("heading", { name: /you passed with 2 of 2/i });
     expect(sent).toEqual({ answers: { q1: "q1-a", q2: "q2-a" }, testOut: true });
   });
 });
@@ -110,8 +110,16 @@ describe("the result", () => {
   it("reports a pass and that the skill is now verified", async () => {
     await submitFor(passedResult);
 
-    expect(await screen.findByRole("heading", { name: /you got 2 of 2 \(100%\)/i })).toBeInTheDocument();
-    expect(screen.getByText("Passed")).toBeInTheDocument();
+    const heading = await screen.findByRole("heading", {
+      name: /you passed with 2 of 2 \(100%\)/i,
+    });
+    /**
+     * §8: icon + text + colour. The tick and the green are the other two, and
+     * the word "passed" is here in the heading rather than in a badge beside
+     * it — a badge saying "Passed" next to a sentence that already says so is
+     * the same fact twice.
+     */
+    expect(heading).toHaveTextContent(/passed/i);
     expect(screen.getByText(/HTML basics is now a verified skill/i)).toBeInTheDocument();
   });
 
@@ -151,7 +159,7 @@ describe("the result", () => {
 
   it("explains the questions answered correctly", async () => {
     await submitFor(passedResult);
-    await screen.findByRole("heading", { name: /you got 2 of 2/i });
+    await screen.findByRole("heading", { name: /you passed with 2 of 2/i });
 
     const right = screen.getByRole("region", { name: /what you got right/i });
     expect(right).toHaveTextContent(/A section says the content inside belongs together/);
@@ -165,7 +173,7 @@ describe("the result", () => {
 
   it("offers no retake after a pass", async () => {
     await submitFor(passedResult);
-    await screen.findByRole("heading", { name: /you got 2 of 2/i });
+    await screen.findByRole("heading", { name: /you passed with 2 of 2/i });
     expect(screen.queryByRole("button", { name: /retake quiz/i })).not.toBeInTheDocument();
   });
 
@@ -182,7 +190,7 @@ describe("the result", () => {
   /** A learner who already passed and is reviewing should not be told otherwise. */
   it("says an already-complete module keeps its best score", async () => {
     await submitFor({ ...passedResult, completedModule: false });
-    await screen.findByRole("heading", { name: /you got 2 of 2/i });
+    await screen.findByRole("heading", { name: /you passed with 2 of 2/i });
     expect(screen.getByText(/your best score stands/i)).toBeInTheDocument();
   });
 });

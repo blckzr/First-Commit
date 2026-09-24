@@ -128,6 +128,7 @@ The chart reflects First Commit's layered career paths (see the proposal, Sectio
 - **Clear over clever.** A beginner should never wonder whether something is a button, a label, or decoration.
 - **Tool-like where code appears.** Code editors, test results, and feedback use a monospace face and a developer-tool layout, so learners get comfortable with the environment they will work in.
 - **Calm surfaces.** Borders and background shifts separate regions; shadows are used only for elements that float (menus, dialogs, side panels, toasts).
+- **Ink is the frame and the figure, never the page.** The learner bar is ink, and so is the card naming the module you are on. Everything else is white, violet, or the wash. A screen gets at most one ink surface inside its content, and it goes to the thing being worked on.
 - **The roadmap is the signature element.** Everything around it stays quiet.
 
 ---
@@ -359,13 +360,25 @@ Navigation adapts automatically to the screen width (see Section 11). Public pag
 
 **Learner**
 
+Navigation is **two levels**: three tabs in the top bar, and the tab's destinations in a
+sidebar panel below it.
+
+| Tab | Sidebar |
+|---|---|
+| **Home** | *(none — Home has nowhere else to go, so no panel is drawn)* |
+| **Study** | My roadmaps, Explore modules, Capstone |
+| **Career** | Resume, Certificates |
+
 | Width | Navigation |
 |---|---|
-| ≥ 1024px | Left sidebar: Home, My roadmaps, Explore modules, Capstone, Resume, Certificates. Notifications bell and profile menu (with Settings) in the top bar. |
-| 640–1023px | Collapsed icon sidebar with the same items, expanding on hover or focus |
-| < 640px | Bottom navigation: Home, Roadmaps, Capstone, Resume, and More. More opens Explore modules, Certificates, and Settings. |
+| ≥ 640px | The three tabs in the ink bar; the active tab's sidebar panel beside the content. Notifications bell and profile menu (with Profile information and Account settings) at the end of the bar. |
+| < 640px | One level only: a bottom bar with Home, Roadmaps, Capstone, Resume, and More. More opens Explore modules, Certificates, and Settings. Two rows of navigation above a 320px viewport leaves nothing for the content. |
 
 The Capstone item shows a lock icon and "Finish your roadmap to unlock" until the Certificate of Completion is earned. Learners can still open it to preview the project briefs.
+
+**The bar is an ink pill, not a band.** Everything on a learner screen is a rounded panel on the page wash (Section 3.3), and the bar is no exception. It carries the wordmark with its lime accent word, the tabs, the bell, and a profile button whose avatar is a lime disc with the learner's initials. The active tab is a **lime fill with ink on it**; the active sidebar item is a violet tint. The sidebar itself is a white panel, headed by the tab's name as a micro eyebrow, and it follows the learner down long pages.
+
+Module, quiz, exercise, and the technology choice have no navigation item of their own. They are opened *from* a roadmap, so they keep **Study** lit and the Study panel in place rather than leaving the learner looking at unlit navigation.
 
 **Admin**
 
@@ -661,6 +674,9 @@ stateDiagram-v2
 
 **Actions:** Continue the current lesson or milestone, open the roadmap, respond to updates.
 
+- **The hero is a violet gradient panel with an ink card inside it.** The greeting is its eyebrow, the headline is "Pick up where you left off." with the accent phrase on the second line, and the two actions sit below it: Continue lesson, then View roadmap as an outline. The ink card beside it names the current module, where the learner is in it, and the two counts — modules passed and remaining.
+- **The accent phrase is violet, not lime.** The prototype sets it in lime, which measures 1.98:1 against this wash. Section 3.1's rule holds: lime is a fill, and text only on ink. The ink card's "CURRENT MODULE" eyebrow *is* lime, because there it is 13.1:1.
+- **When nothing is waiting**, the hero keeps its shape and loses its first action: the lead sentence says everything available is done, and View roadmap becomes the primary.
 - During the capstone, the Continue panel shows the current milestone instead of a lesson.
 - **Empty state:** "Choose a target job to build your first roadmap." with "Build my roadmap".
 
@@ -744,6 +760,7 @@ Opens from the decision node, as a full page on all widths.
 
 **Actions:** Read the comparison, try a taster lesson for each option, choose a technology.
 
+- **The recommended option takes the primary button; the others take secondary.** The recommendation is stated in words above the cards and labelled again on the card itself (Section 12), so the button weight agrees with what the screen already says rather than carrying the message alone. With no recommendation to show, every option is primary.
 - Choosing shows a confirmation: "Your roadmap will use React. You can switch later from the roadmap menu."
 - The taster lesson builds the same small counter in each framework and takes about 10 minutes.
 - **Switching later** opens a dialog: "Switch to Vue? Your core and concept modules stay passed. Your 3 passed React modules stay on your resume. Vue modules replace React modules on your roadmap."
@@ -772,6 +789,12 @@ Opens from the decision node, as a full page on all widths.
 ```
 
 **Actions:** Read lessons, move between lessons, open the quiz or exercise, test out, read update notes.
+
+**Three panels and a strip.** The header panel carries the back link, the title, the skill and estimate, and any technology or passed badge. An update notice sits below it as its own tile on the wash. Then the lesson rail and the reading panel, side by side from 640px. Below them a violet strip: "Already know this?" with the test-out action.
+
+**The quiz is a row in the lesson list**, under a rule, with its question count beside it — the same shape as a lesson row, but it leaves the page. The exercise joins it when exercises are built.
+
+The reading column is a `section`, not a second `main`: the learner shell already renders one, and a page with two main landmarks gives a screen reader none it can jump to reliably.
 
 **Version notices**
 - Completed, then updated: "ⓘ This module was updated after you passed it. Your credit stays. [ See what's new ]"
@@ -826,6 +849,8 @@ Opens from the decision node, as a full page on all widths.
 
 **Actions:** Answer questions, move between questions, submit, review answers, review linked lessons, retake.
 
+- **A pass is a green tick and a sentence, not a loud panel.** "You passed with 7 of 8 (88%)" beside a `--verified` check, on the same white panel every other state uses — icon, text, and colour, which is all Section 8 asks for. What the learner got right sits below it on the verified tint.
+- **Not passing looks the same, minus the tick.** Section 3.1 keeps `--error` for the answer that failed and never for the learner's progress, so there is no red here. Topics to review are bordered rows, each naming the lesson it came from.
 - No time limit. Answers are saved as the learner goes.
 - After a second failed attempt, the Roadmap AI may add a reinforcement module, and the result screen says so.
 - Correct answers are shown only for questions answered correctly, so retakes remain meaningful.
@@ -1395,11 +1420,11 @@ Components marked **built** exist in `apps/web/src/components`; the rest are spe
 
 | Component | Variants | Notes |
 |---|---|---|
-| **Button** *(built)* | Primary, secondary, dark, outline, ghost, destructive | One primary button per view. Labels state the action. A forward CTA trails `arrow-right`. |
+| **Button** *(built)* | Primary, secondary, dark, outline, ghost, destructive | One primary button per view. Labels state the action. A forward CTA trails `arrow-right`. §5.8 is the exception: several choose actions, with **primary on the recommended option and secondary on the rest**. |
 | **LinkButton** *(built)* | Same variants | A navigation control that looks like a button. Kept separate because a link must be an `<a>` and a button an `<button>`; nesting them is invalid and breaks keyboard behaviour. |
 | **IconButton** *(built)* | Soft, lime, dark, bare | Requires a `label` — it has no visible text |
 | **Icon** *(built)* | Outline, filled | The single swap point for the icon set |
-| **Card** *(built)* | White, soft, dark, inset, lime | Flat at rest; `hoverLift` adds −3px and `--shadow-md` |
+| **Card** *(built)* | White, soft, dark, inset, lime | Flat at rest; `hoverLift` adds −3px and `--shadow-md`. `radius="panel"` takes the 28px section radius; `as` renders it as the `li`, `section`, `header` or `article` the surrounding markup needs, rather than wrapping a `div` in one. |
 | **Badge** *(built)* | Lime, dark, violet, neutral, onDark, plus one per status | Status badges take an icon, never colour alone |
 | **Tag** *(built)* | Default, selected | Filter chip. Selected inverts to ink rather than tinting. |
 | **Input** *(built)* | Text, password, email; sm and md | Visible labels above fields; helper text below; errors linked with `aria-describedby` |
@@ -1407,9 +1432,10 @@ Components marked **built** exist in `apps/web/src/components`; the rest are spe
 | **Checkbox** *(built)* | — | Native input drives the visual box through CSS, so space and form submission work |
 | **RadioOption** *(built)* | — | Group inside a `<fieldset>` with a `<legend>` |
 | **SearchField** *(built)* | — | The one input the system shapes as a pill |
-| **ProgressBar** *(built)* | Light, onDark | Always paired with text ("6 of 16 passed") |
+| **ProgressBar** *(built)* | Light, onDark | Always paired with text ("6 of 16 passed"). `hideLabel` drops the visible header but keeps the accessible name, and is only for a bar whose text is already beside it — the quiz's "Question 3 of 8". |
 | **CodeBlock** *(built)* | — | Read-only code display. The editable exercise surface is CodeMirror 6. |
 | **LessonBody** *(built)* | paragraph, heading, list, code, callout | Renders `LessonContent` (§13.3) with an exhaustive `switch`, so a new block type is a compile error. Every string is a text node — nothing a lesson author writes can reach the DOM as markup. |
+| **LessonRow** *(built)* | Not started, read, locked · current | A row in a module's lesson rail: the label on the left, the status icon on the right, a violet tint on the row being read. **Read and current are separate props, not one state** — a First Commit lesson stays open after "Mark as read", so it is routinely both, and folding them into one value drops the tick from the row the learner is on. |
 | **StepIndicator** *(built)* | — | Used only for true sequences |
 | **Roadmap canvas** *(built, learner)* | Learner (read-only), admin (editable) | Pan, zoom, fit. The canvas is `aria-hidden`; the nested list §12 requires is the real structure, and both read the same `Roadmap` object. Admin editing is not built. |
 | **Skill node** *(built)* | Core, concept, complete, in progress, locked | Ink surface with the skill's progress ("2 of 3") |

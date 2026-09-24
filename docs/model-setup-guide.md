@@ -418,7 +418,9 @@ Run it a few times with both models. The output varies slightly each run.
 **How the worker behaves**
 
 - It claims one job at a time with `claim_next_ai_job()`, which is safe even if you accidentally run two workers.
-- A failed job goes back to the queue and is retried up to three times, then marked `failed` with the error.
+- A failed job goes back to the queue and is retried up to three times, then marked `failed` with the error. **It waits before re-queueing** — 15 seconds before the second attempt, 60 before the third. Without that wait the three attempts all land inside a second, against whatever was wrong a moment ago, and a job that failed only because Ollama was not yet running is marked `failed` before you can start it.
+- **Anything left `running` for more than 15 minutes is put back on the queue at startup.** Only one worker ever holds a job, so a job still `running` when a worker starts was abandoned — by a crash, a `Ctrl + C` during the retry wait, or a machine that slept. `claim_next_ai_job()` only reads `queued`, so without this it would sit there forever.
+- **A `failed` job is terminal for the worker.** Nothing re-claims it. A learner stuck on the generating screen gets out through "Try again", which asks `POST /onboarding/generating/retry` to put their own job back on the queue.
 - After writing a result it posts to `API_URL/internal/events` with `WORKER_SECRET`, so the
   API can push the result to the learner's open SSE stream. If the API is asleep or the post
   fails, the worker retries and the API's periodic sweep picks the row up anyway, so a
@@ -474,6 +476,8 @@ Keep prompts versioned in the `ai_prompts` table so your evaluation results matc
 | `Model output was invalid after 3 attempts` | Prompt or schema too complex for the model | Simplify the schema, lower temperature, shorten the prompt, or try 9B |
 | Hints contain code | Model ignoring the no-solution rule | `noSolutionLeak` retries automatically; strengthen the prompt if it happens often |
 | `Ollama did not respond within 120000 ms` | Very long prompt, or model running on CPU | Check `ollama ps`; raise `AI_TIMEOUT_MS` only after fixing GPU placement |
+| `Could not reach Ollama at …` | Ollama is not running | Start it with `ollama serve`, then press "Try again" on the generating screen — the worker will not pick a `failed` job up on its own |
+| Generating screen never finishes | The job failed and gave up | `select status, attempts, error from ai_jobs order by created_at desc limit 1;` — if it says `failed`, "Try again" re-queues it |
 | `claim_next_ai_job failed` | Schema not run, or the wrong connection string | Run `supabase/migrations/0001_initial_schema.sql`; use the pooler host on port **5432** (session mode) in `DATABASE_URL` |
 | `getaddrinfo ENOTFOUND db.<ref>.supabase.co` | That host is IPv6-only and your machine has no routable IPv6 address | Use the pooler host on port 5432 instead — see §11 |
 | `The stored … prompt version N differs from the code` | A published prompt was edited in place | Bump `PROMPT_VERSION` in the prompt module; never change a version that has already run jobs |

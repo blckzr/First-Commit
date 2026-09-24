@@ -1,0 +1,50 @@
+.row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  width: 100%;
+  /* §12: a 44px touch target. */
+  min-height: 44px;
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  font-family: inherit;
+  font-size: var(--text-body-sm);
+  font-weight: var(--fw-semibold);
+  text-align: left;
+  color: var(--text-strong);
+  transition: background-color var(--dur-base) var(--ease-out);
+}
+
+button.row { cursor: pointer; }
+button.row:hover { background: var(--surface-inset); }
+
+.label { min-width: 0; }
+
+.status { flex: 0 0 auto; display: inline-flex; align-items: center; }
+
+/* The status colours are the prototype's, mapped onto the tokens that pass
+   §12. `--text-faint` on white is 2.85:1, but it is never the only cue here —
+   the row also carries the word (§8). */
+.todo .status { color: var(--text-muted); }
+.done .status { color: var(--verified); }
+.locked .status { color: var(--text-faint); }
+.locked .label { color: var(--text-muted); }
+
+/* The row being read. */
+.current,
+button.current:hover {
+  background: var(--surface-card-soft);
+  color: var(--text-strong);
+}
+
+.srOnly {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}

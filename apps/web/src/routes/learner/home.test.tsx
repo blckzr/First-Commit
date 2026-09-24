@@ -11,41 +11,61 @@ import { Home } from "./Home";
  * exercises the real query, the Zod parse and the render together.
  */
 /**
- * Waits for a panel heading, not the `h1` — the greeting renders immediately,
- * while both the session and the home query are still in flight, so waiting on
- * it would assert against a half-loaded page.
+ * Waits for the `h1`, which only renders once the home query has answered —
+ * the whole screen, greeting included, is behind that query now.
  */
 const open = async (home: unknown = mockHome) => {
   api.signedIn(LEARNER);
   api.home(home);
   const result = render(<Home />, { route: "/app" });
-  await screen.findAllByRole("heading", { level: 2 });
+  await screen.findByRole("heading", { level: 1 });
   return result;
 };
 
 describe("the greeting", () => {
+  /**
+   * §5.6's greeting is the hero's eyebrow, above the headline — not the `h1`
+   * itself, which is the same sentence for everyone.
+   */
   it("uses the learner's first name", async () => {
     await open();
     expect(
       await screen.findByText(/Good (morning|afternoon|evening), Jan/),
     ).toBeInTheDocument();
   });
+
+  /** §3.1: one accent phrase per headline, and it is the only one. */
+  it("puts the accent phrase in the headline", async () => {
+    await open();
+    // The line break between "where" and "you" is a <br>, which contributes no
+    // whitespace to textContent, so this matches the phrase rather than the line.
+    expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent(/left off\./);
+  });
 });
 
 describe("the Continue panel", () => {
-  /** §5.6: "Arrays and objects, lesson 2 of 4". */
+  /**
+   * §5.6: "Arrays and objects, lesson 2 of 4". The module and the counts live
+   * in the ink card inside the hero; the lead sentence says the same thing in
+   * words beside it.
+   */
   it("says what to do next and where in it the learner is", async () => {
     await open();
 
-    expect(screen.getByRole("heading", { name: "Arrays and objects" })).toBeInTheDocument();
+    expect(screen.getByText("Current module")).toBeInTheDocument();
+    expect(screen.getByText("Arrays and objects")).toBeInTheDocument();
     expect(screen.getByText(/Lesson 2 of 4/)).toBeInTheDocument();
-    expect(screen.getByText(/about 5 hours/)).toBeInTheDocument();
+    expect(screen.getByText(/about 5 hours left/)).toBeInTheDocument();
+    expect(screen.getByText(/3 lessons from finishing Arrays and objects/)).toBeInTheDocument();
   });
 
-  /** §8: "You are here" is icon + text + colour. */
-  it("marks it as where the learner is, in words", async () => {
+  /** The two counts are the API's, and remaining is arithmetic on them. */
+  it("counts what is passed and what is left", async () => {
     await open();
-    expect(screen.getByText("You are here")).toBeInTheDocument();
+    expect(screen.getByText("Modules passed")).toBeInTheDocument();
+    expect(screen.getByText("Remaining")).toBeInTheDocument();
+    expect(screen.getByText("6")).toBeInTheDocument();
+    expect(screen.getByText("10")).toBeInTheDocument();
   });
 
   /** §9: a button says what happens, and the link opens the exact lesson. */
@@ -75,7 +95,8 @@ describe("the Continue panel", () => {
 
   it("says so when there is nothing waiting", async () => {
     await open({ ...mockHome, continue: null });
-    expect(screen.getByRole("heading", { name: /nothing is waiting on you/i })).toBeInTheDocument();
+    expect(screen.getByText(/Everything available on your roadmap is done/)).toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: /continue lesson/i })).not.toBeInTheDocument();
   });
 });
 
@@ -87,10 +108,10 @@ describe("the roadmap panel", () => {
       screen.getByRole("heading", { name: "Junior Web Developer, Frontend" }),
     ).toBeInTheDocument();
     expect(screen.getByText("6 of 16 modules passed")).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: /view roadmap/i })).toHaveAttribute(
-      "href",
-      "/app/roadmap/10000000-0000-0000-0000-000000000001",
-    );
+    // Two of them: the hero's and the panel's, both to the same roadmap.
+    for (const link of screen.getAllByRole("link", { name: /view roadmap/i })) {
+      expect(link).toHaveAttribute("href", "/app/roadmap/10000000-0000-0000-0000-000000000001");
+    }
   });
 
   /** The numbers come from the API, which computes them from evidence (§6 rule 1). */
@@ -109,7 +130,7 @@ describe("the Updates panel", () => {
     await open();
 
     const updates = screen.getByText(/Practice: loops was added/).closest("li")!;
-    expect(within(updates).getByText("Added by AI")).toBeInTheDocument();
+    expect(updates).toHaveTextContent("Added by AI.");
     expect(updates).toHaveTextContent(/Added after two attempts on the arrays quiz/);
     expect(within(updates).getByRole("link", { name: /view module/i })).toHaveAttribute(
       "href",
@@ -132,7 +153,7 @@ describe("the Updates panel", () => {
     });
 
     expect(screen.getByRole("link", { name: /see what changed/i })).toBeInTheDocument();
-    expect(screen.queryByText("Added by AI")).not.toBeInTheDocument();
+    expect(screen.queryByText(/Added by AI/)).not.toBeInTheDocument();
   });
 
   it("is absent when there is nothing to report", async () => {

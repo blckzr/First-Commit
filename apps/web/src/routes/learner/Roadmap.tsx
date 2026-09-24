@@ -1,5 +1,6 @@
 import { useParams } from "react-router";
-import { Badge } from "../../components/core/Badge";
+import { Card } from "../../components/core/Card";
+import { Icon } from "../../components/core/Icon";
 import { LinkButton } from "../../components/core/LinkButton";
 import { ProgressBar } from "../../components/learning/ProgressBar";
 import { RoadmapChart } from "../../components/roadmap/RoadmapChart";
@@ -34,21 +35,19 @@ export function Roadmap() {
   if (error || !data) {
     const notFound = error instanceof ApiError && error.status === 404;
     return (
-      <div className={styles.empty}>
+      <Card surface="white" radius="panel" padding="lg" className={styles.empty}>
         <h1 className={styles.title}>
           {notFound ? "We couldn't find that roadmap" : "Your roadmap isn't available right now"}
         </h1>
-        <p>
+        <p className={styles.lede}>
           {notFound
             ? "It may belong to another account, or it may have been archived."
             : "This is usually temporary. Your progress is safe — try again in a moment."}
         </p>
-        <div className={styles.emptyActions}>
-          <LinkButton to="/app/roadmaps" icon="arrow-right">
-            See your roadmaps
-          </LinkButton>
-        </div>
-      </div>
+        <LinkButton to="/app/roadmaps" icon="arrow-right">
+          See your roadmaps
+        </LinkButton>
+      </Card>
     );
   }
 
@@ -69,13 +68,13 @@ function RoadmapView({ roadmap }: { roadmap: RoadmapData }) {
     roadmap.totalCount === 0 ? 0 : (roadmap.passedCount / roadmap.totalCount) * 100;
 
   return (
-    <div className={styles.page}>
-      <header className={styles.header}>
+    <>
+      <Card as="header" surface="white" radius="panel" padding="md" className={styles.header}>
         <div className={styles.titleRow}>
-          <div>
-            <h1 className={styles.title}>{roadmap.careerPathTitle}</h1>
-            {roadmap.trackTitle && <p className={styles.track}>{roadmap.trackTitle} track</p>}
-          </div>
+          <h1 className={styles.title}>
+            {roadmap.careerPathTitle}
+            {roadmap.trackTitle ? `, ${roadmap.trackTitle}` : ""}
+          </h1>
         </div>
 
         <ProgressBar
@@ -85,12 +84,12 @@ function RoadmapView({ roadmap }: { roadmap: RoadmapData }) {
 
         {/* §8: the legend spells out what each status looks like, in words. */}
         <ul className={styles.legend} aria-label="What the statuses mean">
-          <li><Badge tone="verified" icon="check">Passed</Badge></li>
-          <li><Badge tone="here" icon="circle-dot">You are here</Badge></li>
-          <li><Badge tone="neutral" icon="circle">Available</Badge></li>
-          <li><Badge tone="neutral" icon="lock">Locked</Badge></li>
+          <li><Icon name="check" size={15} className={styles.passed} />Passed</li>
+          <li><Icon name="circle-dot" size={15} className={styles.here} />You are here</li>
+          <li><Icon name="circle" size={15} className={styles.available} />Available</li>
+          <li><Icon name="lock" size={15} className={styles.lockedIcon} />Locked</li>
         </ul>
-      </header>
+      </Card>
 
       <div className={styles.body}>
         <section className={styles.canvasArea} aria-label="Roadmap">
@@ -107,6 +106,6 @@ function RoadmapView({ roadmap }: { roadmap: RoadmapData }) {
           </div>
         )}
       </div>
-    </div>
+    </>
   );
 }

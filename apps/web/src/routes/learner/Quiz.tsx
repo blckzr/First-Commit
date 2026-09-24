@@ -1,7 +1,8 @@
 import { useState } from "react";
 import { useParams, useSearchParams } from "react-router";
-import { Badge } from "../../components/core/Badge";
 import { Button } from "../../components/core/Button";
+import { Card } from "../../components/core/Card";
+import { Icon } from "../../components/core/Icon";
 import { LinkButton } from "../../components/core/LinkButton";
 import { RadioOption } from "../../components/forms/RadioOption";
 import { ProgressBar } from "../../components/learning/ProgressBar";
@@ -33,17 +34,17 @@ export function Quiz() {
   if (error || !data) {
     const notFound = error instanceof ApiError && error.status === 404;
     return (
-      <div className={styles.empty}>
+      <Card surface="white" radius="panel" padding="lg" className={styles.empty}>
         <h1 className={styles.title}>
           {notFound ? "We couldn't find that quiz" : "The quiz isn't available right now"}
         </h1>
-        <p>
+        <p className={styles.line}>
           {notFound
             ? "It may have been replaced by a newer version of the module."
             : "This is usually temporary. Nothing you have answered is lost — try again in a moment."}
         </p>
         <LinkButton to="/app" icon="arrow-right">Back to home</LinkButton>
-      </div>
+      </Card>
     );
   }
 
@@ -70,80 +71,84 @@ function QuizView({ quiz }: { quiz: QuizData }) {
 
   return (
     <div className={styles.page}>
-      <header className={styles.header}>
-        <div className={styles.headRow}>
-          <h1 className={styles.title}>Quiz: {quiz.moduleTitle}</h1>
-          <p className={styles.counter}>
-            Question {at + 1} of {quiz.questions.length}
-          </p>
-        </div>
-        <ProgressBar
-          value={(answered / quiz.questions.length) * 100}
-          label={`${answered} of ${quiz.questions.length} answered`}
-        />
-        {testOut && (
-          <p className={styles.testOutNote}>
-            You are testing out. Passing marks the module complete without working through the
-            lessons. There is no penalty for not passing.
-          </p>
-        )}
-      </header>
+      {testOut && (
+        <p className={styles.testOutNote}>
+          You are testing out. Passing marks the module complete without working through the
+          lessons. There is no penalty for not passing.
+        </p>
+      )}
 
       {question && (
-        <form
-          className={styles.card}
-          onSubmit={(e) => {
-            e.preventDefault();
-            if (!last) {
-              setAt(at + 1);
-              return;
-            }
-            submit.mutate(
-              { answers, testOut },
-              { onSuccess: (graded) => setResult(graded) },
-            );
-          }}
-        >
-          <fieldset className={styles.field}>
-            <legend className={styles.prompt}>{question.prompt}</legend>
-            <div className={styles.options}>
-              {question.options.map((option) => (
-                <RadioOption
-                  key={option.id}
-                  name={question.id}
-                  label={option.text}
-                  checked={answers[question.id] === option.id}
-                  onChange={() => setAnswers({ ...answers, [question.id]: option.id })}
-                />
-              ))}
+        <Card surface="white" radius="panel" padding="lg">
+          <form
+            className={styles.form}
+            onSubmit={(e) => {
+              e.preventDefault();
+              if (!last) {
+                setAt(at + 1);
+                return;
+              }
+              submit.mutate(
+                { answers, testOut },
+                { onSuccess: (graded) => setResult(graded) },
+              );
+            }}
+          >
+            <div className={styles.headRow}>
+              <h1 className={styles.title}>Quiz: {quiz.moduleTitle}</h1>
+              <span className={styles.counter}>
+                Question {at + 1} of {quiz.questions.length}
+              </span>
             </div>
-          </fieldset>
 
-          {error && <p role="alert" className={styles.error}>{error.message}</p>}
+            {/* The counter above is the bar's text (§7), so it is not repeated. */}
+            <ProgressBar
+              hideLabel
+              value={(answered / quiz.questions.length) * 100}
+              label={`${answered} of ${quiz.questions.length} answered`}
+            />
 
-          <div className={styles.actions}>
-            <Button
-              variant="ghost"
-              icon="arrow-left"
-              iconPosition="left"
-              type="button"
-              disabled={at === 0}
-              onClick={() => setAt(at - 1)}
-            >
-              Previous
-            </Button>
+            <fieldset className={styles.field}>
+              <legend className={styles.prompt}>{question.prompt}</legend>
+              <div className={styles.options}>
+                {question.options.map((option) => (
+                  <RadioOption
+                    key={option.id}
+                    name={question.id}
+                    label={option.text}
+                    checked={answers[question.id] === option.id}
+                    onChange={() => setAnswers({ ...answers, [question.id]: option.id })}
+                  />
+                ))}
+              </div>
+            </fieldset>
 
-            <Button
-              type="submit"
-              variant="primary"
-              icon="arrow-right"
-              loading={submit.isPending}
-              loadingLabel="Marking…"
-            >
-              {last ? "Submit answers" : "Next"}
-            </Button>
-          </div>
-        </form>
+            {error && <p role="alert" className={styles.error}>{error.message}</p>}
+
+            <div className={styles.actions}>
+              <Button
+                variant="outline"
+                icon="arrow-left"
+                iconPosition="left"
+                type="button"
+                disabled={at === 0}
+                onClick={() => setAt(at - 1)}
+              >
+                Previous
+              </Button>
+
+              <Button
+                type="submit"
+                variant="primary"
+                icon="arrow-right"
+                loading={submit.isPending}
+                loadingLabel="Marking…"
+              >
+                {last ? "Submit answers" : "Next"}
+              </Button>
+            </div>
+          </form>
+        </Card>
       )}
 
       {/* §12: no time limit, and the learner should know it. */}
@@ -170,23 +175,26 @@ function Result({
    */
   const toReview = result.answers.filter((a) => !a.correct);
   const byId = new Map(quiz.questions.map((q) => [q.id, q]));
+  const explained = result.answers.filter((a) => a.correct && a.explanation);
 
   return (
     <div className={styles.page}>
-      <div className={styles.card}>
-        <h1 className={styles.title} tabIndex={-1}>
-          {result.passed ? (
-            <>
-              <Badge tone="verified" icon="check">Passed</Badge> You got {result.correctCount} of{" "}
-              {result.questionCount} ({result.score}%)
-            </>
-          ) : (
-            <>
-              You got {result.correctCount} of {result.questionCount} ({result.score}%). You need{" "}
-              {result.needed} to pass.
-            </>
-          )}
-        </h1>
+      <Card surface="white" radius="panel" padding="lg" className={styles.result}>
+        {result.passed ? (
+          /* §8: a status is icon + text + colour. The tick and the green are
+             the first two; the sentence is the third. */
+          <div className={styles.passedLine}>
+            <Icon name="check" size={24} className={styles.passedIcon} />
+            <h1 className={styles.resultTitle} tabIndex={-1}>
+              You passed with {result.correctCount} of {result.questionCount} ({result.score}%)
+            </h1>
+          </div>
+        ) : (
+          <h1 className={styles.resultTitle} tabIndex={-1}>
+            You got {result.correctCount} of {result.questionCount} ({result.score}%). You need{" "}
+            {result.needed} to pass.
+          </h1>
+        )}
 
         {result.passed && result.completedModule && (
           <p className={styles.line}>{quiz.moduleTitle} is now a verified skill.</p>
@@ -200,12 +208,12 @@ function Result({
 
         {toReview.length > 0 && (
           <section className={styles.review} aria-labelledby="review-heading">
-            <h2 id="review-heading" className={styles.reviewHeading}>
+            <h2 id="review-heading" className={styles.reviewLabel}>
               Topics to review
             </h2>
             <ul className={styles.reviewList}>
               {toReview.map((answer) => (
-                <li key={answer.questionId}>
+                <li key={answer.questionId} className={styles.reviewRow}>
                   <span className={styles.reviewPrompt}>
                     {byId.get(answer.questionId)?.prompt ?? "A question you missed"}
                   </span>
@@ -226,24 +234,24 @@ function Result({
 
         {/*
           Explanations come back only for questions answered correctly (§5.10),
-          so this section confirms understanding without handing over the key.
+          so this confirms understanding without handing over the key. On a
+          pass it sits on the verified tint, which is the prototype's
+          "Review: Question 5, rendering lists" box.
         */}
-        {result.answers.some((a) => a.correct && a.explanation) && (
-          <section className={styles.review} aria-labelledby="right-heading">
-            <h2 id="right-heading" className={styles.reviewHeading}>
+        {explained.length > 0 && (
+          <section className={styles.right} aria-labelledby="right-heading">
+            <h2 id="right-heading" className={styles.reviewLabel}>
               What you got right
             </h2>
-            <ul className={styles.reviewList}>
-              {result.answers
-                .filter((a) => a.correct && a.explanation)
-                .map((answer) => (
-                  <li key={answer.questionId} className={styles.reviewExplained}>
-                    <span className={styles.reviewPrompt}>
-                      {byId.get(answer.questionId)?.prompt}
-                    </span>
-                    <span className={styles.explanation}>{answer.explanation}</span>
-                  </li>
-                ))}
+            <ul className={styles.rightList}>
+              {explained.map((answer) => (
+                <li key={answer.questionId}>
+                  <span className={styles.reviewPrompt}>
+                    {byId.get(answer.questionId)?.prompt}
+                  </span>
+                  <span className={styles.explanation}>{answer.explanation}</span>
+                </li>
+              ))}
             </ul>
           </section>
         )}
@@ -258,7 +266,7 @@ function Result({
             </Button>
           )}
         </div>
-      </div>
+      </Card>
     </div>
   );
 }

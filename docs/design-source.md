@@ -19,6 +19,17 @@ came from.
 A clickable prototype of the whole platform — **31 routes** across public, onboarding,
 learner, and admin — built on a 25-component design system with a full token set.
 
+**`First Commit.dc.html` is the authority on what a screen looks like.** The ASCII sketches
+in `design.md` §5 say what is *on* a screen; the prototype says how it is built, screen by
+screen, with real measurements.
+
+The design system also ships **UI kits** of its own — `ui_kits/marketing/` and
+`ui_kits/app/`. `ui_kits/app/` is a generic learning app: `AppShell`, `Dashboard`,
+`LessonPlayer`. It is **not** First Commit, and it disagrees with the prototype on the
+frame itself — an ink sidebar under a white top bar, where First Commit has an ink pill
+above a white sidebar panel. It is useful for seeing how the system composes its parts,
+and it is not a substitute for the prototype.
+
 ## 2. What the design system's own readme discloses
 
 The system was generated from **one 736×1307 flattened JPG** of a marketing homepage. Its
@@ -96,7 +107,22 @@ which `design.md` §13.1 already specified. This removes a re-render per interac
 keyboard users the focus ring the original had no treatment for at all, and lets
 `prefers-reduced-motion` be honoured in CSS.
 
-### 3.5 Icons
+### 3.5 Read and current are not one state
+
+The system's `LessonRow` models a lesson as `todo | active | done`, which is right for a
+video course: the lesson you are on is by definition the one you have not finished. A
+First Commit lesson is read by pressing "Mark as read" and **stays open afterwards**, so
+it is routinely both at once. Ported as one value, the tick disappeared from the row the
+learner was standing on — which a test caught. The port takes `done` and `current` as
+separate props.
+
+The same row needed three contrast corrections: the current lesson's disc moved from
+`--violet-500` (white on it is **3.98:1**) to `--violet-600` (5.65:1); an unread number
+moved from `--text-faint` on `--surface-inset` (**2.65:1**) to `--text-muted` (4.88:1);
+and because `--text-muted` measures **4.44:1** on the current row's violet tint, a row
+that is both read and current keeps `--text-strong`.
+
+### 3.6 Icons
 
 The system's `Icon` fetched each SVG from unpkg at runtime. The port uses `lucide-react`, so
 glyphs are bundled and tree-shaken with no network round trip and no
@@ -108,7 +134,12 @@ The prototype uses **12 of the 25** components. Those, plus `Card` and `IconButt
 ported — 14 in total, with `LinkButton` added so navigation controls are anchors rather
 than buttons wrapping anchors.
 
-**Deliberately not ported:** `CourseCard`, `LessonRow`, `ReviewCard`, `CollectionCard`,
+**`LessonRow` was added later, in the learner design pass.** It was first left behind as
+course-shop furniture; that was wrong. The module page's lesson rail is exactly this row,
+and `design.md` §5.9 gives it the same three states. What it is *not* is the source's
+version — see §3.5.
+
+**Deliberately not ported:** `CourseCard`, `ReviewCard`, `CollectionCard`,
 `CategoryTile`, `ComparisonTable`, `CarouselDots`, `StatItem`, `RangeSlider` — these belong
 to the source's course-shop product. `NavBar` and `Footer` are marketing chrome, replaced by
 `LearnerShell` and `AdminShell` per `design.md` §13.2.
@@ -132,6 +163,13 @@ these still need designing:
 
 It **adds two** the document does not list: `/app/profile` and `/admin/profile`. `design.md`
 §4.3 folds profile into `/app/settings`; either the document or the prototype should move.
+
+**The other 26 were the ones that went wrong.** Only the five above were ever turned into
+tasks, because "the prototype covers it" was read as *needs no design work* when it means
+the opposite: the design exists and has to be applied. Four learner screens were then
+built from `design.md` §5's behaviour alone and never given the system's vocabulary —
+panels, the ink surface, the accent phrase. `task-tracker.md` now tracks **all 31**, with
+a state per route, so a covered route is visible rather than absent.
 
 ## 6. If the real brand assets arrive
 

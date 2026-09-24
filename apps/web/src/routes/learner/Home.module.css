@@ -1,62 +1,147 @@
-.greeting { font-size: var(--text-h1); margin-bottom: var(--space-6); }
+/* --- The hero panel ------------------------------------------------------ */
+.hero {
+  background: var(--surface-hero);
+  border-radius: var(--radius-panel);
+  padding: var(--space-7) var(--space-6);
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: var(--space-6);
+  align-items: center;
+}
 
-.stack { display: flex; flex-direction: column; gap: var(--gutter-card); }
+.heroText { display: flex; flex-direction: column; gap: var(--space-5); min-width: 0; }
 
-.panelLabel {
+/* §3.2: ALL CAPS for micro eyebrows only, always with --ls-caps. */
+.eyebrow {
+  display: block;
   font-size: var(--text-caption);
   font-weight: var(--fw-bold);
   letter-spacing: var(--ls-caps);
   text-transform: uppercase;
-  color: var(--text-muted);
-  margin-bottom: var(--space-3);
-  display: block;
+  color: var(--text-accent);
 }
 
-.panelTitle { font-size: var(--text-h3); margin: 0 0 var(--space-2); }
-.muted { margin: 0; font-size: var(--text-body-sm); color: var(--text-muted); }
-.loading { color: var(--text-muted); }
+.heroTitle {
+  margin: 0;
+  font-size: var(--text-display-3);
+  line-height: var(--lh-display);
+  letter-spacing: var(--ls-display);
+  font-weight: var(--fw-extrabold);
+  text-wrap: pretty;
+}
 
-.row {
+/* §3.1: the accent phrase follows its surface. On this light wash it is
+   violet-700 (8.26:1); lime would be 1.98:1. */
+.accent { color: var(--text-accent); }
+
+.heroBody {
+  margin: 0;
+  font-size: var(--text-body-lg);
+  line-height: var(--lh-body);
+  color: var(--text-body);
+  max-width: 42ch;
+}
+
+.heroActions { display: flex; gap: var(--space-3); flex-wrap: wrap; }
+
+/* --- The ink card inside the hero ---------------------------------------- */
+.current {
   display: flex;
-  flex-wrap: wrap;
-  gap: var(--space-4);
+  flex-direction: column;
+  gap: var(--space-3);
+  min-width: 0;
+  border-radius: var(--radius-card);
+}
+
+/* Lime as text, on ink, at 13.1:1 — the one surface §3.1 allows it on. */
+.currentLabel {
+  font-size: var(--text-caption);
+  font-weight: var(--fw-bold);
+  letter-spacing: var(--ls-caps);
+  text-transform: uppercase;
+  color: var(--text-accent-on-dark);
+}
+
+.currentTitle {
+  font-size: var(--text-h2);
+  font-weight: var(--fw-extrabold);
+  letter-spacing: var(--ls-heading);
+  line-height: var(--lh-heading);
+  color: var(--text-on-dark);
+}
+
+.currentMeta { font-size: var(--text-body-sm); color: var(--text-on-dark-muted); }
+
+.stats {
+  display: flex;
+  gap: var(--space-6);
+  border-top: 1px solid var(--border-on-dark);
+  padding-top: var(--space-3);
+}
+
+.stat { display: flex; flex-direction: column; gap: 2px; }
+
+.statValue {
+  font-family: var(--font-mono);
+  font-size: var(--text-h3);
+  font-weight: var(--fw-bold);
+  color: var(--text-on-dark);
+}
+
+.statLabel { font-size: var(--text-body-sm); color: var(--text-on-dark-muted); }
+
+/* --- The roadmap panel ---------------------------------------------------- */
+.panelRow {
+  display: flex;
   align-items: center;
   justify-content: space-between;
-  margin-top: var(--space-5);
+  gap: var(--space-4);
+  flex-wrap: wrap;
 }
 
-/* The progress bar carries its own label, so it needs room under the title. */
-.stack .panelTitle + div { margin-top: var(--space-4); }
+.panelTitle {
+  margin: 0;
+  font-size: var(--text-h3);
+  font-weight: var(--fw-bold);
+  line-height: var(--lh-heading);
+  letter-spacing: var(--ls-heading);
+  color: var(--text-strong);
+}
 
+.progress { margin-top: var(--space-4); }
+
+.muted { margin: var(--space-2) 0 0; font-size: var(--text-body-sm); color: var(--text-muted); }
+.loading { color: var(--text-muted); }
+.row { display: flex; gap: var(--space-3); flex-wrap: wrap; margin-top: var(--space-5); }
+
+/* --- Updates -------------------------------------------------------------- */
 .updateList {
   list-style: none;
-  margin: 0;
+  margin: var(--space-3) 0 0;
   padding: 0;
   display: flex;
   flex-direction: column;
   gap: var(--space-5);
 }
 
-.updateRow {
-  display: flex;
-  gap: var(--space-3);
-  align-items: flex-start;
+.updateRow { display: flex; flex-direction: column; gap: var(--space-3); align-items: flex-start; }
+
+.updateLine { display: flex; gap: var(--space-3); align-items: flex-start; }
+
+.updateLine p {
+  margin: 0;
+  font-size: var(--text-body-base);
+  line-height: var(--lh-body);
+  color: var(--ink-700);
+  max-width: 62ch;
 }
 
-.updateBody {
-  flex: 1;
-  font-size: var(--text-body-sm);
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: var(--space-2);
-}
-
-.updateBody p { margin: 0; }
-.updateActions { display: flex; gap: var(--space-2); margin-top: var(--space-4); }
+.aiTag { color: var(--ai); font-weight: var(--fw-semibold); }
 
 .noticeIcon { color: var(--notice); flex: 0 0 auto; margin-top: 2px; }
 
+.updateActions { display: flex; gap: var(--space-2); flex-wrap: wrap; }
+
 @media (min-width: 1024px) {
-  .grid { display: grid; grid-template-columns: 1.35fr 1fr; gap: var(--gutter-card); align-items: start; }
+  .hero { padding: 44px var(--space-8); gap: var(--space-7); }
 }

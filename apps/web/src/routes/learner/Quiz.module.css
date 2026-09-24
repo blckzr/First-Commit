@@ -1,55 +1,44 @@
+/* §5.10 is a reading-width screen: one question at a time, nothing beside it. */
 .page {
   display: flex;
   flex-direction: column;
-  gap: var(--space-5);
-  max-width: var(--container-narrow);
+  gap: var(--gutter-card);
+  max-width: 780px;
 }
 
-.header { display: flex; flex-direction: column; gap: var(--space-3); }
+.form { display: flex; flex-direction: column; gap: var(--space-6); }
 
 .headRow {
   display: flex;
-  justify-content: space-between;
   align-items: baseline;
+  justify-content: space-between;
   gap: var(--space-4);
   flex-wrap: wrap;
 }
 
 .title {
-  display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: var(--space-2);
   margin: 0;
   font-size: var(--text-h2);
+  font-weight: var(--fw-extrabold);
+  line-height: var(--lh-heading);
+  letter-spacing: var(--ls-heading);
   color: var(--text-strong);
 }
 
-.title:focus-visible {
-  outline: 2px solid var(--focus-ring);
-  outline-offset: 4px;
-  border-radius: var(--radius-sm);
+.counter {
+  font-size: var(--text-body-sm);
+  font-weight: var(--fw-semibold);
+  color: var(--text-muted);
 }
-
-.counter { margin: 0; color: var(--text-muted); font-size: var(--text-body-sm); }
 
 .testOutNote {
   margin: 0;
-  padding: var(--space-3) var(--space-4);
-  border-radius: var(--radius-sm);
+  padding: var(--space-4) var(--space-5);
+  border-radius: var(--radius-card);
   background: var(--info-tint);
-  color: var(--text-body);
+  color: var(--ink-700);
   font-size: var(--text-body-sm);
-}
-
-.card {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-5);
-  padding: var(--pad-card-lg);
-  border: 1px solid var(--border-subtle);
-  border-radius: var(--radius-panel);
-  background: var(--surface-card);
+  line-height: var(--lh-body);
 }
 
 .field { border: 0; margin: 0; padding: 0; }
@@ -60,6 +49,8 @@
   font-family: var(--font-display);
   font-size: var(--text-h3);
   font-weight: var(--fw-bold);
+  line-height: var(--lh-heading);
+  letter-spacing: var(--ls-heading);
   color: var(--text-strong);
 }
 
@@ -71,27 +62,60 @@
   align-items: center;
   gap: var(--space-3);
   flex-wrap: wrap;
+  padding-top: var(--space-5);
+  border-top: 1px solid var(--border-subtle);
 }
 
 .error {
   margin: 0;
   padding: var(--space-3) var(--space-4);
-  border-radius: var(--radius-sm);
+  border-radius: var(--radius-md);
   background: var(--error-tint);
   color: var(--error);
   font-size: var(--text-body-sm);
 }
 
-.line { margin: 0; color: var(--text-body); }
-
-.reassurance { margin: 0; color: var(--text-muted); font-size: var(--text-body-sm); }
-
-.review { display: flex; flex-direction: column; gap: var(--space-3); }
-
-.reviewHeading {
+.reassurance {
   margin: 0;
-  font-size: var(--text-h3);
+  padding: 0 var(--space-5);
+  color: var(--text-muted);
+  font-size: var(--text-body-sm);
+}
+
+/* --- The result ----------------------------------------------------------- */
+.result { display: flex; flex-direction: column; gap: var(--space-5); }
+
+.passedLine { display: flex; align-items: center; gap: var(--space-3); }
+.passedIcon { color: var(--verified); flex: 0 0 auto; }
+
+.resultTitle {
+  margin: 0;
+  font-size: var(--text-h2);
+  font-weight: var(--fw-extrabold);
+  line-height: var(--lh-heading);
+  letter-spacing: var(--ls-heading);
   color: var(--text-strong);
+}
+
+.resultTitle:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 4px;
+  border-radius: var(--radius-sm);
+}
+
+.line { margin: 0; font-size: var(--text-body-lg); color: var(--ink-700); }
+
+.review,
+.right { display: flex; flex-direction: column; gap: var(--space-3); }
+
+/* §3.2: ALL CAPS for micro eyebrows only, always with --ls-caps. */
+.reviewLabel {
+  margin: 0;
+  font-size: var(--text-caption);
+  font-weight: var(--fw-bold);
+  letter-spacing: var(--ls-caps);
+  text-transform: uppercase;
+  color: var(--text-muted);
 }
 
 .reviewList {
@@ -103,15 +127,44 @@
   gap: var(--space-3);
 }
 
-.reviewList > li {
+.reviewRow {
   display: flex;
-  justify-content: space-between;
   align-items: center;
+  justify-content: space-between;
   gap: var(--space-3);
   flex-wrap: wrap;
+  padding: var(--space-3) var(--space-4);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-sm);
 }
 
-.reviewExplained { flex-direction: column; align-items: flex-start; gap: var(--space-1); }
+.reviewPrompt {
+  font-size: var(--text-body-base);
+  font-weight: var(--fw-semibold);
+  color: var(--text-strong);
+}
 
-.reviewPrompt { color: var(--text-body); }
-.explanation { color: var(--text-muted); font-size: var(--text-body-sm); }
+/* The prototype's green box, here carrying what the learner got right. */
+.rightList {
+  list-style: none;
+  margin: 0;
+  padding: var(--space-4) var(--space-5);
+  border-radius: var(--radius-md);
+  background: var(--verified-tint);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.rightList > li {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-1);
+}
+
+.explanation { font-size: var(--text-body-sm); color: var(--ink-700); }
+
+.loading { color: var(--text-muted); }
+
+.empty { display: flex; flex-direction: column; align-items: flex-start; gap: var(--space-4); }

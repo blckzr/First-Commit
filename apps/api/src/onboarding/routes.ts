@@ -109,8 +109,25 @@ export function onboardingRoutes(pool: Pool): Router {
       [user.id],
     );
 
+    /**
+     * The state of the Roadmap AI job, so the generating screen can tell the
+     * truth instead of saying "under a minute" forever.
+     *
+     * **The status only, never `ai_jobs.error`** (AGENT.md §6 rule 2). That
+     * column holds whatever the worker threw — a model message, a connection
+     * string in a driver error, a prompt fragment — and none of it belongs in
+     * a learner response. The screen writes its own copy from the status.
+     */
+    const job = await pool.query<{ status: string }>(
+      `select status from ai_jobs
+        where user_id = $1 and type = 'roadmap_generation'
+        order by created_at desc limit 1`,
+      [user.id],
+    );
+
     res.json({
       step: profile.onboarding_step,
+      generation: job.rows[0]?.status ?? null,
       about:
         profile.experience_level || profile.goal || profile.weekly_hours
           ? {
@@ -215,12 +232,30 @@ export function onboardingRoutes(pool: Pool): Router {
        * and the worker refuses to run without one it can verify belongs to this
        * learner.
        */
-      const roadmap = await client.query<{ id: string }>(
-        `insert into roadmaps (user_id, career_path_id, weekly_hours, status)
-         values ($1, $2, $3, 'active')
-         returning id`,
-        [user.id, parsed.data.careerPathId, rows[0].weekly_hours],
+      /**
+       * **Reused, not inserted again.** This endpoint used to insert a roadmap
+       * unconditionally, so every pass through placement — including the
+       * generating screen's "Try again", which used to send the learner back
+       * here — left another active roadmap behind. One test account ended up
+       * with two, and because Home and the chart both read *the newest active
+       * roadmap*, the older one was invisible but permanent: §6 rule 5 means
+       * nothing is going to delete it.
+       */
+      const existing = await client.query<{ id: string }>(
+        `select id from roadmaps
+          where user_id = $1 and career_path_id = $2 and status = 'active'
+          order by created_at desc limit 1`,
+        [user.id, parsed.data.careerPathId],
       );
+
+      const roadmap = existing.rows[0]
+        ? existing
+        : await client.query<{ id: string }>(
+            `insert into roadmaps (user_id, career_path_id, weekly_hours, status)
+             values ($1, $2, $3, 'active')
+             returning id`,
+            [user.id, parsed.data.careerPathId, rows[0].weekly_hours],
+          );
 
       const next = advance(rows[0].onboarding_step, "generating");
       await client.query(
@@ -234,11 +269,31 @@ export function onboardingRoutes(pool: Pool): Router {
        * published catalogue, writes `roadmap_items`, and moves the learner's
        * step to `done` — which is what the generating screen is waiting for.
        */
-      await client.query(
-        `insert into ai_jobs (type, user_id, source_id, payload)
-         values ('roadmap_generation', $1, $2, $3)`,
-        [user.id, roadmap.rows[0].id, JSON.stringify({ careerPathId: parsed.data.careerPathId })],
+      const pending = await client.query<{ id: string; status: string }>(
+        `select id, status from ai_jobs
+          where user_id = $1 and type = 'roadmap_generation' and source_id = $2
+          order by created_at desc limit 1`,
+        [user.id, roadmap.rows[0].id],
       );
+      const last = pending.rows[0];
+
+      if (!last || last.status === "completed") {
+        await client.query(
+          `insert into ai_jobs (type, user_id, source_id, payload)
+           values ('roadmap_generation', $1, $2, $3)`,
+          [user.id, roadmap.rows[0].id, JSON.stringify({ careerPathId: parsed.data.careerPathId })],
+        );
+      } else if (last.status === "failed") {
+        // Coming back here after a failure means "try again", so try again on
+        // the job that already exists rather than leaving it behind.
+        await client.query(
+          `update ai_jobs set status = 'queued', attempts = 0, error = null, started_at = null
+            where id = $1`,
+          [last.id],
+        );
+      }
+      // queued or running: it is already on its way, and a second job would
+      // only race the first to write the same roadmap.
 
       await client.query("commit");
       res.json({ step: next, next: "/onboarding/generating", roadmapId: roadmap.rows[0].id });
@@ -248,6 +303,56 @@ export function onboardingRoutes(pool: Pool): Router {
     } finally {
       client.release();
     }
+  });
+
+  /**
+   * §5.4: "on failure, a Try again that does not lose the learner's answers."
+   *
+   * Puts *this learner's* failed roadmap job back on the queue. The worker gives
+   * up after three attempts, and once it has, nothing in the system would ever
+   * look at that job again — `claim_next_ai_job()` only reads `queued`. Without
+   * this the learner waits on the generating screen forever, which is what
+   * happened when Ollama was not running.
+   *
+   * Scoped to `user.id` from the session (§6.1 step 3), so the id of a job is
+   * never something the browser supplies.
+   */
+  router.post("/onboarding/generating/retry", requireAuth, async (req, res) => {
+    const user = sessionUser(req);
+
+    const { rows } = await pool.query<{ id: string; status: string }>(
+      `select id, status from ai_jobs
+        where user_id = $1 and type = 'roadmap_generation'
+        order by created_at desc limit 1`,
+      [user.id],
+    );
+    const job = rows[0];
+
+    if (!job) {
+      throw new HttpError(409, "There is no roadmap to build yet. Start from your target job.");
+    }
+    if (job.status === "completed") {
+      return res.json({ status: "completed" });
+    }
+    if (job.status !== "failed") {
+      // Still queued or running — asking again would not make it faster.
+      return res.json({ status: job.status });
+    }
+
+    /**
+     * `and user_id = $2` is a backstop, not the check — the lookup above is.
+     * Mutation-testing it confirms that: removing it breaks nothing, because
+     * there is no way through this endpoint to hold a `job.id` that is not
+     * yours. It stays because the day someone widens that lookup, this is what
+     * stops the widening from becoming a cross-learner write.
+     */
+    await pool.query(
+      `update ai_jobs set status = 'queued', attempts = 0, error = null, started_at = null
+        where id = $1 and user_id = $2`,
+      [job.id, user.id],
+    );
+
+    res.json({ status: "queued" });
   });
 
   return router;

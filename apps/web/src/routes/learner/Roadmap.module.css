@@ -1,57 +1,66 @@
-.page { display: flex; flex-direction: column; gap: var(--space-5); }
-
 .header { display: flex; flex-direction: column; gap: var(--space-4); }
 
 .titleRow {
   display: flex;
-  align-items: flex-start;
+  align-items: center;
   justify-content: space-between;
   gap: var(--space-4);
   flex-wrap: wrap;
 }
 
-.title { margin: 0; font-size: var(--text-h1); color: var(--text-strong); }
-.track { margin: var(--space-1) 0 0; color: var(--text-muted); }
+.title {
+  margin: 0;
+  font-size: var(--text-h2);
+  font-weight: var(--fw-extrabold);
+  line-height: var(--lh-heading);
+  letter-spacing: var(--ls-heading);
+  color: var(--text-strong);
+}
 
+.lede { margin: 0; color: var(--text-body); max-width: 62ch; }
+
+/* §8: icon + text + colour, never colour alone. A quiet row under a rule,
+   not four badges — the statuses are a key to the chart, not statuses of
+   their own. */
 .legend {
   display: flex;
   flex-wrap: wrap;
-  gap: var(--space-2);
+  gap: var(--space-4);
   list-style: none;
   margin: 0;
-  padding: 0;
+  padding: var(--space-3) 0 0;
+  border-top: 1px solid var(--border-subtle);
+  font-size: var(--text-body-sm);
+  color: var(--text-body);
 }
+
+.legend > li { display: inline-flex; align-items: center; gap: 6px; }
+
+.passed { color: var(--verified); }
+.here { color: var(--here); }
+.available { color: var(--text-muted); }
+.lockedIcon { color: var(--text-faint); }
 
 /* Mobile first: one column. The panel is a bottom sheet at this width, so it
    is taken out of the flow by RoadmapPanel's own media query. */
-.body { display: flex; flex-direction: column; gap: var(--space-5); }
+.body { display: flex; flex-direction: column; gap: var(--gutter-card); }
 
-.canvasArea { min-width: 0; }
+/* No panel styling here: RoadmapChart's own region is the white panel, and
+   wrapping it in a second one would nest 28px inside 28px. */
+.canvasArea { min-width: 0; flex: 1 1 520px; }
 
 @media (min-width: 640px) {
-  /* §5.7: canvas beside a side panel. `minmax(0, 1fr)` so a wide node cannot
-     push the grid past the viewport and bring back horizontal scrolling. */
-  .body {
-    display: grid;
-    grid-template-columns: minmax(0, 1fr);
-    align-items: start;
-  }
-
-  .body:has(.panelArea) { grid-template-columns: minmax(0, 1fr) 320px; }
+  /* §5.7: canvas beside a side panel. They wrap on their own rather than by
+     a fixed column count, so a narrow window stacks them instead of
+     squeezing the chart. */
+  .body { flex-direction: row; align-items: flex-start; flex-wrap: wrap; }
+  .panelArea { flex: 0 1 320px; min-width: 260px; }
 }
 
 @media (min-width: 1024px) {
-  .body:has(.panelArea) { grid-template-columns: minmax(0, 1fr) 380px; }
+  .panelArea { flex: 0 1 360px; }
 }
 
 .loading { color: var(--text-muted); }
 
-.empty {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-4);
-  align-items: flex-start;
-  max-width: var(--container-narrow);
-}
-
-.emptyActions { display: flex; gap: var(--space-3); }
+.empty { display: flex; flex-direction: column; align-items: flex-start; gap: var(--space-4); }

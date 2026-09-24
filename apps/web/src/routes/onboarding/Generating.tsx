@@ -1,9 +1,9 @@
 import { useEffect, useState } from "react";
-import { useNavigate } from "react-router";
-import { useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { Button } from "../../components/core/Button";
+import { onboardingApi } from "../../api/onboarding";
 import { sessionKey } from "../../features/auth/useSession";
-import { useOnboarding } from "../../features/onboarding/useOnboarding";
+import { onboardingKey, useOnboarding } from "../../features/onboarding/useOnboarding";
 import { OnboardingLayout } from "./OnboardingLayout";
 import styles from "./OnboardingLayout.module.css";
 
@@ -35,10 +35,22 @@ const POLL_MS = 3000;
 const SLOW_AFTER_MS = 60_000;
 
 export function Generating() {
-  const navigate = useNavigate();
   const client = useQueryClient();
   const { data } = useOnboarding({ pollMs: POLL_MS });
   const [slow, setSlow] = useState(false);
+
+  /**
+   * §5.4's "Try again". It re-queues the job the learner already has rather
+   * than sending them back through placement — walking back through placement
+   * is what used to leave a second roadmap behind every time.
+   */
+  const retry = useMutation({
+    mutationFn: () => onboardingApi.retryGeneration(),
+    onSuccess: () => {
+      setSlow(false);
+      void client.invalidateQueries({ queryKey: onboardingKey });
+    },
+  });
 
   useEffect(() => {
     const timer = setTimeout(() => setSlow(true), SLOW_AFTER_MS);
@@ -58,6 +70,14 @@ export function Generating() {
     void client.invalidateQueries({ queryKey: sessionKey });
   }, [data?.step, client]);
 
+  /**
+   * **The screen used to have no idea the job had failed.** It polled the step,
+   * saw `generating`, and said "this usually takes under a minute" for as long
+   * as the learner was willing to look at it. The worker gives up after three
+   * attempts, so with Ollama not running that was forever.
+   */
+  const failed = data?.generation === "failed";
+
   return (
     <OnboardingLayout step={3} title="Building your roadmap">
       <div className={styles.waiting}>
@@ -65,24 +85,45 @@ export function Generating() {
           Indeterminate work. A percentage here would be invented, so the bar
           is decoration with no value attached and the text carries the state.
         */}
-        <div className={styles.indeterminate} aria-hidden="true">
-          <span />
-        </div>
+        {!failed && (
+          <div className={styles.indeterminate} aria-hidden="true">
+            <span />
+          </div>
+        )}
 
-        <p className={styles.waitingLead}>Building your roadmap from your answers…</p>
-
-        <p className={styles.waitingNote} role="status">
-          {slow
-            ? "This is taking longer than usual. Your answers are saved, so you can leave this page — we'll email you when it's ready."
-            : "This usually takes under a minute. You can leave this page; we'll email you when it's ready."}
+        <p className={styles.waitingLead}>
+          {failed ? "We couldn't build your roadmap" : "Building your roadmap from your answers…"}
         </p>
 
-        {slow && (
+        {/*
+          §9: explain and direct, without apologising or being vague — and
+          without blaming the learner for something that is ours.
+        */}
+        <p className={styles.waitingNote} role="status">
+          {failed
+            ? "Something went wrong on our side. Your answers are saved, so trying again picks up exactly where this left off."
+            : slow
+              ? "This is taking longer than usual. Your answers are saved, so you can leave this page — we'll email you when it's ready."
+              : "This usually takes under a minute. You can leave this page; we'll email you when it's ready."}
+        </p>
+
+        {(failed || slow) && (
           <div className={styles.waitingAction}>
-            <Button variant="outline" onClick={() => void navigate("/onboarding/placement")}>
+            <Button
+              variant={failed ? "primary" : "outline"}
+              onClick={() => retry.mutate()}
+              loading={retry.isPending}
+              loadingLabel="Starting again…"
+            >
               Try again
             </Button>
           </div>
+        )}
+
+        {retry.isError && (
+          <p role="alert" className={styles.waitingNote}>
+            That didn&apos;t start. Check your connection and try once more.
+          </p>
         )}
       </div>
     </OnboardingLayout>

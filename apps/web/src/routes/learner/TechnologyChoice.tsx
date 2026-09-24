@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router";
 import { Badge } from "../../components/core/Badge";
 import { Button } from "../../components/core/Button";
+import { Card } from "../../components/core/Card";
 import { LinkButton } from "../../components/core/LinkButton";
 import { ApiError } from "../../api/client";
 import type { DecisionOption, DecisionPage } from "../../api/decisions";
@@ -30,17 +31,17 @@ export function TechnologyChoice() {
   if (error || !data) {
     const notFound = error instanceof ApiError && error.status === 404;
     return (
-      <div className={styles.empty}>
+      <Card surface="white" radius="panel" padding="lg" className={styles.empty}>
         <h1 className={styles.title}>
           {notFound ? "We couldn't find that choice" : "This isn't available right now"}
         </h1>
-        <p>
+        <p className={styles.lede}>
           {notFound
             ? "It may belong to another roadmap, or the link may be wrong."
             : "This is usually temporary, and nothing on your roadmap has changed."}
         </p>
         <LinkButton to="/app" icon="arrow-right">Back to home</LinkButton>
-      </div>
+      </Card>
     );
   }
 
@@ -55,15 +56,9 @@ function ChoiceView({ decision }: { decision: DecisionPage }) {
   const chosen = decision.options.find((o) => o.technologyId === decision.chosenTechnologyId);
   const error = choose.error instanceof ApiError ? choose.error : null;
 
-  function pick(option: DecisionOption) {
-    // §5.8: choosing shows a confirmation, and switching explains what happens
-    // to what the learner already passed. Both go through the same panel.
-    setConfirming(option);
-  }
-
   return (
-    <div className={styles.page}>
-      <header className={styles.header}>
+    <>
+      <Card surface="white" radius="panel" padding="lg" className={styles.header}>
         <LinkButton
           variant="ghost"
           size="sm"
@@ -80,17 +75,17 @@ function ChoiceView({ decision }: { decision: DecisionPage }) {
             ? `Your roadmap uses ${chosen.name}. You can switch, and you keep your progress on shared modules.`
             : `You've finished the core skills. Pick the framework your ${decision.trackTitle} modules and capstone will use. You can switch later and keep your progress on shared modules.`}
         </p>
-      </header>
+      </Card>
 
       {/* §7: AI output is labelled, carries a reason, and is flaggable. */}
       {decision.recommendation && (
-        <div className={styles.aiPanel}>
-          <Badge tone="ai">AI</Badge>
+        <Card surface="soft" radius="card" padding="md" className={styles.aiPanel}>
+          <span className={styles.aiLabel}>AI</span>
           <p className={styles.aiText}>{decision.recommendation.reason}</p>
-          <Button variant="ghost" size="sm" disabled title="Not built yet">
+          <button type="button" className={styles.aiFlag} disabled title="Not built yet">
             Is this wrong?
-          </Button>
-        </div>
+          </button>
+        </Card>
       )}
 
       {error && <p role="alert" className={styles.error}>{error.message}</p>}
@@ -99,47 +94,63 @@ function ChoiceView({ decision }: { decision: DecisionPage }) {
         {decision.options.map((option) => {
           const isChosen = option.technologyId === decision.chosenTechnologyId;
           const isRecommended = option.technologyId === decision.recommendation?.technologyId;
+          const hasRecommendation = decision.recommendation !== null;
 
           return (
-            <li key={option.technologyId} className={styles.card}>
+            <Card
+              as="li"
+              key={option.technologyId}
+              surface="white"
+              radius="panel"
+              padding="lg"
+              className={styles.card}
+            >
               <div className={styles.cardHead}>
                 <h2 className={styles.cardTitle}>{option.name}</h2>
                 <div className={styles.cardBadges}>
                   {/* §12: the recommendation is announced as text, not a colour. */}
-                  {isRecommended && <Badge tone="ai">Recommended</Badge>}
+                  {isRecommended && <Badge tone="lime">Recommended</Badge>}
                   {isChosen && <Badge tone="verified" icon="check">Your choice</Badge>}
                 </div>
               </div>
 
               <p className={styles.cardBody}>{option.description}</p>
 
-              {Object.keys(option.comparison).length > 0 && (
-                <dl className={styles.comparison}>
-                  {Object.entries(option.comparison).map(([key, value]) => (
-                    <div key={key}>
-                      <dt>{label(key)}</dt>
-                      <dd>{value}</dd>
-                    </div>
-                  ))}
-                </dl>
-              )}
-
-              <p className={styles.cardMeta}>
-                {option.moduleCount} module{option.moduleCount === 1 ? "" : "s"} on your roadmap
-                {option.passedCount > 0 ? ` · ${option.passedCount} already passed` : ""}
-              </p>
+              <dl className={styles.comparison}>
+                {Object.entries(option.comparison).map(([key, value]) => (
+                  <div key={key}>
+                    <dt>{label(key)}:</dt>
+                    <dd>{value}</dd>
+                  </div>
+                ))}
+                <div>
+                  <dt>On your roadmap:</dt>
+                  <dd>
+                    {option.moduleCount} module{option.moduleCount === 1 ? "" : "s"}
+                    {option.passedCount > 0 ? `, ${option.passedCount} already passed` : ""}
+                  </dd>
+                </div>
+              </dl>
 
               <div className={styles.cardActions}>
+                {/*
+                  §5.8 weights the recommended option: it takes the lime
+                  button and the others take violet. Both are still choose
+                  actions, and the reason for the weighting is written above
+                  them in words rather than left to the colour (§12).
+                */}
                 <Button
-                  variant={isChosen ? "outline" : "primary"}
+                  variant={
+                    isChosen ? "outline" : !hasRecommendation || isRecommended ? "primary" : "secondary"
+                  }
                   fullWidth
                   disabled={isChosen}
-                  onClick={() => pick(option)}
+                  onClick={() => setConfirming(option)}
                 >
                   {isChosen ? `Using ${option.name}` : `Choose ${option.name}`}
                 </Button>
               </div>
-            </li>
+            </Card>
           );
         })}
       </ul>
@@ -161,7 +172,7 @@ function ChoiceView({ decision }: { decision: DecisionPage }) {
           }
         />
       )}
-    </div>
+    </>
   );
 }
 
@@ -197,7 +208,14 @@ function Confirm({
   }, []);
 
   return (
-    <div className={styles.confirm} role="region" aria-labelledby="confirm-heading">
+    <Card
+      surface="white"
+      radius="panel"
+      padding="lg"
+      className={styles.confirm}
+      role="region"
+      aria-labelledby="confirm-heading"
+    >
       <h2 id="confirm-heading" className={styles.confirmTitle} tabIndex={-1} ref={heading}>
         {switching ? `Switch to ${option.name}?` : `Your roadmap will use ${option.name}`}
       </h2>
@@ -238,7 +256,7 @@ function Confirm({
           {switching ? `Switch to ${option.name}` : `Choose ${option.name}`}
         </Button>
       </div>
-    </div>
+    </Card>
   );
 }
 

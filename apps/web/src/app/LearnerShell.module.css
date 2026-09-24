@@ -1,15 +1,31 @@
+/**
+ * The learner frame, from the prototype: everything is a rounded panel on the
+ * page wash, including the bar itself — which is why it is a pill and not a
+ * band across the top (design.md §3.3).
+ */
 .shell {
+  --topbar-height: 56px;
+
   min-height: 100vh;
   background: var(--surface-page);
+  padding: var(--gutter-card);
+  display: flex;
+  flex-direction: column;
+  gap: var(--gutter-card);
 }
 
+/* --- The ink pill -------------------------------------------------------- */
 .topbar {
+  position: sticky;
+  top: var(--gutter-card);
+  z-index: 20;
   display: flex;
   align-items: center;
   gap: var(--space-4);
-  padding: var(--space-3) var(--space-5);
+  flex-wrap: wrap;
+  padding: var(--space-2) var(--space-4);
+  border-radius: var(--radius-pill);
   background: var(--ink-900);
-  color: var(--text-on-dark);
 }
 
 .wordmark {
@@ -21,12 +37,14 @@
   font-size: 15px;
   letter-spacing: var(--ls-heading);
   color: var(--text-on-dark);
+  white-space: nowrap;
 }
 
 .mark {
   display: inline-flex;
   width: 22px;
   height: 22px;
+  flex: 0 0 auto;
   border-radius: 7px;
   background: var(--accent);
   color: var(--ink-900);
@@ -34,111 +52,292 @@
   justify-content: center;
 }
 
-/* Lime as text is legible here because it sits on ink (13.4:1). */
+/* Lime as text is legible here because it sits on ink — 13.4:1 (§3.1). */
 .wordmarkAccent { color: var(--text-accent-on-dark); }
 
-.topbarEnd { margin-left: auto; display: flex; align-items: center; gap: var(--space-3); }
+/* --- Tabs ---------------------------------------------------------------- */
+.tabs {
+  display: none;
+  padding: var(--space-1);
+  border-radius: var(--radius-pill);
+  background: var(--surface-on-dark-active);
+}
 
-.body { display: block; }
+.tabList {
+  display: flex;
+  gap: var(--space-1);
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
 
-.nav { display: none; }
+.tab {
+  display: inline-flex;
+  align-items: center;
+  /* §12: the pill is 32px tall, so the tap target needs the padding around it. */
+  min-height: 34px;
+  padding: var(--space-2) var(--space-4);
+  border-radius: var(--radius-pill);
+  font-family: var(--font-display);
+  font-size: var(--text-body-sm);
+  font-weight: var(--fw-bold);
+  color: var(--text-on-dark);
+  text-decoration: none;
+  white-space: nowrap;
+  transition: background-color var(--dur-base) var(--ease-out),
+    color var(--dur-base) var(--ease-out);
+}
 
-.navList {
+.tab:hover { background: var(--surface-on-dark-hover); text-decoration: none; color: var(--text-on-dark); }
+
+/* Lime as a fill with ink on it — 13.1:1 (§3.1). */
+.tabActive,
+.tabActive:hover { background: var(--accent); color: var(--text-on-lime); }
+
+/* --- Bell and profile ---------------------------------------------------- */
+.topbarEnd {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.profile { position: relative; }
+
+.profileButton {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-height: 38px;
+  padding: 5px var(--space-3) 5px 5px;
+  border-radius: var(--radius-pill);
+  background: var(--surface-on-dark-active);
+  color: var(--text-on-dark);
+  cursor: pointer;
+  list-style: none;
+  white-space: nowrap;
+}
+
+.profileButton::-webkit-details-marker { display: none; }
+.profileButton:hover { background: var(--surface-on-dark-hover); }
+
+.avatar {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  flex: 0 0 auto;
+  border-radius: 50%;
+  background: var(--accent);
+  color: var(--text-on-lime);
+  font-family: var(--font-display);
+  font-size: var(--text-caption);
+  font-weight: var(--fw-extrabold);
+}
+
+.profileName {
+  font-family: var(--font-display);
+  font-size: var(--text-body-sm);
+  font-weight: var(--fw-bold);
+}
+
+.profileMenu {
+  position: absolute;
+  top: 46px;
+  right: 0;
+  z-index: 30;
+  width: 240px;
+  padding: 18px;
+  border-radius: var(--radius-card);
+  background: var(--surface-card);
+  box-shadow: var(--shadow-lg);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.profileWho { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+
+.profileFull {
+  font-size: var(--text-body-base);
+  font-weight: var(--fw-bold);
+  letter-spacing: var(--ls-heading);
+  color: var(--text-strong);
+  overflow-wrap: anywhere;
+}
+
+.profileEmail {
+  font-size: var(--text-body-sm);
+  color: var(--text-muted);
+  overflow-wrap: anywhere;
+}
+
+.profileList {
+  list-style: none;
+  margin: 0;
+  padding: var(--space-3) 0 0;
+  border-top: 1px solid var(--border-subtle);
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.profileItem {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  min-height: 44px;
+  padding: var(--space-2) var(--space-2);
+  border-radius: var(--radius-sm);
+  font-size: var(--text-body-sm);
+  font-weight: var(--fw-semibold);
+  color: var(--ink-700);
+  text-decoration: none;
+}
+
+.profileItem:hover { background: var(--surface-inset); text-decoration: none; color: var(--ink-900); }
+
+/* --- Body ---------------------------------------------------------------- */
+.body {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--gutter-card);
+}
+
+.main {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--gutter-card);
+}
+
+/* --- The sidebar panel --------------------------------------------------- */
+.sidebar {
+  display: none;
+  width: 216px;
+  flex: 0 0 auto;
+  padding: var(--space-5) 14px;
+  border-radius: var(--radius-panel);
+  background: var(--surface-card);
+  flex-direction: column;
+  gap: var(--space-3);
+  position: sticky;
+  /* Clears the pill above it, which is sticky too. */
+  top: calc(var(--topbar-height) + var(--gutter-card) * 2);
+}
+
+.groupLabel {
+  font-size: var(--text-micro);
+  font-weight: var(--fw-bold);
+  letter-spacing: var(--ls-caps);
+  text-transform: uppercase;
+  color: var(--text-muted);
+  padding: 0 var(--space-3);
+}
+
+.sidebarList {
   list-style: none;
   margin: 0;
   padding: 0;
   display: flex;
+  flex-direction: column;
+  gap: 2px;
 }
 
-.navLink {
+.sidebarLink {
   display: flex;
   align-items: center;
   gap: var(--space-3);
-  padding: var(--space-3) var(--space-4);
+  /* §12: a 44px touch target. */
+  min-height: 44px;
+  padding: var(--space-3);
   border-radius: var(--radius-sm);
-  color: var(--text-body);
   font-size: var(--text-body-sm);
   font-weight: var(--fw-semibold);
+  color: var(--text-body);
   text-decoration: none;
-  transition: background-color var(--dur-base) var(--ease-out);
+  transition: background-color var(--dur-base) var(--ease-out),
+    color var(--dur-base) var(--ease-out);
 }
 
-.navLink:hover { background: var(--gray-100); text-decoration: none; color: var(--ink-900); }
+.sidebarLink:hover { background: var(--surface-inset); text-decoration: none; color: var(--ink-900); }
 
-.navLinkActive { background: var(--violet-100); color: var(--violet-700); }
-
-.navLabel { white-space: nowrap; }
+.itemActive,
+.sidebarLink.itemActive:hover {
+  background: var(--surface-card-soft);
+  color: var(--text-strong);
+}
 
 .locked { color: var(--text-faint); }
+.navLabel { white-space: nowrap; }
 
-/* `width: 100%` matters: `margin: 0 auto` on a grid item turns off the default
-   stretch, so without it the main column shrinks to fit its content. A page
-   whose content can collapse — the roadmap's canvas beside its panel — then
-   collapses the whole column with it. */
-.main {
-  width: 100%;
-  padding: var(--space-5);
-  max-width: var(--container);
-  margin: 0 auto;
-}
-
-/* --- sm (< 640px): bottom navigation ------------------------------------ */
+/* --- sm (< 640px): one bottom bar --------------------------------------- */
 .bottomNav {
   position: sticky;
-  bottom: 0;
+  bottom: calc(var(--gutter-card) * -1);
+  z-index: 20;
+  margin: 0 calc(var(--gutter-card) * -1) calc(var(--gutter-card) * -1);
   display: block;
-  background: var(--gray-0);
+  background: var(--surface-card);
   border-top: 1px solid var(--border-subtle);
   padding: var(--space-2) var(--space-2) var(--space-3);
 }
 
-.bottomNav .navList { justify-content: space-around; }
+.bottomList {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  justify-content: space-between;
+  gap: 0;
+}
 
-.bottomNav .navList { justify-content: space-between; gap: 0; }
+.bottomList > li { flex: 1 1 0; min-width: 0; }
 
-.bottomNav .navLink,
-.bottomNav summary {
+.bottomLink {
+  display: flex;
   flex-direction: column;
+  align-items: center;
   gap: 4px;
-  font-size: var(--text-micro);
+  min-height: 44px;
+  justify-content: center;
   padding: var(--space-2) var(--space-1);
+  border-radius: var(--radius-sm);
+  font-size: var(--text-micro);
+  font-weight: var(--fw-semibold);
+  color: var(--text-body);
   text-align: center;
-  /* Five items must fit 320px (design.md §12), so they share the width
-     rather than claiming a minimum. */
+  text-decoration: none;
+  cursor: pointer;
+  list-style: none;
+  /* Five items must fit 320px (§12), so they share the width rather than
+     claiming a minimum. */
   min-width: 0;
 }
 
-.bottomNav .navLabel {
+.bottomLink::-webkit-details-marker { display: none; }
+.bottomLink:hover { background: var(--surface-inset); text-decoration: none; color: var(--ink-900); }
+.bottomLink.itemActive { background: var(--surface-card-soft); color: var(--text-strong); }
+
+.bottomLink .navLabel {
   max-width: 100%;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.bottomNav li { flex: 1 1 0; min-width: 0; }
-
 /* The More disclosure opens upward, above the bar. */
 .more { position: relative; }
-
-.more summary {
-  list-style: none;
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  border-radius: var(--radius-sm);
-  color: var(--text-body);
-  font-weight: var(--fw-semibold);
-}
-
-.more summary::-webkit-details-marker { display: none; }
-.more[open] summary { background: var(--violet-100); color: var(--violet-700); }
+.more[open] > .bottomLink { background: var(--surface-card-soft); color: var(--text-strong); }
 
 .moreList {
   position: absolute;
   bottom: calc(100% + var(--space-2));
   right: 0;
   min-width: 190px;
-  background: var(--gray-0);
+  background: var(--surface-card);
   border: 1px solid var(--border-subtle);
   border-radius: var(--radius-card);
   box-shadow: var(--shadow-md);
@@ -151,61 +350,32 @@
   z-index: 10;
 }
 
-.moreList .navLink {
-  flex-direction: row;
+.moreLink {
+  display: flex;
+  align-items: center;
   gap: var(--space-3);
-  font-size: var(--text-body-sm);
-  text-align: left;
+  min-height: 44px;
   padding: var(--space-3);
+  border-radius: var(--radius-sm);
+  font-size: var(--text-body-sm);
+  font-weight: var(--fw-semibold);
+  color: var(--text-body);
+  text-decoration: none;
 }
 
-.moreList .navLabel { display: inline; }
+.moreLink:hover { background: var(--surface-inset); text-decoration: none; color: var(--ink-900); }
+.moreLink.itemActive { background: var(--surface-card-soft); color: var(--text-strong); }
 
-/* --- md and lg: sidebar -------------------------------------------------- */
+/* --- md and lg: the two levels ------------------------------------------ */
 @media (min-width: 640px) {
-  .body { display: grid; grid-template-columns: auto 1fr; }
   .bottomNav { display: none; }
-
-  .nav {
-    display: block;
-    padding: var(--space-4) var(--space-3);
-    border-right: 1px solid var(--border-subtle);
-    background: var(--gray-0);
-    min-height: calc(100vh - 54px);
-  }
-
-  .navList { flex-direction: column; gap: var(--space-1); }
-  .navLink { justify-content: center; }
-
-  /**
-   * The icon rail hides labels visually but NOT from assistive technology.
-   * `display: none` would strip them from the accessibility tree, leaving a
-   * screen reader user at this width with six unlabelled links — design.md §12
-   * requires every control to have a name at every width.
-   */
-  .navLabel {
-    position: absolute;
-    width: 1px;
-    height: 1px;
-    padding: 0;
-    margin: -1px;
-    overflow: hidden;
-    clip-path: inset(50%);
-    white-space: nowrap;
-    border: 0;
-  }
+  .tabs { display: block; }
+  .sidebar { display: flex; }
 }
 
 @media (min-width: 1024px) {
-  .nav { padding: var(--space-5) var(--space-4); min-width: 210px; }
-  .navLabel {
-    position: static;
-    width: auto;
-    height: auto;
-    margin: 0;
-    overflow: visible;
-    clip-path: none;
-  }
-  .navLink { justify-content: flex-start; }
-  .main { padding: var(--space-7); }
+  .shell { padding: var(--space-4); gap: var(--space-4); }
+  .topbar { top: var(--space-4); padding: var(--space-2) var(--space-5); }
+  .body { gap: var(--space-4); }
+  .main { gap: var(--space-4); }
 }

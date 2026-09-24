@@ -1,91 +1,160 @@
-.page {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-5);
-  max-width: var(--container-narrow);
+.header { display: flex; flex-direction: column; align-items: flex-start; gap: var(--space-3); }
+
+.title {
+  margin: 0;
+  font-size: var(--text-h1);
+  font-weight: var(--fw-extrabold);
+  line-height: var(--lh-heading);
+  letter-spacing: var(--ls-heading);
+  color: var(--text-strong);
 }
 
-.header { display: flex; flex-direction: column; gap: var(--space-3); align-items: flex-start; }
+.lede {
+  margin: 0;
+  font-size: var(--text-body-base);
+  line-height: var(--lh-body);
+  color: var(--text-body);
+  max-width: 640px;
+}
 
-.title { margin: 0; font-size: var(--text-h1); color: var(--text-strong); }
-.lede { margin: 0; color: var(--text-body); }
-
-/* §5.8's AI panel. Labelled, with its reason, and flaggable. */
+/* §5.8's AI panel. Labelled, with its reason, and flaggable. A card radius,
+   not a panel one — it is a note attached to the screen, not a section of it. */
 .aiPanel {
   display: flex;
+  flex-direction: column;
   align-items: flex-start;
-  flex-wrap: wrap;
   gap: var(--space-3);
-  padding: var(--pad-card);
-  border-radius: var(--radius-card);
-  background: var(--ai-tint);
+  padding: var(--space-5) var(--pad-card);
 }
 
-.aiText { flex: 1 1 260px; margin: 0; color: var(--text-body); }
+/* §3.2: ALL CAPS for micro eyebrows only, always with --ls-caps. */
+.aiLabel {
+  font-size: var(--text-caption);
+  font-weight: var(--fw-bold);
+  letter-spacing: var(--ls-caps);
+  text-transform: uppercase;
+  color: var(--ai);
+}
+
+.aiText {
+  margin: 0;
+  font-size: var(--text-body-base);
+  line-height: var(--lh-body);
+  color: var(--ink-700);
+  max-width: 620px;
+}
+
+/* A link, not a button: it is a quiet aside on the panel, and §7.1's button
+   shapes would give it more weight than a flag control should have. */
+.aiFlag {
+  border: 0;
+  background: none;
+  padding: 0;
+  font: inherit;
+  font-size: var(--text-body-sm);
+  font-weight: var(--fw-semibold);
+  color: var(--ai);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  cursor: pointer;
+}
+
+.aiFlag:disabled { opacity: 0.45; cursor: default; }
+
+.aiFlag:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 2px;
+  border-radius: var(--radius-xs);
+}
 
 .error {
   margin: 0;
   padding: var(--space-3) var(--space-4);
-  border-radius: var(--radius-sm);
+  border-radius: var(--radius-md);
   background: var(--error-tint);
   color: var(--error);
   font-size: var(--text-body-sm);
 }
 
-/* Mobile first: one card per row, side by side from md. */
+/* The options tile as equal panels and reflow on their own (§11.1). */
 .options {
   list-style: none;
   margin: 0;
   padding: 0;
   display: grid;
-  grid-template-columns: 1fr;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
   gap: var(--gutter-card);
 }
 
-.card {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-3);
-  padding: var(--pad-card);
-  border: 1px solid var(--border-subtle);
-  border-radius: var(--radius-card);
-  background: var(--surface-card);
-}
+.card { display: flex; flex-direction: column; gap: var(--space-4); }
 
 .cardHead {
   display: flex;
+  align-items: center;
   justify-content: space-between;
-  align-items: flex-start;
   gap: var(--space-3);
   flex-wrap: wrap;
 }
 
-.cardTitle { margin: 0; font-size: var(--text-h2); color: var(--text-strong); }
+.cardTitle {
+  margin: 0;
+  font-size: var(--text-h2);
+  font-weight: var(--fw-extrabold);
+  line-height: var(--lh-heading);
+  letter-spacing: var(--ls-heading);
+  color: var(--text-strong);
+}
+
 .cardBadges { display: flex; gap: var(--space-2); flex-wrap: wrap; }
-.cardBody { margin: 0; color: var(--text-body); }
 
-.comparison { margin: 0; display: flex; flex-direction: column; gap: var(--space-2); }
-.comparison > div { display: flex; flex-direction: column; gap: 2px; }
-.comparison dt { font-size: var(--text-caption); color: var(--text-muted); }
-.comparison dd { margin: 0; color: var(--text-body); font-size: var(--text-body-sm); }
+.cardBody {
+  margin: 0;
+  font-size: var(--text-body-base);
+  line-height: var(--lh-body);
+  color: var(--text-body);
+}
 
-.cardMeta { margin: 0; font-size: var(--text-caption); color: var(--text-muted); }
-.cardActions { margin-top: auto; padding-top: var(--space-2); }
+.comparison {
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding-top: var(--space-4);
+  border-top: 1px solid var(--border-subtle);
+  font-size: var(--text-body-sm);
+  color: var(--text-muted);
+}
+
+.comparison > div { display: flex; gap: 6px; flex-wrap: wrap; }
+.comparison dt { font-weight: var(--fw-semibold); }
+.comparison dd { margin: 0; }
+
+.cardActions {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin-top: auto;
+  padding-top: var(--space-2);
+}
 
 /* The confirmation. Not a modal: it does not trap focus or block the page, so
    a learner can still read the cards while deciding (§5.8 calls it a
-   confirmation, not a dialog that takes over). */
+   confirmation, not a dialog that takes over). The control-grade edge is what
+   marks it out from the panels around it. */
 .confirm {
   display: flex;
   flex-direction: column;
   gap: var(--space-3);
-  padding: var(--pad-card-lg);
-  border: 1px solid var(--border-control);
-  border-radius: var(--radius-panel);
-  background: var(--surface-card);
+  border-color: var(--border-control);
 }
 
-.confirmTitle { margin: 0; font-size: var(--text-h3); color: var(--text-strong); }
+.confirmTitle {
+  margin: 0;
+  font-size: var(--text-h3);
+  font-weight: var(--fw-bold);
+  letter-spacing: var(--ls-heading);
+  color: var(--text-strong);
+}
 
 .confirmTitle:focus-visible {
   outline: 2px solid var(--focus-ring);
@@ -105,13 +174,4 @@
 
 .loading { color: var(--text-muted); }
 
-.empty {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-4);
-  align-items: flex-start;
-}
-
-@media (min-width: 640px) {
-  .options { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-}
+.empty { display: flex; flex-direction: column; align-items: flex-start; gap: var(--space-4); }

@@ -11,6 +11,378 @@ lives under `[Unreleased]` until there is something to version.
 
 ## [Unreleased]
 
+### 2026-09-25 — The core spine has content
+
+Sixteen of nineteen published modules had nothing in them. Only HTML basics, CSS basics and
+JavaScript basics were written, so a learner following their roadmap reached the second
+module and found an empty reading column and no quiz. The platform worked; there was
+nothing to learn on it.
+
+**All ten core modules are now written** — the ones every learner on the path gets,
+whatever track the Roadmap AI picks. Three lessons and a five-question quiz each.
+
+#### Added
+
+- **Seven modules of curriculum**, 21 lessons and 35 questions:
+  - **Forms and semantics** — labels and the `for`/`id` join, why a placeholder is not a
+    label, picking the right input type, landmarks and naming them.
+  - **Layout with flex and grid** — one axis versus two, `repeat(auto-fit, minmax(…))`,
+    `minmax(0, 1fr)`, mobile-first, and checking 320px.
+  - **Functions** — parameters and return, scope and blocks, functions as values, and the
+    `addEventListener("click", save())` slip.
+  - **Arrays and objects** — indexing from zero, `const` fixing the name and not the value,
+    optional chaining, `map`/`filter`/`reduce`, and which methods mutate.
+  - **DOM manipulation** — `querySelector` returning `null`, `defer`, `textContent` versus
+    `innerHTML` and the XSS that follows, events, and why a `<div>` is not a button.
+  - **Git basics** — the three places a change lives, staging as a feature, commit messages
+    written for the person who reads them next, and why a committed `.env` needs the key
+    rotated rather than deleted.
+  - **Branching and merging** — a branch as a pointer, what the conflict markers mean,
+    `--abort`, keeping up with `main`, and `--force-with-lease`.
+- Each quiz question links to the lesson that taught it, so §5.10's "topics to review"
+  sends a learner somewhere that actually covers the question they missed.
+
+#### Fixed
+
+- **The correct answer was option 0 in all 51 questions.** Writing the right answer first is
+  the natural way to author a question, and every question in the seed file did it — so
+  every answer sat at `sort_order = 0` in the database too. `GET /assessments/:id` returns
+  options in `sort_order` and nothing shuffles them, so **a learner could pass every quiz on
+  the platform by clicking the top option**, and the pass would be written to
+  `module_completions` as evidence. Real evidence, worth nothing — which is the one thing
+  §6 rule 1 exists to prevent.
+  - The seed loader now rotates each question's options before storing them, by an amount
+    derived from the prompt. The correct answer now sits at position 0/1/2/3 in 17/6/14/14
+    of the 51 questions.
+  - **Deterministic on purpose.** A random shuffle would reorder every live quiz on each
+    re-seed, and `quiz_options` is upserted by `(question_id, sort_order)` — so the text
+    under a stored id would change while a learner was part-way through answering.
+  - This fixes the three existing quizzes as well as the seven new ones. It needed no
+    change to the content files: the author still writes the right answer first.
+
+#### Verified
+
+`npm run db:seed` loads 30 lessons and 10 quizzes. Then, against the live database:
+
+- **10 of 10 core modules** have both lessons and a quiz. The nine still empty are concept
+  and technology modules, which sit after the technology choice.
+- **All 310 lesson blocks** validate against `LessonContent` (`design.md` §13.3) — the five
+  block types and the two callout tones, nothing invented.
+- **All 51 answer keys** still point at the option the author marked correct, checked row by
+  row against the seed file after the rotation.
+- `GET /modules/:id` returns Arrays and objects with its three lessons (11, 13 and 13
+  blocks); `GET /assessments/:id` returns the five questions and **no answer-key field** of
+  any name (§6 rule 2).
+- 244 API + 263 web + 24 worker tests, lint and typecheck clean.
+
+### 2026-09-22 — A roadmap job that failed had no way back
+
+Starting onboarding with Ollama not running left the learner on `/onboarding/generating`
+forever. The job failed three times, was marked `failed`, and nothing in the system ever
+looked at it again — `claim_next_ai_job()` only reads `queued`. Starting Ollama afterwards
+changed nothing.
+
+Confirmed against the development database: one `roadmap_generation` row, `failed`,
+`attempts = 3`, error `fetch failed`. And a second thing nobody had noticed yet — that
+learner had **two active roadmaps**, because the way out of the stuck screen was a "Try
+again" that walked back to placement, and placement inserted a roadmap every time it ran.
+
+#### Fixed
+
+- **The three attempts are three attempts now.** The worker waits before putting a failed
+  job back on the queue — 15 seconds before the second attempt, 60 before the third.
+  `claim_next_ai_job()` takes the oldest queued job, so a job re-queued immediately is
+  re-claimed on the next poll: all three attempts landed inside a second, against the same
+  dead socket. That is not a retry policy, it is one attempt with extra steps.
+  - The job stays `running` while the worker waits, which is honest — it has not finished
+    with it — and the wait is interruptible, so `Ctrl + C` is not ignored.
+- **Jobs left `running` by a worker that stopped are put back on the queue at startup.**
+  Only one worker ever holds a job (§7: one at a time on one GPU), so anything still
+  `running` when a worker starts was abandoned — a crash, a `Ctrl + C` during the retry
+  wait, a machine that slept. It would otherwise sit there forever for the same reason a
+  `failed` job does.
+- **`fetch failed` says what it means.** `fetch` reports a refused connection as that bare
+  string, which is what landed in `ai_jobs.error` and told whoever read it nothing. An
+  unreachable Ollama now says so, and where the worker looked.
+- **Placement stops creating a second roadmap.** It reuses the learner's active roadmap for
+  that career path, and reuses the job attached to it: a `failed` one is re-queued, a
+  `queued` or `running` one is left alone, and only a `completed` one gets a fresh job.
+  Before this, every pass left another active roadmap behind — invisible, because Home and
+  the chart both read the *newest* active roadmap, and permanent, because §6 rule 5 means
+  nothing is going to delete it.
+- **The generating screen knows the job failed.** It polled the step, saw `generating`, and
+  said "this usually takes under a minute" indefinitely. `GET /onboarding` now reports the
+  job's status, and the screen says "We couldn't build your roadmap" with a "Try again"
+  straight away instead of after a minute of false reassurance.
+
+#### Added
+
+- **`POST /onboarding/generating/retry`** — puts *this learner's* failed roadmap job back
+  on the queue, with `attempts` reset so it does not give up again on the spot. The job is
+  found from the session (§6.1 step 3), so there is no id in the request that could point
+  at somebody else's. 409 when there is no job to retry; a queued or running job is left
+  alone, because asking again would not make it faster.
+- **`GET /onboarding` reports `generation`** — the job's status and **nothing else**.
+  `ai_jobs.error` is whatever the worker threw: a model message, a host from a driver
+  error, a fragment of a prompt. §6 rule 2 keeps all of it out of a learner response, so
+  the screen writes its own copy from the status. A test asserts the error text never
+  appears in the response body.
+- **Eleven API tests and three web tests** covering the retry, placement's idempotence, and
+  the screen's failure state.
+
+#### Notes
+
+- **Mutation-tested, two vulnerabilities.** Removing the retry lookup's `user_id` scope so
+  it finds any learner's newest job is caught. Removing the *update's* `and user_id = $2`
+  is **not** — and cannot be, because with the lookup correct there is no way through this
+  endpoint to hold a job id that is not yours. It stays as a backstop against the day
+  someone widens that lookup, and the code says so rather than implying a test exists.
+- **The backoff has no automated test.** `apps/worker` still has no database test harness
+  (tracked), so the retry timing was read rather than run. Moving `apps/api/src/test/db.ts`
+  into `packages/` would let the worker use pg-mem too.
+- **A longer-term fix this does not make:** a `next_attempt_at` column on `ai_jobs`, with
+  `claim_next_ai_job()` skipping rows that are not due. That is the proper shape for a
+  queue, and it would let the worker take other work while one job waits. It needs a
+  migration, the schema doc, and the claim function, so it is recorded rather than done.
+
+### 2026-09-22 — The learner side, built from the prototype this time
+
+The previous entry claimed the design system's `ui_kits/app/` was the authority on what a
+learner screen looks like. **It is not.** That kit is a generic learning app the system
+ships to show how its parts compose; the actual design for this product is
+`First Commit.dc.html` in the claude.ai design project, screen by screen, with real
+measurements. Building from the kit produced screens that were coherent and wrong — most
+visibly the frame, which the kit puts as an ink sidebar under a white top bar and the
+prototype puts as an ink pill above a white sidebar panel.
+
+This pass reads the prototype and follows it. It was read only; nothing was written back
+to the design project, and nothing was committed.
+
+#### Changed
+
+- **`LearnerShell` is the prototype's frame.** An **ink pill** floating on the page wash —
+  not a band — carrying the wordmark, the tabs, the bell and a profile button whose avatar
+  is a lime disc with the learner's initials. Below it a **white sidebar panel** and the
+  content beside it. Everything is a rounded panel on the wash, which is what §3.3 has
+  always said and the shell was the last thing not doing.
+- **Navigation is two levels now**, which §4.2 did not describe: three tabs — **Home,
+  Study, Career** — and the tab's destinations in the sidebar. Home draws no sidebar
+  because it has nowhere else to go. The active tab is a lime fill with ink on it; the
+  active sidebar item is a violet tint.
+  - Module, quiz, exercise and the technology choice have no navigation item of their own.
+    They are opened *from* a roadmap, so they keep **Study** lit and its panel in place
+    rather than leaving the learner looking at unlit navigation.
+  - Below 640px the two levels collapse to one bottom bar, as before. Two rows of
+    navigation above a 320px viewport leaves nothing for the content, and the prototype —
+    drawn at 1440 — does not answer the question.
+- **Home is the hero panel.** A violet gradient panel with the greeting as its eyebrow,
+  "Pick up where you left off." as the headline, and Continue lesson beside View roadmap.
+  The **ink card inside it** names the current module, the lesson, and the two counts —
+  modules passed and remaining. Then the roadmap panel, then Updates.
+  - The prototype sets the headline's accent phrase in lime, which measures **1.98:1**
+    against that wash. §3.1's rule holds: violet-700 on light, lime on ink. The ink card's
+    "CURRENT MODULE" eyebrow *is* lime, at 13.1:1.
+- **The module page** is a header panel, an update notice as its own tile, a lesson rail
+  and a reading panel, and a violet "Already know this?" strip. **The quiz is a row in the
+  lesson list** under a rule, which is what §5.9's sketch has always shown.
+- **The quiz result is a green tick and a sentence**, on the same white panel as every
+  other state — not the ink panel with a lime score the previous pass invented. Icon, text
+  and colour is all §8 asks for. What the learner got right sits below it on the verified
+  tint, which is the prototype's green "Review:" box.
+- **The technology choice** puts the recommendation's weight where the words already are:
+  **primary on the recommended option, secondary on the rest**, which is what the prototype
+  does. The previous entry argued both should be primary; the prototype disagrees, and the
+  recommendation is labelled twice in words either way (§12). The comparison is plain
+  lines under a rule rather than tiles, and "Is this wrong?" is an underlined link rather
+  than a button.
+- **The roadmap header** is a panel with the title, the bar, and the legend as a quiet row
+  of icon-and-word under a rule — four badges were louder than a key to a chart needs to
+  be. The side panel now follows the learner down the chart and lifts off the page.
+
+#### Added
+
+- **`map`, `layers`, `file-text` and `plus`** to `Icon`, which the two-level navigation
+  needs.
+- **`ProgressBar` takes `hideLabel`** — the accessible name stays, the visible header goes.
+  Only for a bar whose text is already beside it, which on the quiz is "Question 3 of 8".
+
+#### Fixed
+
+- **`LessonRow` is the prototype's row**, not the design system's: the label on the left,
+  the status icon on the right, a violet tint on the row being read. No numbered disc, so
+  the three contrast corrections the disc needed are moot — but read and current stay
+  separate props, because that bug was real and is still the right call.
+
+#### Verified
+
+`npm run typecheck` clean, `npm run lint` clean, **244 API + 260 web + 24 worker tests**,
+and **152 Playwright tests** across the four §11.4 widths. Ten web assertions moved with
+the copy and the markup they describe, and three e2e tests were rewritten for the two-level
+navigation: the walk over every destination now covers both levels, and the icon-rail test
+became "every navigation item keeps its accessible name", which is the §12 guarantee the
+old test was standing in for.
+
+Every screen was driven in a real browser at 360, 768 and 1440 and read back as a
+screenshot before the tests were touched.
+
+#### Still not the prototype
+
+- **The roadmap chart** is our React Flow canvas, not the prototype's row-based spine. Both
+  draw §2.1's layout; reconciling them is a piece of work in its own right and is not part
+  of this pass.
+- **"Roadmap menu"**, **"Try taster lesson"**, and the profile menu's **Log out** are in the
+  prototype and absent here. Each needs something that is not built — §5.7's menu actions,
+  a home for taster lessons (AGENT.md §11), a sign-out screen — and a dead control is worse
+  than an absent one.
+- **Explore modules, Capstone, Certificates, Resume, Profile and Settings** are designed in
+  the prototype and still render a `Placeholder`. They are tracked per route in
+  `task-tracker.md`.
+
+### 2026-09-22 — The learner screens get the design system, not just its tokens
+
+Four learner screens — the roadmap, the module page, the quiz, and the technology choice —
+used the `Card` component **zero times** between them. They were built correctly from
+`design.md` §5's behaviour and §3's tokens, and they passed every gate in the repo, but
+none of them carried the design system's actual vocabulary: no panels, no ink surface, no
+accent phrase. Home used `Card`, but only as three white boxes.
+
+The reference for this pass was the design system's own `ui_kits/app/` — `AppShell`,
+`Dashboard`, `LessonPlayer` — read from the claude.ai design project. It was read only;
+nothing was written back, and nothing was committed.
+
+> **Superseded the same day.** That kit is a generic learning app, not this product's
+> design. `First Commit.dc.html` is, and the entry above this one rebuilds the learner
+> side from it. What survives from this pass: the panels themselves, `Card`'s `radius` and
+> `as`, the read-versus-current split in `LessonRow`, the two-`main` fix, and the review
+> rows' alignment. What did not: the inverted shell, Home's ink Continue panel, and the
+> quiz's ink pass panel.
+
+#### Changed
+
+- **`LearnerShell` is inverted.** The design system's app shell is an **ink sidebar** under
+  a **white top bar**; ours was the opposite. The sidebar now carries the wordmark and the
+  destinations, with the active item as a white label on a faint white wash and a **lime
+  icon** — three cues, since §8 does not let colour be the only one. The top bar names the
+  area you are in, beside the bell and a new avatar, as §4.2 has asked for all along.
+  - Below 640px there is no sidebar, so the top bar carries the wordmark instead of the
+    area name. Its accent word is **violet on white and lime on ink** — the same word in
+    two colours, because §3.1 makes the accent phrase follow its surface.
+  - Module, quiz, and exercise have no navigation item of their own (§4.2 offers none), so
+    the bar names **Roadmaps** while they are open: they are opened from a roadmap.
+  - The avatar links straight to Settings rather than opening a menu. §4.2 asks for a
+    profile menu; until Settings is a real screen there is nothing for a menu to hold, and
+    the link's accessible name says where it goes.
+- **Home spends its one loud panel on Continue.** An ink panel at panel radius, an on-dark
+  badge, a two-line headline whose second line is the module title in lime (13.1:1 there,
+  1.98:1 on the page wash), and the lime call to action. Continue and the roadmap panel
+  tile as an asymmetric two-up at `lg`, with Continue in the wide slot. The greeting's name
+  is the accent phrase on a light surface, so it is violet-700.
+  - **"Nothing is waiting on you" is deliberately not ink.** The dark panel marks the thing
+    to do next; spending it on an empty state teaches the learner to ignore it.
+- **The module page is three panels** — header, lesson rail, reading panel — where it was
+  two bare columns on the page wash. The rail gained a lesson count, a "3 of 5 read"
+  progress bar, and the quiz at its foot; the reading panel opens with a micro eyebrow
+  naming the lesson's place in the module.
+- **The quiz result** is an ink panel with the score in lime when the learner passes, and a
+  plain panel when they do not. §3.1 keeps `--error` for the answer that failed, never for
+  the learner's progress. Topics to review moved to their own white panel.
+- **The technology choice** dropped its 760px cap — two comparison cards side by side is
+  the point of the screen — and its AI panel, option cards, and confirmation are now real
+  panels. The comparison rows sit on inset tiles.
+- **The roadmap header** is a panel above the chart, with an eyebrow over the title.
+
+#### Added
+
+- **`LessonRow`** (`components/learning/`) — the module page's lesson rail, ported from the
+  design system, which `design-source.md` §4 had left behind as course-shop furniture. It
+  was not: §5.9 gives the rail the same three states.
+- **`Card` takes `radius="panel"` and `as`.** §3.4's radii nest — 14 inside 20 inside 28 —
+  and a card that *is* a section of the page is a panel. `as` renders it as the `li`,
+  `section` or `header` the surrounding markup needs, instead of wrapping a `div` in one.
+- **`--surface-on-dark-active` and `--surface-on-dark-hover`** — the two washes the ink
+  sidebar needs. Inline `rgba(...)` would have broken the rule that only `tokens.css` holds
+  literal colours.
+- **Screen design coverage** in `task-tracker.md` — every route in §4.3 with a visual state
+  each: applied, not applied, designed, or to design.
+
+#### Fixed
+
+- **`LessonRow` splits read from current.** The design system models a lesson as
+  `todo | active | done`, which is right for a video course: the lesson you are on is by
+  definition the one you have not finished. A First Commit lesson is read by pressing
+  "Mark as read" and stays open afterwards, so it is routinely **both** — and folding them
+  into one value dropped the tick from the row the learner was standing on. A test caught
+  it. They are separate props now.
+- **Three contrast corrections in that row**, all inherited from the source: the current
+  lesson's disc was `--violet-500`, where white measures **3.98:1**, and is now
+  `--violet-600` at 5.65:1; an unread number was `--text-faint` on `--surface-inset` at
+  **2.65:1**, and is now `--text-muted` at 4.88:1; and because `--text-muted` measures
+  **4.44:1** on the current row's violet tint, a row that is both read and current keeps
+  `--text-strong`. The source also made the row a `<div onClick>`, which no keyboard can
+  reach.
+- **The quiz's "What you got right" rows were centred, not left-aligned.** A specificity
+  clash that predates this pass and that nothing could have caught but looking:
+  `.reviewList > li` is (0,1,1) and `.reviewExplained` only (0,1,0), so the column's
+  `align-items: flex-start` lost to the row's `align-items: center`. Found in a screenshot
+  taken to check the new ink panel.
+- **The module page had two `main` landmarks** — the learner shell renders one and the
+  reading column rendered another. A page with two has none a screen reader can jump to
+  reliably. The reading column is a `section` now.
+
+#### Why it happened, since the answer was not "we decided to"
+
+Nothing in `CHANGELOG.md` or `task-tracker.md` recorded a decision to defer this, because
+there was not one. Four things let it through:
+
+1. **The Phase 1.5 plan deferred 28 screens** and said they were tracked in the tracker.
+   They were — as *functional* tasks. No item anywhere said "apply the prototype's design
+   to screen X".
+2. **The tracker named the prototype only in the negative** — five lines, all "not in the
+   prototype, design it". The 26 routes it *did* cover got no line at all, so "covered by
+   the prototype" quietly came to mean *needs no design work*.
+3. **The reference screen that closed Phase 1.5 had already dropped the vocabulary.**
+   `git show 109f2ce:.../Home.module.css` is three white cards with no ink panel and no
+   accent phrase. It proved the tokens and the components; it never proved the composition,
+   and every learner screen built afterwards copied it.
+4. **No gate can see it.** typecheck, `jsx-a11y` as errors, 259 unit tests, axe, Playwright
+   at four widths, and the contrast gate all pass on a screen made of bare `div`s, provided
+   the `div`s use tokens. The contrast gate reads `tokens.css` from disk and never looks at
+   whether a screen uses what it checks.
+
+The changelog says the same thing in its own voice: every Phase 2 learner entry cites §5
+and §6, and **not one cites §3**.
+
+#### Documentation
+
+- `design.md` — §2.3 gains the one-loud-panel rule and says the ink panel does not compete
+  with the roadmap; §4.2 describes the ink sidebar, the white bar, and what the bar names
+  on a module page; §5.6, §5.9 and §5.10 describe their panel treatment; §7 gains
+  `LessonRow` and records `Card`'s two new props.
+- `design-source.md` — §1 names `ui_kits/app/` as the authority for learner screens; §3.5
+  records the read-versus-current split and its three contrast corrections; §4 explains why
+  `LessonRow` was ported after all; §5 records why the 26 covered routes were the ones that
+  went wrong.
+- `AGENT.md` — the web section now states that tokens alone are not the design system, and
+  that no gate in the repo can catch the difference.
+
+#### Verified
+
+`npm run typecheck` clean, `npm run lint` clean, **244 API + 259 web + 24 worker tests**
+passing including the contrast gate, and **152 Playwright tests** across the four §11.4
+widths. Four unit tests changed with the copy they assert: three on Home, where the
+greeting and the headline are now two elements each, and one on the module rail — the test
+that caught the read-versus-current bug.
+
+Every screen was also **driven in a real browser** at 360, 768 and 1440 and read back as a
+screenshot, which is how the centred review rows turned up. The 2026-09-19 adoption entry
+closed with "worth re-checking by hand before the layout is trusted" about exactly this,
+and the check never came back until now.
+
+One caution for the next run: Playwright reuses an existing dev server locally, so **editing
+a source file while the suite runs leaves Vite serving a stale module** — here it produced
+104 failures reading "does not provide an export named `LearnerShell`", none of them real.
+Kill the server on 5173 and re-run before believing a red suite.
+
 ### 2026-09-22 — The documents catch up with the code
 
 A sweep across every document, closing the gaps that had accumulated while the learner path

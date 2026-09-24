@@ -92,6 +92,17 @@
 
 .actions { display: flex; flex-wrap: wrap; gap: var(--space-3); }
 
+/* §5.7: on md and up the panel follows the learner down the chart, and lifts
+   off the page — the one thing on the roadmap screen that floats. */
+@media (min-width: 640px) {
+  .panel {
+    position: sticky;
+    top: var(--space-4);
+    border-color: transparent;
+    box-shadow: var(--shadow-lg);
+  }
+}
+
 /* On sm the panel is a sheet fixed to the bottom of the viewport, above the
    bottom navigation. It never covers the whole screen. */
 @media (max-width: 639px) {

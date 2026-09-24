@@ -20,8 +20,17 @@ export const AboutAnswers = z.object({
 });
 export type AboutAnswers = z.infer<typeof AboutAnswers>;
 
+/**
+ * The Roadmap AI job's state, so the generating screen can say what is
+ * actually happening. The API deliberately sends the status and not the
+ * error text — that is an internal message (AGENT.md §6 rule 2).
+ */
+export const GenerationStatus = z.enum(["queued", "running", "completed", "failed"]);
+export type GenerationStatus = z.infer<typeof GenerationStatus>;
+
 const OnboardingState = z.object({
   step: z.string(),
+  generation: GenerationStatus.nullable().default(null),
   about: AboutAnswers.nullable(),
   careerPathId: z.string().nullable(),
 });
@@ -57,5 +66,13 @@ export const onboardingApi = {
       method: "POST",
       body: { careerPathId, results },
       schema: StepResult,
+    }),
+
+  /** Puts a failed roadmap job back on the queue. The API picks which job. */
+  retryGeneration: () =>
+    apiRequest("/onboarding/generating/retry", {
+      method: "POST",
+      body: {},
+      schema: z.object({ status: GenerationStatus }),
     }),
 };

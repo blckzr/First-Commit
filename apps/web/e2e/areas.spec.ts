@@ -32,23 +32,47 @@ test.describe("learner area", () => {
     const nav = page.getByRole("navigation", { name: "Main" });
     await expect(nav.getByRole("link").first()).toBeVisible();
 
-    // Below 640px the bar carries four links plus a "More" disclosure holding
-    // the rest (design.md §4.2). Open it so its links are counted too.
-    const more = nav.locator("details");
-    if (await more.count()) {
-      await more.locator("summary").click();
-      await expect(more).toHaveAttribute("open", "");
+    /**
+     * design.md §4.2 — the learner navigation is two levels above 640px:
+     * three tabs in the bar, and the tab's destinations in a sidebar panel.
+     * Below 640px it collapses to one bottom bar with a "More" disclosure.
+     * Both shapes are walked here, because both have to resolve.
+     */
+    const hrefs = new Set<string>();
+
+    const collect = async () => {
+      const more = nav.locator("details");
+      if (await more.count()) {
+        await more.locator("summary").click();
+        await expect(more).toHaveAttribute("open", "");
+      }
+      for (const href of await nav
+        .getByRole("link")
+        .evaluateAll((els) => els.map((e) => (e as HTMLAnchorElement).getAttribute("href")!))) {
+        hrefs.add(href);
+      }
+      // The sidebar is a separate nav, named for the tab it belongs to.
+      const side = page.locator("nav").filter({ hasNot: page.locator("details") });
+      for (const href of await side
+        .getByRole("link")
+        .evaluateAll((els) => els.map((e) => (e as HTMLAnchorElement).getAttribute("href")!))) {
+        hrefs.add(href);
+      }
+    };
+
+    await collect();
+    for (const tab of await nav.getByRole("link").all()) {
+      const href = await tab.getAttribute("href");
+      if (!href) continue;
+      await page.goto(href);
+      await collect();
     }
 
-    const links = nav.getByRole("link");
-    const hrefs = await links.evaluateAll((els) =>
-      els.map((e) => (e as HTMLAnchorElement).getAttribute("href")!),
-    );
-    // Six destinations either way: six in the sidebar, or four plus three in
-    // More (Home appears once).
-    expect(new Set(hrefs).size).toBeGreaterThanOrEqual(6);
+    // Home, My roadmaps, Explore, Capstone, Resume, Certificates — and
+    // Settings from the profile menu or More.
+    expect(hrefs.size).toBeGreaterThanOrEqual(6);
 
-    for (const href of new Set(hrefs)) {
+    for (const href of hrefs) {
       await page.goto(href);
       // A dead link falls through to the catch-all, so assert we did NOT land there.
       await expect(

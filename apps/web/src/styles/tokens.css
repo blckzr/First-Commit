@@ -107,6 +107,15 @@
   --border-strong: var(--gray-400);
   --border-on-dark: rgba(255, 255, 255, 0.12);
 
+  /* Washes used *on* an ink panel, where a solid token would need its own
+     colour for every ink shade. These sit on --ink-900 in the learner
+     sidebar: the active item's fill, and the hover behind an inactive one.
+     They are surfaces, never text, so the 3:1 rule does not apply — the
+     active item is identified by its label weight and its lime icon as well
+     (design.md §8: never colour alone). */
+  --surface-on-dark-active: rgba(255, 255, 255, 0.09);
+  --surface-on-dark-hover: rgba(255, 255, 255, 0.05);
+
   /* Control edges: the border IS what identifies an input, an unchecked box,
      a radio, or an outline button, so WCAG 2.2 SC 1.4.11 requires 3:1 against
      the adjacent surface. The design system's --border-strong measures 1.62:1

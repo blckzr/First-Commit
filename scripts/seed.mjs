@@ -78,6 +78,18 @@ async function upsert(sql, values) {
  * is only meaningful if the prerequisites themselves are sound. A cycle here
  * would mean no valid ordering exists at all, and the AI would be blamed for it.
  */
+/**
+ * How far to rotate a question's options before storing them, from the prompt.
+ *
+ * Deterministic on purpose — a random shuffle would reorder every live quiz on
+ * each re-seed, and `quiz_options` is upserted by `(question_id, sort_order)`.
+ */
+function rotate(seed, length) {
+  let h = 0;
+  for (let i = 0; i < seed.length; i += 1) h = (h * 31 + seed.charCodeAt(i)) >>> 0;
+  return h % length;
+}
+
 function validate() {
   const problems = [];
   const bySlug = new Map(modules.map((m) => [m.slug, m]));
@@ -418,8 +430,27 @@ async function seed() {
         [assessmentId, i, q.prompt, q.explanation, q.lesson ? lessonIds[q.lesson - 1] : null],
       );
 
+      /**
+       * **The stored order is rotated, so the answer is not always first.**
+       *
+       * Writing the correct option first is the natural way to author a
+       * question, and every question in this file does it — which meant every
+       * answer sat at position 0 in the database too. `GET /assessments/:id`
+       * returns options in `sort_order`, so a learner could pass every quiz on
+       * the platform by clicking the top option, and the pass would be written
+       * to `module_completions` as evidence (§6 rule 1). Real evidence, worth
+       * nothing.
+       *
+       * The rotation comes from the prompt, so it is the same on every
+       * re-seed: the upsert below stays idempotent, and a learner part-way
+       * through a quiz does not watch the options move.
+       */
+      const shift = rotate(q.prompt, q.options.length);
+      const ordered = q.options.map((_, j) => q.options[(j + shift) % q.options.length]);
+      const correctAt = (q.correct - shift + q.options.length) % q.options.length;
+
       const optionIds = [];
-      for (const [j, text] of q.options.entries()) {
+      for (const [j, text] of ordered.entries()) {
         optionIds.push(
           await upsert(
             `insert into quiz_options (question_id, sort_order, text) values ($1, $2, $3)
@@ -435,7 +466,7 @@ async function seed() {
       await client.query(
         `insert into quiz_answer_keys (question_id, correct_option_id) values ($1, $2)
          on conflict (question_id) do update set correct_option_id = excluded.correct_option_id`,
-        [questionId, optionIds[q.correct]],
+        [questionId, optionIds[correctAt]],
       );
     }
     quizzes++;

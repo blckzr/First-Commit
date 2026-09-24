@@ -72,6 +72,7 @@ ran ahead of Phase 1.
 - [x] `LearnerShell` — sidebar at `lg`, icon rail at `md`, bottom navigation at `sm`
 - [x] Route guards and the lazily-loaded admin chunk
 - [x] Reference screens: Landing, Sign up, Learner home
+  - [x] ~~Learner home proved the system end to end~~ — it did not. It was signed off as three white cards with no ink panel and no accent phrase, so it proved the tokens and the components but never the composition, and every learner screen built afterwards copied it. Corrected in the learner design pass; see *Screen design coverage*
 - [x] Contrast verified — 28 pairs, all passing
 - [x] Toolchain — ESLint 9 with `jsx-a11y` (a11y rules as errors), Vitest + Testing Library, axe helper. 21 tests.
 - [x] Component gallery route at `/dev/components` — every variant, live token swatches, live contrast table. Dev-only; excluded from production builds.
@@ -80,6 +81,57 @@ ran ahead of Phase 1.
 - [x] Playwright — 23 tests across the four §11.4 widths, plus live-resize and 320px reflow. **92 assertions passing.**
 - [x] ~~Dev session override (`?as=`)~~ — **removed** in Phase 2 when `useSession` became a real `GET /auth/me` query. Playwright now stubs the API at the network boundary (`e2e/session.ts`), which exercises the real session path instead of a development-only branch.
 - [x] Named placeholders for every specified-but-unbuilt screen, so no navigation item dead-ends. Each cites the `design.md` section that specifies it.
+
+## Screen design coverage
+
+Every route in [`design.md`](design.md) §4.3, and where each one stands **visually**. This
+table exists because the old tracker named the prototype only in the negative — five lines
+saying "not in the prototype" — so the 26 routes it *did* cover were tracked as data tasks
+and never as design ones. Four learner screens were built from §5's behaviour alone and
+never given the system's vocabulary. See [design-source.md](design-source.md) §5.
+
+**"Applied" means built from `First Commit.dc.html`**, not from the design system's generic
+`ui_kits/app/`. The first attempt at this used the kit and had to be redone; see the
+changelog for 2026-09-22.
+
+| State | Meaning |
+|---|---|
+| **applied** | Built, and carries the design system: panels, surfaces, the accent phrase |
+| **not applied** | Built and correct, but styled from §5's behaviour alone |
+| **designed** | The prototype covers it; the route still renders a `Placeholder` |
+| **to design** | The prototype does not cover it — design it against §5's rules first |
+
+### Public and onboarding
+
+- [x] `/` · `/signup` · `/login` — **applied** (Phase 1.5 reference screens, straight from the prototype)
+- [x] `/forgot-password` · `/reset-password` — **applied**; designed against §5.3 rather than the prototype, which does not cover them
+- [x] `/onboarding/about` · `/target` · `/placement` · `/generating` — **applied**, through `OnboardingLayout`
+- [ ] `/verify/:code` — **to design**. Public, mobile-first, opened from a QR code
+
+### Learner
+
+- [x] **The learner frame** — ink pill, tabs, white sidebar panel, profile menu
+- [x] `/app` — **applied**. Violet hero with the ink current-module card inside it
+- [x] `/app/roadmap/:id` — **applied** (header, legend, floating side panel)
+  - [ ] The chart itself is our React Flow canvas, not the prototype's row-based spine. Both draw §2.1; reconciling them is its own piece of work
+  - [ ] "Roadmap menu" is in the prototype and absent here — §5.7's actions (weekly hours, track, regenerate, archive) have no endpoint
+- [x] `/app/roadmap/:id/technology/:decisionId` — **applied**. Primary on the recommended option, secondary on the rest
+  - [ ] "Try taster lesson" is in the prototype; taster lessons still have nowhere to live (AGENT.md §11)
+- [x] `/app/module/:id` — **applied**. Header panel, notice tile, rail with the quiz as a row, reading panel, test-out strip
+- [x] `/app/quiz/:id` — **applied**. Green tick and a sentence on a pass, the same panel either way
+- [ ] `/app/roadmaps` · `/app/explore` · `/app/capstone` · `/app/certificates` · `/app/resume` · `/app/settings` — **designed**, not built. Each has a screen in the prototype
+- [ ] **Log out** is in the prototype's profile menu and absent here — signing out has no screen yet
+- [ ] `/app/exercise/:id` — **designed**, not built (Phase 2, needs CodeMirror)
+- [ ] `/app/notifications` — **to design**
+- [ ] Reconcile `/app/profile` against §4.3, which folds profile into Settings
+
+### Admin
+
+- [ ] `/admin` — **not applied**. Overview is built, on mock data, and has no panel treatment
+- [ ] `/admin/paths` · `/modules` · `/briefs` · `/reviews` · `/flags` · `/analytics` · `/users` · `/settings` · `/log` — **designed**, not built
+- [ ] `/admin/certificates` — **to design**
+
+---
 
 ## Phase 2 — Learner core
 
@@ -94,6 +146,8 @@ The main loop: sign up → roadmap → learn → pass.
 - [x] **Onboarding** — about you, target position, placement, generating; one page per step, resumable via `onboarding_step`. API (`GET /career-paths`, `GET /onboarding`, `PUT /onboarding/about`, `PUT /onboarding/target`, `POST /onboarding/placement`) enforces the step order; `RequireOnboardingStep` mirrors it in the browser for the experience
   - [ ] **Placement questions are not specified.** The schema has no question table and `placement_results.results` is free-form jsonb, so the screen currently offers only the skip §5.4 requires anyway. Settle where the questions come from, then fill the screen and the `results` shape
   - [x] The generating screen now completes: the worker sets `onboarding_step = 'done'` in the same transaction that writes the roadmap
+  - [x] ~~A failed roadmap job left the learner on the generating screen forever~~ — the worker backs off between attempts and recovers stranded jobs, `GET /onboarding` reports the job status, and `POST /onboarding/generating/retry` re-queues it. Placement no longer creates a second roadmap each time it runs
+  - [ ] **`ai_jobs` has no `next_attempt_at`.** The worker holds a job `running` while it waits out its backoff, which works because there is one worker and one job at a time. A due-time column plus a `claim_next_ai_job()` that skips rows not yet due is the proper shape, and would let the worker take other work while one job waits
   - [ ] Move the generating screen from polling to SSE — the worker already posts to `/internal/events`, so this is a subscription, not new plumbing
   - [ ] **§5.5 Roadmap Review does not exist.** Onboarding currently ends at `/app`, skipping the review the document specifies ("Track [ Frontend ▾ ]", "Adjust weekly hours", "Start learning")
 - [x] **Roadmap chart** — React Flow, custom nodes, side panel, the `sm` stacked layout, keyboard navigation and nested-list DOM equivalent. Built on the `Roadmap` type from `design.md` §13.3 against mock data
@@ -109,14 +163,16 @@ The main loop: sign up → roadmap → learn → pass.
   - [ ] §5.10: "After a second failed attempt, the Roadmap AI may add a reinforcement module, and the result screen says so." The `roadmap_adaptation` job type exists in the enum; nothing queues it
   - [ ] §5.10 shows "I don't know yet" as a quiz option. It is content, and the seeded questions do not offer it
   - [ ] "Review answers" is not built — the result screen shows topics to review and the explanations for correct answers, which is what §5.10 requires, but not a full answer review
-  - [ ] Only 3 of 19 modules have a quiz, and none has a coding exercise
+  - [x] ~~Only 3 of 19 modules have a quiz~~ — **all 10 core modules** now have three lessons and a five-question quiz. The 9 still empty are concept and technology modules, which come after the technology choice
+  - [x] ~~The correct answer was option 0 in all 51 questions~~ — the seed loader rotates each question's options by an amount derived from its prompt, so clicking the top option no longer passes every quiz on the platform
+  - [ ] No module has a coding exercise
 - [ ] Coding exercise — CodeMirror, Sandpack practice, server grading via Judge0 / Vitest+jsdom, results over SSE
 - [x] **Home on real data** — `GET /home`: the Continue panel, roadmap progress, and §5.6's Updates. It reuses `buildRoadmap`, so Home and the chart can never disagree about "You are here"
   - [ ] §5.6: "During the capstone, the Continue panel shows the current milestone instead of a lesson." `ContinuePanel` is a union with one member; the milestone variant arrives with Phase 4
   - [ ] Updates are **derived**, not read from `notifications` — nothing writes that table yet. §5.17's screen is where an event history belongs
   - [ ] §5.6's Updates panel offers "[Remove]" on an AI-added module. That changes the roadmap, so it needs the same endpoint the roadmap panel's Remove is waiting on
 - [ ] My roadmaps, Explore modules, Settings
-- [ ] **Design + build `/app/notifications`** — not in the prototype
+- [ ] **Design + build `/app/notifications`** — not in the prototype (see *Screen design coverage*)
 - [ ] Reconcile `/app/profile` vs `design.md` §4.3, which folds profile into Settings
 
 ## Phase 3 — AI components
@@ -128,7 +184,7 @@ The main loop: sign up → roadmap → learn → pass.
   - [ ] This replaces an admin content editor, which is still unbuilt
 - [x] **`roadmap_generation`** — handler, prompt, validation against real module IDs, prerequisite order, full core coverage; reject and regenerate on invalid. 24 tests on the validator
   - [x] **Run against the model.** Three runs on qwen3.5:4b: **one attempt each**, 7.5–8s warm, all chose Frontend with an explanation tied to the learner's stated goal. The prompt measures ~2,400 tokens of the 8,192 context, so there is room for the answer and retries
-  - [ ] **`apps/worker` has no database test harness**, so `catalogue.ts` and `apply.ts` are only ever checked against the real database by hand. `apps/api/src/test/db.ts` builds pg-mem from the real migration; moving it to `packages/` would let the worker use it too
+  - [ ] **`apps/worker` has no database test harness**, so `catalogue.ts`, `apply.ts` and the retry backoff are only ever checked against the real database by hand. `apps/api/src/test/db.ts` builds pg-mem from the real migration; moving it to `packages/` would let the worker use it too
   - [x] **`AI_JSON_MODE` measured on this machine** — all three modes 5/5 valid, 5/5 first try on qwen3.5:4b. `think_off_schema` 1.1s, `prompt_only` 1.0s, `think_on_schema` 12.5s. Schema mode is reliable here, so `think_off_schema` stands
   - [ ] Evaluation harness (`project-proposal.md` §9, `model-setup-guide.md` §12) — three runs is a sanity check, not a measurement
   - [~] `apps/worker/.env` exists. Its `DATABASE_URL` points at `db.<project-ref>.supabase.co`, which is **IPv6-only** and unreachable here — use the **session pooler** instead: the API's string with 6543 changed to 5432
@@ -155,7 +211,7 @@ The main loop: sign up → roadmap → learn → pass.
 - [ ] Worker commit polling — backstop for deliveries missed while Render wakes
 - [ ] Integrity signals — single-commit detection, similarity, `integrity_flags`
 - [ ] **Certificates** — automatic issuance on requirements met, `public_code`, name snapshot, PDF to Storage
-- [ ] **Design + build `/verify/:code`** — not in the prototype. QR code, mobile-first, revoked state
+- [ ] **Design + build `/verify/:code`** — not in the prototype (see *Screen design coverage*). QR code, mobile-first, revoked state
 
 ## Phase 5 — Resume and admin
 
@@ -167,7 +223,7 @@ The main loop: sign up → roadmap → learn → pass.
 - [ ] Capstone brief and milestone editor
 - [ ] Project reviews — repositories, commit history, integrity flags, check overrides
 - [ ] Flagged AI feedback review
-- [ ] **Design + build `/admin/certificates`** — not in the prototype. Templates, lookup, revoke, reissue
+- [ ] **Design + build `/admin/certificates`** — not in the prototype (see *Screen design coverage*). Templates, lookup, revoke, reissue
 - [ ] Analytics — journey funnel, module pass rates, milestone drop-off, technology split, AI flag rate
 - [ ] Users — search, suspend, data requests, admin accounts
 - [ ] Settings and activity log
@@ -178,8 +234,10 @@ The main loop: sign up → roadmap → learn → pass.
 
 Not code, but the MVP is not demonstrable without it (`project-proposal.md` §2.2).
 
-- [ ] Junior Web Developer career path
-- [ ] Core skill modules — HTML, CSS, JavaScript, Git
-- [ ] Frontend track — concept modules, then React and Vue technology modules
+- [x] **Junior Web Developer career path** — 2 tracks, 8 skills, 19 modules, 2 technology decisions
+- [x] **Core skill modules — HTML, CSS, JavaScript, Git.** All 10 written: 3 lessons and a 5-question quiz each, every question linked to the lesson that taught it
+- [ ] **Concept modules** — What are components, Fetching data, How the web talks. These come after the technology choice, so a learner reaches them later
+- [ ] **Technology modules** — Components and State/props in React and Vue, Routing in Express and Django
 - [ ] Placement assessment questions
+- [ ] Coding exercises — no module has one yet, and §5.11's screen is unbuilt
 - [ ] At least one capstone brief with milestones, checks, and starter templates for both technologies

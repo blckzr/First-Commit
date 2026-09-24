@@ -47,13 +47,15 @@ describe("the comparison", () => {
   /** The comparison keys are free-form content, so they become the labels. */
   it("turns a camelCase comparison key into a readable label", async () => {
     await open();
-    expect(within(card("React")).getByText("Learning curve")).toBeInTheDocument();
-    expect(within(card("React")).getByText("Job demand")).toBeInTheDocument();
+    expect(within(card("React")).getByText("Learning curve:")).toBeInTheDocument();
+    expect(within(card("React")).getByText("Job demand:")).toBeInTheDocument();
   });
 
   it("says how many modules each option puts on the roadmap", async () => {
     await open();
-    expect(within(card("React")).getByText(/2 modules on your roadmap/)).toBeInTheDocument();
+    const react = card("React");
+    expect(within(react).getByText("On your roadmap:")).toBeInTheDocument();
+    expect(within(react).getByText(/^2 modules/)).toBeInTheDocument();
   });
 
   it("explains what the choice is for", async () => {

@@ -257,6 +257,185 @@ describe("step order is enforced by the API", () => {
   });
 });
 
+/**
+ * The generating screen used to have no way out of a failed job.
+ *
+ * The worker gives up after three attempts, `claim_next_ai_job()` only ever
+ * reads `queued`, and nothing else looked at the job again — so a learner who
+ * started generation with Ollama not running waited on that screen forever.
+ * These cover the way back.
+ */
+describe("POST /onboarding/generating/retry", () => {
+  /** Walks a fresh learner up to a queued roadmap job. */
+  const reachGenerating = async () => {
+    await put("/onboarding/about").send({
+      experienceLevel: "none", goal: "freelance", weeklyHours: 5,
+    });
+    await put("/onboarding/target").send({ careerPathId: pathId });
+    await send("/onboarding/placement").send({ careerPathId: pathId, results: {} });
+    return db.rows("ai_jobs")[0];
+  };
+
+  const fail = async (jobId: string) =>
+    db.pool.query(
+      `update ai_jobs set status = 'failed', attempts = 3, error = 'Could not reach Ollama' where id = $1`,
+      [jobId],
+    );
+
+  it("puts a failed job back on the queue", async () => {
+    const job = await reachGenerating();
+    await fail(job.id);
+
+    const res = await send("/onboarding/generating/retry").send({});
+    expect(res.status).toBe(200);
+    expect(res.body.status).toBe("queued");
+
+    const after = db.rows("ai_jobs").find((r) => r.id === job.id)!;
+    expect(after.status).toBe("queued");
+    // A retry that kept the spent attempts would give up again immediately.
+    expect(after.attempts).toBe(0);
+    expect(after.error).toBeNull();
+  });
+
+  it("makes no second job — the roadmap is still the same one", async () => {
+    const job = await reachGenerating();
+    await fail(job.id);
+    await send("/onboarding/generating/retry").send({});
+
+    expect(db.rows("ai_jobs")).toHaveLength(1);
+    expect(db.rows("roadmaps")).toHaveLength(1);
+  });
+
+  /** Asking again while it is already on its way would not make it faster. */
+  it("leaves a queued or running job alone", async () => {
+    const job = await reachGenerating();
+    await db.pool.query(`update ai_jobs set status = 'running', attempts = 1 where id = $1`, [job.id]);
+
+    const res = await send("/onboarding/generating/retry").send({});
+    expect(res.body.status).toBe("running");
+    expect(db.rows("ai_jobs").find((r) => r.id === job.id)!.attempts).toBe(1);
+  });
+
+  it("refuses when the learner has no roadmap job at all", async () => {
+    const res = await send("/onboarding/generating/retry").send({});
+    expect(res.status).toBe(409);
+    expect(res.body.error).toMatch(/target job/i);
+  });
+
+  /**
+   * §6.1 step 3: the job is found from the session, so there is no id in the
+   * request to point at somebody else's.
+   */
+  it("cannot touch another learner's job", async () => {
+    const other = await db.pool.query<{ id: string }>(
+      `insert into users (email, password_hash, full_name)
+       values ('other@example.com','h','Other') returning id`,
+    );
+    const otherId = other.rows[0].id;
+    await db.pool.query(`insert into learner_profiles (user_id) values ($1)`, [otherId]);
+    const roadmap = await db.pool.query<{ id: string }>(
+      `insert into roadmaps (user_id, career_path_id, status) values ($1, $2, 'active') returning id`,
+      [otherId, pathId],
+    );
+    await db.pool.query(
+      `insert into ai_jobs (type, user_id, source_id, payload, status, attempts)
+       values ('roadmap_generation', $1, $2, '{}', 'failed', 3)`,
+      [otherId, roadmap.rows[0].id],
+    );
+
+    const res = await send("/onboarding/generating/retry").send({});
+
+    expect(res.status).toBe(409);
+    const theirs = db.rows("ai_jobs").find((r) => r.user_id === otherId)!;
+    expect(theirs.status).toBe("failed");
+  });
+});
+
+describe("placement is idempotent", () => {
+  const walkUp = async () => {
+    await put("/onboarding/about").send({
+      experienceLevel: "none", goal: "freelance", weeklyHours: 5,
+    });
+    await put("/onboarding/target").send({ careerPathId: pathId });
+  };
+
+  /**
+   * It used to insert a roadmap unconditionally, so every pass left another
+   * active one behind — and because Home reads the newest, the older one was
+   * invisible and permanent (§6 rule 5 means nothing deletes it).
+   */
+  it("reuses the active roadmap instead of starting a second", async () => {
+    await walkUp();
+    await send("/onboarding/placement").send({ careerPathId: pathId, results: {} });
+    await send("/onboarding/placement").send({ careerPathId: pathId, results: {} });
+
+    expect(db.rows("roadmaps")).toHaveLength(1);
+  });
+
+  it("does not queue a second job while the first is still waiting", async () => {
+    await walkUp();
+    await send("/onboarding/placement").send({ careerPathId: pathId, results: {} });
+    await send("/onboarding/placement").send({ careerPathId: pathId, results: {} });
+
+    expect(db.rows("ai_jobs")).toHaveLength(1);
+  });
+
+  it("re-queues a failed job rather than leaving it behind", async () => {
+    await walkUp();
+    await send("/onboarding/placement").send({ careerPathId: pathId, results: {} });
+    const job = db.rows("ai_jobs")[0];
+    await db.pool.query(`update ai_jobs set status = 'failed', attempts = 3 where id = $1`, [job.id]);
+
+    await send("/onboarding/placement").send({ careerPathId: pathId, results: {} });
+
+    expect(db.rows("ai_jobs")).toHaveLength(1);
+    expect(db.rows("ai_jobs")[0].status).toBe("queued");
+    expect(db.rows("ai_jobs")[0].attempts).toBe(0);
+  });
+});
+
+describe("GET /onboarding reports the roadmap job", () => {
+  it("says nothing about generation before there is a job", async () => {
+    const res = await read("/onboarding");
+    expect(res.body.generation).toBeNull();
+  });
+
+  it("reports the status once a job exists", async () => {
+    await put("/onboarding/about").send({
+      experienceLevel: "none", goal: "freelance", weeklyHours: 5,
+    });
+    await put("/onboarding/target").send({ careerPathId: pathId });
+    await send("/onboarding/placement").send({ careerPathId: pathId, results: {} });
+
+    expect((await read("/onboarding")).body.generation).toBe("queued");
+
+    await db.pool.query(
+      `update ai_jobs set status = 'failed', error = 'Could not reach Ollama at http://127.0.0.1:11434'`,
+    );
+    const failed = await read("/onboarding");
+    expect(failed.body.generation).toBe("failed");
+  });
+
+  /**
+   * §6 rule 2: `ai_jobs.error` is whatever the worker threw — a model message,
+   * a host in a driver error, a fragment of a prompt. None of it belongs in a
+   * learner response, however useful it would be on the screen.
+   */
+  it("never sends the job's error text", async () => {
+    await put("/onboarding/about").send({
+      experienceLevel: "none", goal: "freelance", weeklyHours: 5,
+    });
+    await put("/onboarding/target").send({ careerPathId: pathId });
+    await send("/onboarding/placement").send({ careerPathId: pathId, results: {} });
+    await db.pool.query(
+      `update ai_jobs set status = 'failed', error = 'secret-internal-detail'`,
+    );
+
+    const res = await read("/onboarding");
+    expect(JSON.stringify(res.body)).not.toContain("secret-internal-detail");
+  });
+});
+
 describe("§6.1 — writes are scoped to the session", () => {
   it("updates only the caller's profile, whatever the body says", async () => {
     const other = await db.pool.query<{ id: string }>(
@@ -286,6 +465,7 @@ describe("§6.1 — writes are scoped to the session", () => {
       ["put", "/onboarding/about"],
       ["put", "/onboarding/target"],
       ["post", "/onboarding/placement"],
+      ["post", "/onboarding/generating/retry"],
     ] as const) {
       const res = await request(app)[method](path).set("Origin", config.appOrigin).send({});
       expect(res.status, `${method} ${path}`).toBe(401);

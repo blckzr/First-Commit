@@ -49,6 +49,17 @@ async function ollamaChat(body: Record<string, unknown>): Promise<OllamaChatResp
     if ((err as Error).name === "AbortError") {
       throw new Error(`Ollama did not respond within ${config.timeoutMs} ms`);
     }
+    /**
+     * `fetch` reports a refused connection as the bare string "fetch failed",
+     * which is what lands in `ai_jobs.error` and tells whoever reads it
+     * nothing. The overwhelmingly common cause is that Ollama is not running,
+     * so say that and where we looked.
+     */
+    if (err instanceof TypeError) {
+      throw new Error(
+        `Could not reach Ollama at ${config.ollamaUrl} — is it running? Start it with \`ollama serve\`.`,
+      );
+    }
     throw err;
   } finally {
     clearTimeout(timer);

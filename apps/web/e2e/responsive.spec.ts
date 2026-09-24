@@ -39,36 +39,28 @@ test.describe("learner shell navigation", () => {
     }
   });
 
-  test("hides nav labels visually on the icon rail but keeps them for screen readers", async ({ page }) => {
+  /**
+   * §12 requires every control to have a name at every width. The two levels
+   * change shape between breakpoints — tabs and a sidebar panel above 640px,
+   * one bottom bar below it — so what has to hold is the name, not the shape.
+   */
+  test("every navigation item keeps its accessible name", async ({ page }) => {
     await signedIn(page);
-    await page.goto("/app");
-    const width = page.viewportSize()!.width;
+    await page.goto("/app/roadmaps");
 
-    const nav = page.getByRole("navigation", { name: "Main" });
-
-    // The accessible name must survive at EVERY width. Losing it on the rail
-    // would leave a screen reader user with unlabelled links (design.md §12).
-    const home = nav.getByRole("link", { name: "Home", exact: true });
-    await expect(home).toHaveCount(1);
-
-    const labelWidth = await home.locator("span").first().evaluate(
-      (el) => el.getBoundingClientRect().width,
-    );
-
-    if (width >= 640 && width < 1024) {
-      // Visually hidden: clipped to a pixel, not removed from the tree.
-      expect(labelWidth, "the md rail should not show label text").toBeLessThanOrEqual(1);
-    } else {
-      expect(labelWidth, "sm and lg should render the label").toBeGreaterThan(10);
+    for (const nav of await page.getByRole("navigation").all()) {
+      for (const link of await nav.getByRole("link").all()) {
+        const name = (await link.getAttribute("aria-label")) ?? (await link.innerText());
+        expect(name.trim().length, "a navigation link rendered with no name").toBeGreaterThan(0);
+      }
     }
   });
 
   test("capstone stays locked until the roadmap is finished", async ({ page }) => {
     await signedIn(page);
-    await page.goto("/app");
-    const capstone = page
-      .getByRole("navigation", { name: "Main" })
-      .getByRole("link", { name: "Capstone" });
+    // Capstone lives in the Study group above 640px and in the bottom bar below it.
+    await page.goto("/app/roadmaps");
+    const capstone = page.getByRole("link", { name: "Capstone" });
     await expect(capstone).toHaveAttribute("title", "Finish your roadmap to unlock");
   });
 });

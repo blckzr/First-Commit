@@ -269,6 +269,45 @@ describe("Generating", () => {
     expect(calls.n).toBe(settled);
   });
 
+  /**
+   * The bug this covers: the worker gives up after three attempts, and the
+   * screen had no idea. It polled the step, saw `generating`, and said "this
+   * usually takes under a minute" for as long as the learner was willing to
+   * look at it — which with Ollama not running was forever.
+   */
+  it("says so when the job has failed, without waiting a minute first", async () => {
+    api.onboarding({ step: "generating", generation: "failed", careerPathId: PATH.id });
+    render(<Generating />, { route: "/onboarding/generating" });
+
+    expect(await screen.findByText(/couldn't build your roadmap/i)).toBeInTheDocument();
+    expect(screen.getByRole("status")).toHaveTextContent(/your answers are saved/i);
+    expect(screen.getByRole("button", { name: /try again/i })).toBeInTheDocument();
+  });
+
+  /**
+   * §5.4's "Try again that does not lose the learner's answers". It re-queues
+   * the job the learner already has — it used to navigate back to placement,
+   * which left a second roadmap behind every time.
+   */
+  it("re-queues the job rather than sending the learner back a step", async () => {
+    const calls = api.onboardingRetry();
+    api.onboarding({ step: "generating", generation: "failed", careerPathId: PATH.id });
+    render(<Generating />, { route: "/onboarding/generating" });
+
+    await userEvent.click(await screen.findByRole("button", { name: /try again/i }));
+
+    await waitFor(() => expect(calls.n).toBe(1));
+    expect(navigate).not.toHaveBeenCalled();
+  });
+
+  it("shows no failure message while the job is still running", async () => {
+    api.onboarding({ step: "generating", generation: "running", careerPathId: PATH.id });
+    render(<Generating />, { route: "/onboarding/generating" });
+
+    expect(screen.getByRole("status")).toHaveTextContent(/under a minute/i);
+    expect(screen.queryByText(/couldn't build your roadmap/i)).not.toBeInTheDocument();
+  });
+
   it("offers Try again only once the wait is long", async () => {
     vi.useFakeTimers({ shouldAdvanceTime: true });
     try {
