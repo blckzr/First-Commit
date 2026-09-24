@@ -11,6 +11,76 @@ lives under `[Unreleased]` until there is something to version.
 
 ## [Unreleased]
 
+### 2026-09-25 — The security tests §9.2 commits to
+
+`project-proposal.md` §9.2 names five things endpoint tests must cover. Most were covered
+somewhere — but only for endpoints somebody had remembered to write a test for. The
+database no longer knows who is asking (`database-schema.md` §6): the API is the only thing
+between an account and other people's data, and **it fails open**. "The endpoints we tested
+are fine" is a weaker claim than the architecture needs.
+
+`apps/api/src/security.test.ts` is the stronger one. **62 tests, driven by lists**, so an
+endpoint added without a guard fails here rather than shipping untested.
+
+#### What it enumerates
+
+| §9.2 commitment | How |
+|---|---|
+| A learner cannot reach admin endpoints | There are none yet, and a test **asserts that out loud** — the day one is registered, it fails and the route has to join a cross-role list |
+| A learner cannot read or change another learner's records | Every route taking a learner-owned id, called with somebody else's, asserting **404 not 403** — saying "exists, but not yours" confirms the record, which is itself the leak. Then: nothing changed, and their own still works |
+| Answer keys and explanations never appear in learner responses | A value planted in the secret column, and every learner `GET` scanned for it |
+| Completions, scores and certificates cannot be set from a request body | Every mutating endpoint, called with `passed`, `score`, `method` and `certificateId` in the body, asserting no completion carries them and no certificate exists |
+| Rate limiting, reset expiry and single use | Already covered and mutation-tested in `auth/rate-limit.test.ts` and `auth/tokens-flow.test.ts`; **not duplicated**, and the file says so |
+
+Plus the one §9.2 implies rather than states: **every learner endpoint resolves a session**,
+asserted over a list of all 18.
+
+#### The list that guards the lists
+
+A list of routes is only as good as its upkeep, so one test reads **Express's own registry**
+and fails when a registered route is not in `LEARNER_ROUTES`. Adding an endpoint and
+forgetting the test is the failure mode this whole file exists for, so it could not itself
+depend on somebody remembering.
+
+#### Mutation-tested, and the guard was not guarding anything
+
+Five vulnerabilities introduced, confirmed, reverted:
+
+1. `/roadmaps/:id` without `requireAuth` — **not caught**, and correctly so: `sessionUser()`
+   throws a 401 of its own, so the guarantee held. The test asserts the outcome, not the
+   mechanism. Repeating it on `/career-paths`, which never calls `sessionUser`, **was
+   caught** — that is the route shape where forgetting `requireAuth` actually serves a
+   stranger.
+2. `buildRoadmap` dropping its `user_id` filter — **caught**.
+3. The quiz endpoint returning which option is correct — **caught**.
+4. A new route registered and not listed — **not caught**, and this one was a real bug.
+5. …re-run after the fix — **caught**.
+
+**Number 4 is the one worth recording.** The registry walk read `app._router`, which is
+Express 4. This app is on Express 5, where it is `app.router`, so the walk found nothing,
+compared an empty list against an empty list, and passed. The headline guarantee of the
+file was guarding nothing, and no ordinary test run would ever have said so.
+
+It reads both names now, and **throws when the table comes back empty** rather than
+reporting success — a guard that cannot find anything to guard is broken, not satisfied.
+
+#### Also corrected, in the test rather than the app
+
+The first draft planted a marker in a quiz option's **text** and asserted it never appeared
+in a response. It appeared immediately, and rightly: a learner cannot choose an answer they
+cannot see. The secret is not the option, it is **which** option — so the assertion became
+that after a *wrong* answer nothing in the response identifies the right one, neither the
+explanation nor the correct option's id.
+
+Two more the app got right and the draft got wrong: `POST /assessments/:id/attempts` is
+`.strict()`, so a body carrying a score is **refused** rather than ignored — which is the
+better behaviour and now has its own test; and the technology choice needs a real published
+option, so the fixture grew one rather than the assertion being loosened.
+
+#### Verified
+
+**345 API + 280 web + 24 worker tests**, lint and typecheck clean. The API suite grew by 62.
+
 ### 2026-09-25 — The roadmap review, and the AI explanation nobody had read
 
 The Roadmap AI writes the learner an explanation of the plan it made. It has been storing

@@ -18,7 +18,7 @@ The immediate queue. Everything here is unblocked and ready to pick up.
 - [ ] **Replace the placeholder `SESSION_SECRET` in `apps/api/.env`.** It is the literal instruction text rather than a value. `required()` only checks for non-empty, so the API boots and sessions work — but the signing secret is a publicly known string. Generate one with `node -e "console.log(crypto.randomBytes(32).toString('hex'))"`. (`apps/api/.env` also lists `APP_ORIGIN` twice; harmless, but worth tidying.)
 - [ ] **`config.ts` accepts a placeholder as a secret.** `SESSION_SECRET` passing validation as `<node -e "...">` is the kind of thing that reaches production. A length check, and a refusal on anything starting with `<`, would cost two lines.
 
-- [ ] **Security tests** — `project-proposal.md` §9.2 names these as a deliverable, and this is now **unblocked**: the reason recorded here ("needs a second endpoint to test against") is stale, since there are nine. What is missing is one suite that walks every learner endpoint as a second learner and asserts 404.
+- [x] **Security tests** — `apps/api/src/security.test.ts`, 62 tests driven by lists so a new endpoint without a guard fails there. Covers §9.2's five commitments: no session, no cross-learner read or write (404 not 403), no answer key in a learner response, no progress from a request body, and — for rate limiting and reset expiry — a pointer to the suites that already cover them. One test reads Express's own route registry, so forgetting to list an endpoint is itself caught
 
 
 
@@ -58,7 +58,7 @@ Nothing in the learner app can be built until an account can log in.
 - [x] **Rate limiting** — per email and per IP on log in (5/20 per 15 min, failures only) and reset requests (3/10 per hour, all requests). Attempts recorded for unknown addresses too, so a 429 leaks nothing. Mutation-tested: seven vulnerabilities, all caught.
 - [x] **Request middleware** — §6.1 steps 1, 2 and 5 as `attachSession` / `requireAuth` / `requireAdmin`; steps 3, 4 and 6 as `sessionUser()`, `assertOwned()` and the explicit-columns rule. **Mutation-tested**: five deliberate vulnerabilities, all caught.
 - [x] **SSE** — `/events` per session user with `Last-Event-ID` resume, `/internal/events` for the worker behind a constant-time secret check, heartbeat, and a 10s sweep as the backstop. Mutation-tested: six vulnerabilities, all caught after three test gaps were fixed.
-- [ ] **Security tests** — a learner cannot reach another learner's data or any admin route (`project-proposal.md` §9.2)
+- [x] **Security tests** — a learner cannot reach another learner's data or any admin route (`project-proposal.md` §9.2). There are no admin endpoints yet, and a test asserts that, so the first one cannot ship untested
 - [ ] **Deploy to Render** — Singapore region, env vars, health check; point the GitHub App webhook at it
 
 ## Phase 1.5 — Design system ✓
