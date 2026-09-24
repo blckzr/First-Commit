@@ -68,11 +68,26 @@ export interface Roadmap {
   id: string;
   careerPathId: string;
   careerPathTitle: string;
+  trackId: string | null;
   trackTitle: string;
   pathColor: "path-1" | "path-2" | "path-3" | "path-4";
   steps: RoadmapStep[];
   passedCount: number;
+  /** Of `passedCount`, the ones cleared without working through the module. */
+  testedOutCount: number;
   totalCount: number;
+  /**
+   * §5.5's AI panel. Written by the Roadmap AI when it planned this roadmap,
+   * and labelled as AI wherever it is shown (AGENT.md §7).
+   */
+  aiRationale: string | null;
+  weeklyHours: number | null;
+  /**
+   * §5.5: "16 modules, about 14 weeks at 6 hours a week". Arithmetic over the
+   * modules still to do, so it falls as the learner passes them. Null when
+   * they have not said how many hours they have.
+   */
+  estimatedWeeks: number | null;
 }
 
 /**
@@ -117,12 +132,16 @@ export async function buildRoadmap(
     career_path_title: string;
     track_id: string | null;
     track_title: string | null;
+    ai_rationale: string | null;
+    weekly_hours: number | null;
   }>(
     `select r.id,
             r.career_path_id,
             cp.title  as career_path_title,
             r.track_id,
-            t.title   as track_title
+            t.title   as track_title,
+            r.ai_rationale,
+            r.weekly_hours
        from roadmaps r
        join career_paths cp on cp.id = r.career_path_id
        left join tracks t   on t.id = r.track_id
@@ -383,14 +402,30 @@ export async function buildRoadmap(
   const core = skillSteps.filter((s) => s.layer === "core");
   const concept = skillSteps.filter((s) => s.layer === "concept");
 
+  /**
+   * The hours still to do, over the hours a week the learner said they have.
+   * Rounded up — half a week of study is a week of calendar.
+   */
+  const remainingHours = allModules
+    .filter((m) => m.status !== "passed" && m.status !== "tested_out")
+    .reduce((n, m) => n + m.estimatedHours, 0);
+  const weeklyHours = roadmap.weekly_hours;
+  const estimatedWeeks =
+    weeklyHours && weeklyHours > 0 ? Math.max(1, Math.ceil(remainingHours / weeklyHours)) : null;
+
   return {
     id: roadmap.id,
     careerPathId: roadmap.career_path_id,
     careerPathTitle: roadmap.career_path_title,
+    trackId: roadmap.track_id,
     trackTitle: roadmap.track_title ?? "",
     pathColor: pathColor(roadmap.career_path_id),
     steps: [...core, ...decisionSteps, ...concept, ...milestones],
     passedCount,
+    testedOutCount: allModules.filter((m) => m.status === "tested_out").length,
     totalCount: allModules.length,
+    aiRationale: roadmap.ai_rationale,
+    weeklyHours,
+    estimatedWeeks,
   };
 }

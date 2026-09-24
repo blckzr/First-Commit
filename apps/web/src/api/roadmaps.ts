@@ -77,11 +77,16 @@ export const RoadmapSchema = z.object({
   id: z.string(),
   careerPathId: z.string(),
   careerPathTitle: z.string(),
+  trackId: z.string().nullable().default(null),
   trackTitle: z.string(),
   pathColor: z.enum(["path-1", "path-2", "path-3", "path-4"]),
   steps: z.array(RoadmapStep),
   passedCount: z.number(),
+  testedOutCount: z.number().default(0),
   totalCount: z.number(),
+  aiRationale: z.string().nullable().default(null),
+  weeklyHours: z.number().nullable().default(null),
+  estimatedWeeks: z.number().nullable().default(null),
 });
 
 const RoadmapResponse = z.object({ roadmap: RoadmapSchema });
@@ -104,4 +109,16 @@ export const roadmapsApi = {
 
   get: (id: string, signal?: AbortSignal) =>
     apiRequest(`/roadmaps/${id}`, { schema: RoadmapResponse, signal }).then((r) => r.roadmap),
+
+  /**
+   * §5.5: "Adjust weekly hours". Hours are the learner's own statement about
+   * their life, not evidence — which is why this is the only thing about a
+   * roadmap the browser can change.
+   */
+  setWeeklyHours: (id: string, weeklyHours: number) =>
+    apiRequest(`/roadmaps/${id}`, {
+      method: "PATCH",
+      body: { weeklyHours },
+      schema: RoadmapResponse,
+    }).then((r) => r.roadmap),
 };

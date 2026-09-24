@@ -87,12 +87,20 @@ export interface Roadmap {
   id: string;
   careerPathId: string;
   careerPathTitle: string;
+  trackId: string | null;
   trackTitle: string;
   pathColor: "path-1" | "path-2" | "path-3" | "path-4";
   /** Ordered along the main path, top to bottom. */
   steps: RoadmapStep[];
   passedCount: number;
+  /** Of `passedCount`, the ones cleared without working through the module. */
+  testedOutCount: number;
   totalCount: number;
+  /** §5.5's AI panel — the Roadmap AI's reason for this plan. */
+  aiRationale: string | null;
+  weeklyHours: number | null;
+  /** §5.5: "about 14 weeks at 6 hours a week". Null without the hours. */
+  estimatedWeeks: number | null;
 }
 
 /** Anything the side panel can open: a step, or a module inside a skill step. */

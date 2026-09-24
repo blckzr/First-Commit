@@ -106,8 +106,37 @@ export function createApp(deps: AppDeps = {}) {
   app.use(eventRoutes(hub));
 
   /** The session the browser currently has. Drives useSession in the web app. */
-  app.get("/auth/me", requireAuth, (req, res) => {
+  app.get("/auth/me", requireAuth, async (req, res) => {
     const user = sessionUser(req);
+
+    /**
+     * Where this learner belongs right now.
+     *
+     * **The server decides, and the guards obey.** An earlier version had the
+     * generating screen navigating while a guard redirected somewhere else,
+     * and the two fought until the browser throttled navigation. The fix then
+     * was "one place decides where a learner goes"; this is that place.
+     *
+     * §5.4: onboarding ends at the roadmap review (§5.5). A learner who has a
+     * roadmap and has not opened a module yet is sent there; once they have
+     * started, the review stops being their destination and `/app` is.
+     */
+    let next = "/app";
+    if (user.role === "admin") {
+      next = "/admin";
+    } else if (user.onboardingStep) {
+      next = `/onboarding/${user.onboardingStep}`;
+    } else {
+      const review = await pool.query<{ id: string }>(
+        `select r.id from roadmaps r
+          where r.user_id = $1 and r.status = 'active'
+            and not exists (select 1 from module_enrollments e where e.user_id = $1)
+          order by r.created_at desc limit 1`,
+        [user.id],
+      );
+      if (review.rows[0]) next = `/app/roadmap/${review.rows[0].id}/review`;
+    }
+
     res.json({
       user: {
         id: user.id,
@@ -119,6 +148,7 @@ export function createApp(deps: AppDeps = {}) {
       // design.md §4.3: the guards need this on every request, not only in a
       // log-in reply.
       onboardingStep: user.onboardingStep,
+      next,
     });
   });
 

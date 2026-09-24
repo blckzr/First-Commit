@@ -16,6 +16,7 @@ import { ResetPassword } from "../routes/public/ResetPassword";
 import { NotFound } from "../routes/public/NotFound";
 import { Home } from "../routes/learner/Home";
 import { Roadmap } from "../routes/learner/Roadmap";
+import { RoadmapReview } from "../routes/learner/RoadmapReview";
 import { Module } from "../routes/learner/Module";
 import { Quiz } from "../routes/learner/Quiz";
 import { TechnologyChoice } from "../routes/learner/TechnologyChoice";
@@ -90,6 +91,9 @@ const learnerRoutes = [
   { index: true, element: <Home /> },
   { path: "roadmaps", title: "My roadmaps", section: "section 5.12", purpose: "Switch between roadmaps, or start one for another career." },
   { path: "roadmap/:id", element: <Roadmap /> },
+  // §5.5, and §5.4's flow: onboarding ends here rather than at Home. It stays
+  // reachable afterwards — adjusting weekly hours is not a one-time act.
+  { path: "roadmap/:id/review", element: <RoadmapReview /> },
   // §5.8 specifies this screen; §4.3 gives it no address. Nested under the
   // roadmap because the answer belongs to a roadmap, not to the track — the
   // same decision on two roadmaps is two separate choices.

@@ -1,0 +1,94 @@
+.header { display: flex; flex-direction: column; align-items: flex-start; gap: var(--space-3); }
+
+/* §3.2: ALL CAPS for micro eyebrows only, always with --ls-caps. */
+.eyebrow {
+  font-size: var(--text-micro);
+  font-weight: var(--fw-bold);
+  letter-spacing: var(--ls-caps);
+  text-transform: uppercase;
+  color: var(--text-accent);
+}
+
+.title {
+  margin: 0;
+  font-size: var(--text-h1);
+  font-weight: var(--fw-extrabold);
+  line-height: var(--lh-heading);
+  letter-spacing: var(--ls-heading);
+  color: var(--text-strong);
+}
+
+.summary { margin: 0; font-size: var(--text-body-lg); color: var(--text-body); }
+.lede { margin: 0; color: var(--text-body); max-width: 62ch; }
+
+.cleared {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  flex-wrap: wrap;
+  margin: var(--space-2) 0 0;
+  font-size: var(--text-body-sm);
+  color: var(--text-body);
+}
+
+/* §7's AI panel: labelled, with its reason, and flaggable. */
+.ai {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-3);
+  padding: var(--space-5) var(--pad-card);
+}
+
+.aiLabel {
+  font-size: var(--text-caption);
+  font-weight: var(--fw-bold);
+  letter-spacing: var(--ls-caps);
+  text-transform: uppercase;
+  color: var(--ai);
+}
+
+.aiText {
+  margin: 0;
+  font-size: var(--text-body-base);
+  line-height: var(--lh-body);
+  color: var(--ink-700);
+  max-width: 620px;
+}
+
+.aiFlag {
+  border: 0;
+  background: none;
+  padding: 0;
+  font: inherit;
+  font-size: var(--text-body-sm);
+  font-weight: var(--fw-semibold);
+  color: var(--ai);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  cursor: pointer;
+}
+
+.aiFlag:disabled { opacity: 0.45; cursor: default; }
+
+.aiFlag:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 2px;
+  border-radius: var(--radius-xs);
+}
+
+.chart { min-width: 0; }
+
+.actions {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-4);
+  flex-wrap: wrap;
+}
+
+.hours { display: flex; flex-direction: column; gap: var(--space-3); min-width: 260px; }
+.hoursActions { display: flex; gap: var(--space-3); flex-wrap: wrap; }
+
+.loading { color: var(--text-muted); }
+.empty { display: flex; flex-direction: column; align-items: flex-start; gap: var(--space-4); }

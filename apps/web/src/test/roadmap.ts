@@ -24,9 +24,15 @@ export const mockRoadmap: Roadmap = {
   id: "10000000-0000-0000-0000-000000000001",
   careerPathId: "20000000-0000-0000-0000-000000000001",
   careerPathTitle: "Junior Web Developer",
+  trackId: "t1",
   trackTitle: "Frontend",
   pathColor: "path-1",
   passedCount: 6,
+  testedOutCount: 1,
+  aiRationale:
+    "You passed the HTML placement questions, so those modules are tested out. Since you want a company job, I recommend the Frontend track.",
+  weeklyHours: 6,
+  estimatedWeeks: 14,
   totalCount: 16,
   steps: [
     {

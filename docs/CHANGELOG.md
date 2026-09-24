@@ -11,6 +11,95 @@ lives under `[Unreleased]` until there is something to version.
 
 ## [Unreleased]
 
+### 2026-09-25 — The roadmap review, and the AI explanation nobody had read
+
+The Roadmap AI writes the learner an explanation of the plan it made. It has been storing
+it in `roadmaps.ai_rationale` on every generation since the worker was built, and **no
+learner had ever seen it** — `apps/worker/src/roadmap/apply.ts` wrote it and nothing in
+`apps/api/src/roadmaps/build.ts` read it back.
+
+`design.md` §5.5 is where it belongs, and §5.4's flow diagram has ended at a roadmap review
+all along:
+
+```
+Generating --> RoadmapReview: roadmap ready
+RoadmapReview --> Home: start learning
+```
+
+Onboarding went to Home instead. It goes to the review now.
+
+#### Added
+
+- **`/app/roadmap/:id/review`** — §5.5. The plan, the counts, the estimate, the AI's
+  reason, and two actions. It stays reachable afterwards: adjusting weekly hours is not a
+  one-time act, and there was no reason to make the screen disappear.
+  - **What placement bought, said plainly.** "You proved 1 module at placement, so 10
+    remain." Until now a learner could answer 25 questions, clear four modules, and land on
+    Home with nothing acknowledging any of it.
+  - **The AI panel** carries §7's three requirements: labelled as AI, gives its reason, and
+    is flaggable. The flag control is disabled until `ai_feedback_flags` has an endpoint,
+    which is the third such control and is tracked.
+- **`PATCH /roadmaps/:id`** — §5.5's "Adjust weekly hours", the only thing about a roadmap
+  a browser may change. Hours are the learner's own statement about their life, not
+  evidence. It writes the roadmap *and* the profile, because the Roadmap AI reads the
+  profile when planning the next one and leaving them to disagree would mean the next
+  roadmap silently using the old figure.
+- **`estimatedWeeks`** on the roadmap — §5.5's "about 14 weeks at 6 hours a week",
+  arithmetic over the hours **still to do**, so it falls as modules are passed. Null when
+  the learner never said their hours, and the sentence drops with it rather than inventing
+  a number.
+- **`testedOutCount`** — of what is passed, how much was cleared without working through
+  the module.
+- **18 tests**: 9 on the API (the patch, its bounds, its ownership, and where `/auth/me`
+  sends a learner) and 14 on the screen.
+
+#### Changed
+
+- **`GET /auth/me` returns `next`** — where this person belongs right now: `/admin`, their
+  unfinished onboarding step, the review of a roadmap they have not started, or `/app`.
+  The guards follow it instead of each deciding for themselves.
+
+  This is the shape the earlier navigation bug asked for. The generating screen used to
+  navigate while `RequireLearner` redirected somewhere else, and the two fought until the
+  browser throttled navigation; the fix then was "one place decides where a learner goes",
+  and the place was never named. It is named now. `next` is optional in the schema and the
+  guards keep their old reasoning as a fallback, so nothing breaks on a response without
+  it.
+- **"Started" means a module has been opened**, read from `module_enrollments`. It needed no
+  new column, and it means placement clearing modules does not count as having started —
+  which is the whole point of showing the review afterwards.
+
+#### The read-only guarantee moved rather than weakened
+
+`roadmaps.test.ts` asserted that `POST`, `PUT`, `PATCH` and `DELETE` on a roadmap all 404 —
+§6 rule 1, the roadmap is read-only. `PATCH` exists now, so the assertion could not stand
+as written.
+
+It was not deleted. It became a stronger one: `PATCH` is `.strict()` and takes only
+`weeklyHours`, so a body carrying `passed`, `score`, `passedCount` or `trackId` is
+**rejected with a 400** and writes no completions. Four cases, one per field. "There is no
+route" became "the route cannot carry progress", which is what the rule actually wants.
+
+#### Not built, and why
+
+**§5.5's "Track [ Frontend ▾ ]" is absent.** Changing the track changes which modules are
+on the roadmap, so it is a regeneration rather than an update — `roadmap_items` from the
+old track would otherwise be left behind. Doing it properly means a forced track in the
+job payload, the prompt, and the catalogue. That is its own task and it is in the tracker;
+shipping a dropdown that silently corrupted a roadmap would have been worse than not
+shipping one.
+
+#### Verified
+
+**283 API + 280 web + 24 worker tests**, 152 Playwright, lint and typecheck clean. The
+screen was driven in a browser at 1440 and read back as a screenshot: header, AI panel,
+chart, and the actions row §5.5 draws.
+
+One test fixture taught something worth keeping: the screen patches the roadmap id **the
+server gave it**, not the one in the URL, and the first version of the test stubbed the URL
+param instead. The screen is right — the server's id is authoritative — and the test was
+wrong.
+
 ### 2026-09-25 — Placement, and the measurement that decided its shape
 
 `design.md` §5.4 introduced placement with "this short check helps us skip what you already

@@ -407,7 +407,6 @@ describe("§6 rule 1 — the roadmap is read-only here", () => {
     ["put", "/roadmaps"],
     ["post", "/roadmaps/00000000-0000-0000-0000-000000000000"],
     ["put", "/roadmaps/00000000-0000-0000-0000-000000000000"],
-    ["patch", "/roadmaps/00000000-0000-0000-0000-000000000000"],
     ["delete", "/roadmaps/00000000-0000-0000-0000-000000000000"],
   ] as const)("has no %s %s", async (method, path) => {
     // With the Origin a browser would send, so the CSRF guard passes and the
@@ -420,5 +419,128 @@ describe("§6 rule 1 — the roadmap is read-only here", () => {
 
     expect(res.status).toBe(404);
     expect(db.rows("module_completions")).toHaveLength(0);
+  });
+
+  /**
+   * `PATCH` exists now, for §5.5's "Adjust weekly hours" — so the guarantee
+   * moves from "there is no route" to "the route cannot carry progress".
+   * `.strict()` makes that a rejection rather than a silent ignore.
+   */
+  it.each([{ passed: true }, { score: 100 }, { passedCount: 9 }, { trackId: "x" }])(
+    "patch refuses a body carrying %o",
+    async (body) => {
+      const mine = await buildRoadmapRow(learnerId);
+      const res = await request(app)
+        .patch(`/roadmaps/${mine}`)
+        .set("Cookie", cookie)
+        .set("Origin", config.appOrigin)
+        .send({ weeklyHours: 6, ...body });
+
+      expect(res.status).toBe(400);
+      expect(db.rows("module_completions")).toHaveLength(0);
+    },
+  );
+});
+
+describe("PATCH /roadmaps/:id — §5.5 adjust weekly hours", () => {
+  let roadmapId: string;
+  beforeEach(async () => {
+    roadmapId = await buildRoadmapRow(learnerId);
+  });
+
+  const patch = (id: string, body: unknown) =>
+    request(app).patch(`/roadmaps/${id}`).set("Cookie", cookie).set("Origin", config.appOrigin).send(body);
+
+  it("updates the roadmap and the profile together", async () => {
+    const res = await patch(roadmapId, { weeklyHours: 12 });
+
+    expect(res.status).toBe(200);
+    expect(res.body.roadmap.weeklyHours).toBe(12);
+    // The AI reads the profile when planning the next roadmap, so the two
+    // must not drift.
+    const profile = db.rows("learner_profiles").find((r) => r.user_id === learnerId)!;
+    expect(profile.weekly_hours).toBe(12);
+  });
+
+  /** §5.5: "16 modules, about 14 weeks at 6 hours a week". */
+  it("recomputes the estimate from the hours", async () => {
+    const slow = await patch(roadmapId, { weeklyHours: 2 });
+    const fast = await patch(roadmapId, { weeklyHours: 20 });
+
+    expect(slow.body.roadmap.estimatedWeeks).toBeGreaterThan(
+      fast.body.roadmap.estimatedWeeks,
+    );
+  });
+
+  it.each([0, 41, -1])("refuses %i hours with the sentence §9 gives", async (hours) => {
+    const res = await patch(roadmapId, { weeklyHours: hours });
+    expect(res.status).toBe(400);
+    expect(res.body.error).toMatch(/between 1 and 40/);
+  });
+
+  /** §6.1 step 4: a roadmap id from the browser is confirmed to be theirs. */
+  it("answers 404 for another learner's roadmap, and changes nothing", async () => {
+    const other = await db.pool.query<{ id: string }>(
+      `insert into users (email, password_hash, full_name) values ('other@example.com','h','Other') returning id`,
+    );
+    const theirs = await db.pool.query<{ id: string }>(
+      `insert into roadmaps (user_id, career_path_id, weekly_hours, status)
+       values ($1, $2, 5, 'active') returning id`,
+      [other.rows[0].id, ids.path],
+    );
+
+    const res = await patch(theirs.rows[0].id, { weeklyHours: 30 });
+
+    expect(res.status).toBe(404);
+    const untouched = db.rows("roadmaps").find((r) => r.id === theirs.rows[0].id)!;
+    expect(untouched.weekly_hours).toBe(5);
+  });
+});
+
+/**
+ * §5.4's flow ends at the review, not at Home — and the server says so, rather
+ * than each guard working it out. An earlier version had a screen navigating
+ * while a guard redirected elsewhere, and the two fought until the browser
+ * throttled navigation.
+ */
+describe("GET /auth/me — where a learner belongs", () => {
+  /** Onboarding takes precedence, so these cases start from a finished learner. */
+  const finished = () =>
+    db.pool.query(`update learner_profiles set onboarding_step = 'done' where user_id = $1`, [
+      learnerId,
+    ]);
+
+  it("sends a learner with a fresh roadmap to its review", async () => {
+    await finished();
+    const roadmapId = await buildRoadmapRow(learnerId);
+    const res = await read("/auth/me");
+
+    expect(res.body.next).toBe(`/app/roadmap/${roadmapId}/review`);
+  });
+
+  /** Once a module has been opened, the review has been had. */
+  it("sends them to the app once they have started a module", async () => {
+    await finished();
+    await buildRoadmapRow(learnerId);
+    await db.pool.query(
+      `insert into module_enrollments (user_id, module_id, module_version_id)
+       values ($1, $2, (select id from module_versions where module_id = $2))`,
+      [learnerId, ids.htmlBasics],
+    );
+
+    expect((await read("/auth/me")).body.next).toBe("/app");
+  });
+
+  it("sends a learner with no roadmap to the app", async () => {
+    await finished();
+    expect((await read("/auth/me")).body.next).toBe("/app");
+  });
+
+  it("keeps an unfinished learner in onboarding", async () => {
+    await db.pool.query(
+      `update learner_profiles set onboarding_step = 'target' where user_id = $1`,
+      [learnerId],
+    );
+    expect((await read("/auth/me")).body.next).toBe("/onboarding/target");
   });
 });

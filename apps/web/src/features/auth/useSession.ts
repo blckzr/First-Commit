@@ -21,6 +21,8 @@ export interface Session {
   user: SessionUser | null;
   /** The onboarding page to resume at, or null when onboarding is finished. */
   onboardingStep: string | null;
+  /** Where the server says this person belongs right now. */
+  next: string | null;
 }
 
 export const sessionKey = ["session"] as const;
@@ -34,19 +36,20 @@ export function useSession(): Session {
       error instanceof ApiError && error.isUnauthorized ? false : count < 2,
   });
 
-  if (query.isPending) return { status: "loading", user: null, onboardingStep: null };
+  if (query.isPending) return { status: "loading", user: null, onboardingStep: null, next: null };
 
   // 401 means signed out. Any other failure also renders as signed out rather
   // than as a broken page — the guards then send them to /login, which is the
   // honest thing to show when we cannot confirm who they are.
   if (query.isError || !query.data) {
-    return { status: "ready", user: null, onboardingStep: null };
+    return { status: "ready", user: null, onboardingStep: null, next: null };
   }
 
   return {
     status: "ready",
     user: query.data.user,
     onboardingStep: query.data.onboardingStep,
+    next: query.data.next,
   };
 }
 

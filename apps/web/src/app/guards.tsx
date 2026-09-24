@@ -21,7 +21,7 @@ export function RequireAuth() {
 }
 
 export function RequireLearner({ needsOnboarding = false }: { needsOnboarding?: boolean }) {
-  const { status, user, onboardingStep } = useSession();
+  const { status, user, onboardingStep, next } = useSession();
   /**
    * §13.6: guards render nothing while the session loads. Without this, an
    * unloaded session looks like "no unfinished onboarding" and this redirects
@@ -34,7 +34,12 @@ export function RequireLearner({ needsOnboarding = false }: { needsOnboarding?: 
   if (!needsOnboarding && onboardingStep) {
     return <Navigate to={`/onboarding/${onboardingStep}`} replace />;
   }
-  if (needsOnboarding && !onboardingStep) return <Navigate to="/app" replace />;
+  /**
+   * §5.4: onboarding ends at the roadmap review (§5.5), not at Home. Which one
+   * is the server's call — `GET /auth/me` returns it — so that the screen and
+   * the guard cannot disagree about where a finished learner goes.
+   */
+  if (needsOnboarding && !onboardingStep) return <Navigate to={next ?? "/app"} replace />;
   return <Outlet />;
 }
 
@@ -78,10 +83,13 @@ export function RequireOnboardingStep() {
  * have.
  */
 export function RedirectIfSignedIn() {
-  const { status, user, onboardingStep } = useSession();
+  const { status, user, onboardingStep, next } = useSession();
 
   if (status === "loading") return <FullPageSpinner />;
   if (!user) return <Outlet />;
+  if (next) return <Navigate to={next} replace />;
+  // Without a `next` — an older API, or a response that did not carry one —
+  // work it out the same way the server would.
   if (user.role === "admin") return <Navigate to="/admin" replace />;
   if (onboardingStep) return <Navigate to={`/onboarding/${onboardingStep}`} replace />;
   return <Navigate to="/app" replace />;

@@ -18,7 +18,7 @@ The immediate queue. Everything here is unblocked and ready to pick up.
 - [ ] **Replace the placeholder `SESSION_SECRET` in `apps/api/.env`.** It is the literal instruction text rather than a value. `required()` only checks for non-empty, so the API boots and sessions work — but the signing secret is a publicly known string. Generate one with `node -e "console.log(crypto.randomBytes(32).toString('hex'))"`. (`apps/api/.env` also lists `APP_ORIGIN` twice; harmless, but worth tidying.)
 - [ ] **`config.ts` accepts a placeholder as a secret.** `SESSION_SECRET` passing validation as `<node -e "...">` is the kind of thing that reaches production. A length check, and a refusal on anything starting with `<`, would cost two lines.
 
-- [ ] **Security tests** — `project-proposal.md` §9.2 names these as a deliverable. Much is already covered; what is missing is a learner reaching another learner's data, which needs a second endpoint to test against.
+- [ ] **Security tests** — `project-proposal.md` §9.2 names these as a deliverable, and this is now **unblocked**: the reason recorded here ("needs a second endpoint to test against") is stale, since there are nine. What is missing is one suite that walks every learner endpoint as a second learner and asserts 404.
 
 
 
@@ -150,7 +150,8 @@ The main loop: sign up → roadmap → learn → pass.
   - [x] ~~A failed roadmap job left the learner on the generating screen forever~~ — the worker backs off between attempts and recovers stranded jobs, `GET /onboarding` reports the job status, and `POST /onboarding/generating/retry` re-queues it. Placement no longer creates a second roadmap each time it runs
   - [ ] **`ai_jobs` has no `next_attempt_at`.** The worker holds a job `running` while it waits out its backoff, which works because there is one worker and one job at a time. A due-time column plus a `claim_next_ai_job()` that skips rows not yet due is the proper shape, and would let the worker take other work while one job waits
   - [ ] Move the generating screen from polling to SSE — the worker already posts to `/internal/events`, so this is a subscription, not new plumbing
-  - [ ] **§5.5 Roadmap Review does not exist.** Onboarding currently ends at `/app`, skipping the review the document specifies ("Track [ Frontend ▾ ]", "Adjust weekly hours", "Start learning")
+  - [x] ~~**§5.5 Roadmap Review does not exist**~~ — built at `/app/roadmap/:id/review`. The plan, the counts, "about 14 weeks at 6 hours a week", what placement cleared, and **the Roadmap AI's explanation, which no learner had ever seen**. `GET /auth/me` now returns `next`, so the server decides where a learner belongs and the guards follow
+    - [ ] **"Track [ Frontend ▾ ]" is not built.** Changing the track changes which modules are on the roadmap, so it is a regeneration, not an update — it needs a forced track in the job payload, the prompt and the catalogue
 - [x] **Roadmap chart** — React Flow, custom nodes, side panel, the `sm` stacked layout, keyboard navigation and nested-list DOM equivalent. Built on the `Roadmap` type from `design.md` §13.3 against mock data
   - [x] **Fetch a real roadmap** — `GET /roadmaps/:id` builds the §13.3 object from the database; the screen no longer holds mock data
   - [x] ~~§4.3 has no address for the technology choice or the quiz~~ — both are in the route map now, with the reason each is shaped that way

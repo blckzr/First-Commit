@@ -22,6 +22,14 @@ const MeResponse = z.object({
   user: SessionUser,
   /** Null once onboarding is finished (design.md §4.3). */
   onboardingStep: z.string().nullable(),
+  /**
+   * Where the server says this learner belongs. The guards follow it rather
+   * than each deciding for themselves — design.md §5.4's generating screen and
+   * a guard once disagreed and the browser throttled navigation.
+   *
+   * Optional so a response from an older API still parses as signed in.
+   */
+  next: z.string().nullable().default(null),
 });
 const AuthResponse = z.object({ user: SessionUser, next: z.string() });
 const MessageResponse = z.object({ message: z.string() });

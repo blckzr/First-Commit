@@ -159,6 +159,20 @@ export const api = {
   roadmap(roadmap: unknown, id = "r1") {
     server.use(http.get(`${BASE}/roadmaps/${id}`, () => HttpResponse.json({ roadmap })));
   },
+  /** §5.5 — PATCH /roadmaps/:id, the only thing a browser may change. */
+  roadmapPatch(roadmap: unknown, seen?: (body: unknown) => void, id = "r1") {
+    server.use(
+      http.patch(`${BASE}/roadmaps/${id}`, async ({ request }) => {
+        seen?.(await request.json());
+        return HttpResponse.json({ roadmap });
+      }),
+    );
+  },
+  roadmapPatchFails(status: number, error: string, id = "r1") {
+    server.use(
+      http.patch(`${BASE}/roadmaps/${id}`, () => HttpResponse.json({ error }, { status })),
+    );
+  },
   roadmapFails(status: number, error = "Not found", id = "r1") {
     server.use(http.get(`${BASE}/roadmaps/${id}`, () => HttpResponse.json({ error }, { status })));
   },
