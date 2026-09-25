@@ -1,5 +1,6 @@
 import { NavLink, Outlet, useLocation } from "react-router";
 import { Icon } from "../components/core/Icon";
+import { LogOutButton } from "../features/auth/LogOutButton";
 import type { IconName } from "../components/core/Icon";
 import { IconButton } from "../components/core/IconButton";
 import { useSession } from "../features/auth/useSession";
@@ -171,8 +172,7 @@ export function LearnerShell() {
           <IconButton icon="bell" label="Notifications" variant="bare" size="sm" />
           {/*
             §4.2's profile menu. A native disclosure, so it opens with the
-            keyboard and needs no JavaScript. Log out is not in it: signing out
-            has no screen yet, and a dead control is worse than an absent one.
+            keyboard and needs no JavaScript.
           */}
           <details className={styles.profile}>
             <summary className={styles.profileButton}>
@@ -199,6 +199,16 @@ export function LearnerShell() {
                     <Icon name="settings" size={16} />
                     Account settings
                   </NavLink>
+                </li>
+                {/*
+                  Separated, because it is the one item here that ends the
+                  session rather than opening a page.
+                */}
+                <li className={styles.profileSeparated}>
+                  <LogOutButton className={styles.profileItem}>
+                    <Icon name="log-out" size={16} />
+                    Log out
+                  </LogOutButton>
                 </li>
               </ul>
             </div>

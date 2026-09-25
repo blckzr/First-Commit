@@ -14,8 +14,11 @@ import { passwordResetRoutes } from "./auth/password-reset.js";
 import { onboardingRoutes } from "./onboarding/routes.js";
 import { roadmapRoutes } from "./roadmaps/routes.js";
 import { moduleRoutes } from "./modules/routes.js";
+import { exerciseRoutes } from "./exercises/routes.js";
 import { homeRoutes } from "./home/routes.js";
 import { decisionRoutes } from "./decisions/routes.js";
+import { flagRoutes } from "./flags/routes.js";
+import { adminFlagRoutes } from "./admin/flags.js";
 import { requireSameOrigin } from "./middleware/csrf.js";
 import { EventHub } from "./events/hub.js";
 import { eventRoutes, internalEventRoutes } from "./events/routes.js";
@@ -101,8 +104,11 @@ export function createApp(deps: AppDeps = {}) {
   app.use(onboardingRoutes(pool));
   app.use(roadmapRoutes(pool));
   app.use(moduleRoutes(pool));
+  app.use(exerciseRoutes(pool));
   app.use(homeRoutes(pool));
   app.use(decisionRoutes(pool));
+  app.use(flagRoutes(pool));
+  app.use(adminFlagRoutes(pool));
   app.use(eventRoutes(hub));
 
   /** The session the browser currently has. Drives useSession in the web app. */

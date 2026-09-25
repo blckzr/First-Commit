@@ -108,3 +108,28 @@
 @media (min-width: 1024px) {
   .main { padding: var(--space-7); }
 }
+
+/* Log out, matching the bare IconButton beside it. */
+.logOut {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  /* §12: 44px of target. */
+  min-width: 44px;
+  min-height: 44px;
+  border: 0;
+  background: none;
+  padding: 0;
+  color: var(--text-on-dark);
+  cursor: pointer;
+  border-radius: var(--radius-sm);
+}
+
+.logOut:hover { background: var(--surface-on-dark-hover); }
+
+.logOut:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 2px;
+}
+
+.logOut:disabled { opacity: 0.6; cursor: default; }

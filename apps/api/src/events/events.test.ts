@@ -3,7 +3,7 @@ import request from "supertest";
 import type { Express } from "express";
 import type { Server } from "node:http";
 import { createApp } from "../app.js";
-import { createTestDb, type TestDb } from "../test/db.js";
+import { createTestDb, type TestDb } from "@first-commit/test-db";
 import { post } from "../test/http.js";
 import type { Mailer } from "../mail/index.js";
 import { parseCursor } from "./hub.js";

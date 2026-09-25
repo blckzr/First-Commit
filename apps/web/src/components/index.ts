@@ -29,6 +29,8 @@ export type { SearchFieldProps } from "./forms/SearchField";
 // Learning
 export { ProgressBar } from "./learning/ProgressBar";
 export type { ProgressBarProps } from "./learning/ProgressBar";
+export { AiPanel } from "./learning/AiPanel";
+export type { AiPanelProps } from "./learning/AiPanel";
 export { CodeBlock } from "./learning/CodeBlock";
 export type { CodeBlockProps, CodeLine, CodeTone } from "./learning/CodeBlock";
 

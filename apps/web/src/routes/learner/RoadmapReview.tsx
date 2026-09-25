@@ -6,6 +6,7 @@ import { Button } from "../../components/core/Button";
 import { Card } from "../../components/core/Card";
 import { Input } from "../../components/forms/Input";
 import { LinkButton } from "../../components/core/LinkButton";
+import { AiPanel } from "../../components/learning/AiPanel";
 import { RoadmapChart } from "../../components/roadmap/RoadmapChart";
 import { RoadmapStacked } from "../../components/roadmap/RoadmapStacked";
 import { useBreakpoint } from "../../hooks/useBreakpoint";
@@ -139,13 +140,13 @@ function ReviewView({ roadmap }: { roadmap: Roadmap }) {
 
       {/* §7: AI output is labelled as AI, carries a reason, and is flaggable. */}
       {roadmap.aiRationale && (
-        <Card surface="soft" radius="card" padding="md" className={styles.ai}>
-          <span className={styles.aiLabel}>AI</span>
-          <p className={styles.aiText}>{roadmap.aiRationale}</p>
-          <button type="button" className={styles.aiFlag} disabled title="Not built yet">
-            Is this wrong?
-          </button>
-        </Card>
+        <AiPanel
+          aiOutputId={roadmap.aiOutputId}
+          flagged={roadmap.aiFlagged}
+          className={styles.ai}
+        >
+          <p>{roadmap.aiRationale}</p>
+        </AiPanel>
       )}
 
       <section className={styles.chart} aria-label="Your roadmap">

@@ -63,6 +63,7 @@ function ModuleView({ module }: { module: ModulePage }) {
   const [justRead, setJustRead] = useState<string | null>(null);
 
   const quiz = module.assessments.find((a) => a.type === "quiz");
+  const exercise = module.assessments.find((a) => a.type === "code");
   const lessonParam = params.get("lesson");
   const selected =
     module.lessons.find((l) => l.id === lessonParam) ??
@@ -155,6 +156,16 @@ function ModuleView({ module }: { module: ModulePage }) {
                   <span className={styles.railAssessmentMeta}>
                     {quiz.questionCount} questions
                     {quiz.bestScore !== null ? ` · best ${quiz.bestScore}%` : ""}
+                  </span>
+                </Link>
+              </li>
+            )}
+            {exercise && (
+              <li>
+                <Link to={`/app/exercise/${exercise.id}`} className={styles.railAssessment}>
+                  <span>Exercise</span>
+                  <span className={styles.railAssessmentMeta}>
+                    {exercise.passed ? "Passed" : "Write code and submit"}
                   </span>
                 </Link>
               </li>

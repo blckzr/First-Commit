@@ -16,6 +16,7 @@ import { ResetPassword } from "../routes/public/ResetPassword";
 import { NotFound } from "../routes/public/NotFound";
 import { Home } from "../routes/learner/Home";
 import { Roadmap } from "../routes/learner/Roadmap";
+import { Roadmaps } from "../routes/learner/Roadmaps";
 import { RoadmapReview } from "../routes/learner/RoadmapReview";
 import { Module } from "../routes/learner/Module";
 import { Quiz } from "../routes/learner/Quiz";
@@ -37,6 +38,16 @@ import { Gallery } from "../routes/dev/Gallery";
  * what is a placeholder is tracked in docs/task-tracker.md.
  */
 const AdminArea = lazy(() => import("../routes/admin/AdminArea"));
+
+/**
+ * §5.11's screen, lazy for the same reason the admin area is: it carries
+ * CodeMirror, which is most of a megabyte, and a learner reading a lesson
+ * should not download an editor they are not using. Measured at 1.19MB in the
+ * main chunk before this split.
+ */
+const Exercise = lazy(() =>
+  import("../routes/learner/Exercise").then((m) => ({ default: m.Exercise })),
+);
 
 /**
  * The component gallery is mounted only in development. `import.meta.env.DEV`
@@ -89,7 +100,7 @@ const onboardingRoutes = [
 /** design.md §5 — the learner app, inside LearnerShell. */
 const learnerRoutes = [
   { index: true, element: <Home /> },
-  { path: "roadmaps", title: "My roadmaps", section: "section 5.12", purpose: "Switch between roadmaps, or start one for another career." },
+  { path: "roadmaps", element: <Roadmaps /> },
   { path: "roadmap/:id", element: <Roadmap /> },
   // §5.5, and §5.4's flow: onboarding ends here rather than at Home. It stays
   // reachable afterwards — adjusting weekly hours is not a one-time act.
@@ -103,7 +114,14 @@ const learnerRoutes = [
   // §4.3 has no address for the quiz; §5.10 specifies the screen. Recorded in
   // docs/task-tracker.md alongside the technology choice, which has the same gap.
   { path: "quiz/:id", element: <Quiz /> },
-  { path: "exercise/:id", title: "Coding exercise", section: "section 5.11", purpose: "Write code, run tests, and read the feedback grounded in those results." },
+  {
+    path: "exercise/:id",
+    element: (
+      <Suspense fallback={<div role="status">Loading the exercise…</div>}>
+        <Exercise />
+      </Suspense>
+    ),
+  },
   { path: "capstone", title: "Capstone project", section: "section 5.14", purpose: "Choose a brief, connect a repository, and track milestones." },
   { path: "certificates", title: "Certificates", section: "section 5.15", purpose: "View, download, and share what has been earned." },
   { path: "resume", title: "Resume", section: "section 5.16", purpose: "Built only from verified skills, certificates, and completed projects." },

@@ -11,6 +11,389 @@ lives under `[Unreleased]` until there is something to version.
 
 ## [Unreleased]
 
+### 2026-09-25 — Judge0: the sandbox, built but not yet installed
+
+The runner was the last thing between a built exercise chain and a learner actually earning
+credit for code. Judge0 is what `project-proposal.md` §8 and `database-schema.md` §1 and §8
+name, and it is now implemented behind the existing `Runner` interface.
+
+**It is not running yet.** WSL 2 and Docker Desktop are both absent from this machine, so
+`CODE_RUNNER=none` still stands and submissions still refuse honestly. Virtualization is
+enabled in firmware with 31 GB RAM and 64 GB disk free, so there is no BIOS work — the
+remaining steps are in `docker/judge0/README.md` and are all on the operator's side.
+
+#### Added
+
+- **`Judge0Runner`** (`apps/worker/src/judge0/index.ts`). Selected with `CODE_RUNNER=judge0`;
+  `createRunner()` now throws on an unrecognised value rather than falling back to no sandbox,
+  because a typo turning into "no sandbox" would show an operator a setup message about work
+  they believe they finished.
+
+  **Language ids are discovered, not hard-coded.** Judge0's numeric ids move between releases
+  and a wrong one runs the wrong language, so `GET /languages` is read once and matched by
+  name.
+
+  Every submission is sent with `enable_network: false` and per-submission CPU and memory
+  limits. Tight on purpose: this machine also holds a model in VRAM and the worker runs one
+  job at a time (AGENT.md §7).
+
+- **A harness that compiles the test cases into the program**
+  (`apps/worker/src/judge0/harness.ts`). Judge0 takes one source file and compares stdout —
+  it was built for competitive programming. Our exercises hold an assertion per case and
+  §5.11 shows a per-case tick with an expected and an actual, so the cases are compiled *in*
+  and the program prints one line of JSON per case. One container per submission rather than
+  six.
+
+  **Every case runs and the program always exits 0.** Exiting non-zero on the first failed
+  assertion would show a learner "the first thing that broke" when §5.11 shows the whole list,
+  ticks included.
+
+  **No database id and no case name goes into the source.** The learner's code runs in that
+  container and shares stdout with the results, so it could print a forged result line — it
+  just has nothing real to attach one to. A hidden case's *name* would also be a §6 rule 2
+  leak, into a place that is easy to forget is readable.
+
+- **`npm run judge0:check`** — the same idea as `npm run check` for Ollama: the guide says
+  what should be true, the script says what *is* true here. Four steps, each catching a
+  distinct failure: the stack being down, a missing runtime, **cgroup v2** (the silent one),
+  and a harness that is not running the assertions. It ends by running the seeded exercise
+  end to end. `npm run judge0:check source` prints the generated program instead, so the
+  harness can be read — or piped to `node` — without Docker.
+
+- **`docker/judge0/README.md`** and a `.wslconfig.example`. Judge0's own release is
+  deliberately *not* vendored into this repo: it is third-party, security-sensitive software
+  with its own release cycle, and copying it in would mean maintaining a fork. The repo holds
+  only what is ours.
+
+  Two things in there matter more than the rest. **v1.13.1, not v1.13.0** — 1.13.1 fixes
+  three critical CVEs (CVE-2024-28185, CVE-2024-28189, CVE-2024-29021) and most tutorials
+  still point at 1.13.0. And **the cgroup v1 kernel flag**, because `isolate` needs cgroup v1,
+  a modern WSL 2 kernel defaults to v2, and the symptom is every submission failing as an
+  internal error with nothing saying why.
+
+- **`docs/model-setup-guide.md` §12**, covering the sandbox the way §9 covers `npm run check`:
+  what the script proves, how an exercise becomes a runnable program, what Judge0 does not
+  cover, and why port 2358 stays closed.
+
+#### Fixed
+
+- **My own wrong expectation, caught by running the thing.** The check script asserted the
+  seeded starter should score **4 of 5**. Piping the generated harness through `node` showed
+  **3 of 5**: the bug drops whatever is first, so `[2, 4, 6]` totals 10 *and* `[2, 1]` totals
+  0. The other three pass despite the bug. Both the script and the README now say 3 of 5 —
+  and the fact that three assertions survive a real bug is a useful thing for the guide to
+  show.
+
+- **A case that reports nothing is a failure, and now it is tested.** Mutation-testing found
+  two guards that were real but unobserved: the out-of-range index filter (dropping it turned
+  "we got nothing usable" into "all your tests failed", blaming the learner for our problem),
+  and the result marker (nothing exercised it, because the existing test's decoy lines were
+  not valid JSON — a learner printing `{"i":1,"passed":true}` would have forged a pass).
+
+#### Notes
+
+- Six mutations run: a silent case counted as a pass, a later line overwriting an earlier one,
+  an out-of-range index accepted, no marker at all, `supports()` claiming React and Vue, and
+  the harness leaking case ids into the container. All caught, two only after the tests above
+  were added.
+- **React and Vue are not Judge0's job.** They need Vitest with jsdom and a `node_modules`
+  tree. `supports()` returns false, so the worker records an honest error rather than sending
+  a component test to a bare Node runtime and reporting the syntax error as the learner's
+  fault.
+- `runner.ts` existing first is what made this a one-file addition — the reason it was written
+  as an interface before there was anything to put behind it.
+- 454 API tests, 359 web, 66 worker (was 36), 152 Playwright. Typecheck, lint and build clean.
+
+---
+
+### 2026-09-25 — The first admin route, and a way out
+
+Two gaps, both about the parts of §6 that had never been exercised.
+
+`requireAdmin` had existed since the middleware was written and **no route used it**, so
+§6.1 step 5 — check the role, write to `admin_activity_log` — was unimplemented and
+untested. The API fails open; the admin surface was the half of that risk nobody had
+touched. And `authApi.logOut()` existed with nothing calling it, so a learner could not
+leave their own account from the interface.
+
+#### Added
+
+- **`/admin/flags`, the first admin route in the API** (§6.8). `GET /admin/flags` with
+  source and status filters, `GET /admin/flags/:id`, and `PATCH /admin/flags/:id` to rule on
+  one.
+
+  It answers **404 rather than 403** to a learner: a 403 confirms the route exists to
+  somebody who should not know it does. There is no ownership check and no learner filter,
+  because an admin is *supposed* to see every learner's flags — which is precisely why the
+  role check is mutation-tested rather than trusted.
+
+  **A ruling and its log entry go in one transaction.** §6.12 promises an unchangeable
+  record of sensitive admin actions; a ruling that committed while its log entry failed
+  would be a decision nobody could account for, which is worse than a ruling that did not
+  happen.
+
+  Ruling `open` is refused. Reopening would leave `admin_activity_log` — append-only by
+  trigger (§6 rule 9) — describing a decision the row no longer reflects.
+
+- **`logAdminAction()`** — one function, so every admin action is logged the same way. The
+  risk was never that §6.1 step 5 is unknown; it is that the twentieth endpoint forgets it.
+  It takes a `PoolClient` as well as a `Pool`, so a caller inside a transaction passes its
+  client rather than reaching for the pool and landing outside it. There is deliberately no
+  `updateLogEntry`: a correction is a new row.
+
+- **The Flagged AI feedback screen** (§6.8) — the learner's reason beside the full model
+  output, source and status chips, and a ruling with notes that go to the log.
+
+  It shows **what learners never see**. §6 rule 2 keeps a rubric from a learner; judging the
+  model means reading all of its output, and that difference is the reason the screen is
+  admin-only. It also says in words that a ruling changes no scores, because §6 rule 10
+  means exactly that: the flag is a judgement about the model, and the learner's evidence
+  stands either way.
+
+  §6.9's "share of flags confirmed as wrong" is stated here, over **ruled-on flags rather
+  than all flags** — counting open ones would make the model look better every time the
+  queue grew, which is the opposite of what the figure is for.
+
+- **Log out**, in the learner profile menu and the admin bar. One shared control, so signing
+  out cannot behave differently depending on which area you were in. Three things in order:
+  the API clears the session row (§6.3), the query cache is cleared (§13.6), then navigate —
+  a guard reacting to a half-cleared session would bounce through the signed-in tree on the
+  way out. **A failed request still signs you out**: leaving somebody looking at their own
+  account because the network was down is the worse outcome, and the cookie expires
+  regardless.
+
+#### Changed
+
+- **`security.test.ts` walks every registered `/admin` route** instead of asserting there
+  were none. The old test existed to fail the day an admin endpoint appeared, with a message
+  saying to replace it; reading the route table means the next admin route is covered the
+  moment it is mounted, rather than when somebody remembers to list it. Also asserts §6 rule
+  8 directly: no body sent to any learner endpoint makes an account an admin.
+
+- **`db:verify` checks `claim_next_code_submission`.** Migration 0003 added it last task and
+  the wanted-functions list still named only `claim_next_ai_job`.
+
+- **`admin_activity_log` joined the pg-mem harness.** Its append-only trigger is still
+  verified against real PostgreSQL by `npm run db:verify` — pg-mem does not run triggers, so
+  the tests here prove the row is written and `db:verify` proves it cannot be changed.
+
+#### Notes
+
+- Six mutations against the admin path: the role check dropped from the list, dropped from
+  the ruling, the log write removed, `open` allowed back, the body made non-strict, and the
+  log entry's reason nulled. All six caught. Dropping the role check fails the dedicated
+  tests **and** the generic route-walk, which is the point of having both.
+- §6.8 also wants the learner's input and the test results beside the output. Those belong to
+  the submission behind the output and are not fetched yet — the output and the reason are,
+  which is what a ruling actually turns on.
+- **Seven literal colours live outside `tokens.css`**, which §8 forbids: translucent
+  overlays and focus glows in `AdminShell`, `Badge.onDark`, `Input`, `Select`,
+  `SearchField`, `ProgressBar.onDark` and `RoadmapPanel`. Found while adding an eighth and
+  not adding it — `--surface-on-dark-hover` already existed. The contrast gate reads
+  `tokens.css` only, which is exactly why they survived. Recorded, not fixed.
+- 454 API tests, 359 web, 36 worker, 152 Playwright. Typecheck, lint and build clean.
+
+---
+
+### 2026-09-25 — Five things that were waiting on each other
+
+Five items, done together because they turned out to be one thing: an AI panel needs an
+endpoint, an endpoint needs an output row, the exercise screen needs both, and none of it
+counts for anything without the worker pipeline underneath.
+
+What is **still** missing is the sandbox. Everything below is built and tested against a
+runner that refuses honestly — `UnconfiguredRunner` marks a submission `error` with a
+sentence saying why, and **never reports a pass**, so nothing here can write a completion
+for code that never ran. Judge0 is the next piece and it is a setup decision, not a task.
+
+#### Added
+
+- **`POST /ai-outputs/:id/flags`** — AGENT.md §7 requires all AI output to be "labeled as
+  AI in the UI, carr[y] a short reason, and [be] flaggable by learners". The third of those
+  has been a disabled button on two screens since they were built.
+
+  One endpoint rather than one per screen, because a flag points at the `ai_outputs` row the
+  text came from, not at the screen that showed it. Ownership is checked before anything is
+  written, and a 404 rather than a 403 so an id is never confirmed. `reason` is the only
+  field the body may carry: a body with `status` would otherwise let a learner mark their
+  own flag `confirmed_wrong`, which is the admin's call.
+
+  Flagging twice rewrites the reason — a learner who wants to say it better should be able
+  to — **unless an admin has already reviewed it**, in which case the verdict and the notes
+  stand. 13 tests.
+
+- **`AiPanel`** — the label, the reason, and "Is this wrong?" in one component, used by
+  §5.5, §5.8 and §5.11. Keeping the three together is what stops a screen from shipping two
+  of them. Focus moves into the reason field when the form opens and back to the control
+  when it closes (§12), by ref rather than `autoFocus` — `jsx-a11y/no-autofocus` refuses
+  that, and is right to. 9 tests.
+
+- **My roadmaps (§5.12)** — per-roadmap progress, archive, and restore. `GET /roadmaps`
+  now carries `passedCount`, `totalCount`, `sharedCount` and `lastStudiedAt`, and includes
+  archived roadmaps because §5.12 shows them behind a disclosure and offers to bring one
+  back.
+
+  **"(3 shared)" is §6 rule 7 said out loud.** Passing Git once counts everywhere, so a
+  roadmap the learner has never opened can already show progress. Saying which of it carried
+  over is the difference between that being reassuring and being confusing. 15 API tests,
+  17 screen tests.
+
+- **The worker submission pipeline** — `claim_next_code_submission()` in migration 0003
+  (same shape as `claim_next_ai_job()`: one row, `for update skip locked`, oldest first),
+  `runSubmission()` behind a one-file `Runner` interface, and `code_feedback` queued on a
+  failure with the outcomes attached and no test code in the payload.
+
+  Passing means **every** case passed. There is no partial credit: a percentage would let a
+  solution that fails the hidden cases through. A hidden case keeps its name in the result
+  — "one of the hidden checks failed" is useful and honest — and loses its expected and
+  actual values, which would describe the input it was hiding (§6 rule 2).
+
+- **The coding exercise screen (§5.11)** — CodeMirror 6, Instructions/Results tabs, the
+  results panel, and the AI feedback panel beneath it. §5.11's ordering is kept exactly:
+  **results before feedback, because the results are the source of truth** (§7). Each
+  outcome carries an icon, the words "Passed"/"Failed", and a colour — never colour alone
+  (§8). 22 tests.
+
+- **`@first-commit/test-db`** — `apps/api/src/test/db.ts` moved to `packages/`, so the
+  worker's tests build pg-mem from the same real migrations the API's do. This had been
+  tracked as a gap since the roadmap work; the submission pipeline is the first worker code
+  with a database behind it in tests.
+
+- **`secret()` in the API's config** — `required()` checked only for non-empty, so
+  `SESSION_SECRET=<node -e "…">` passed validation and signed real cookies. Now refused,
+  along with anything under 32 characters or containing `$(` or `YOUR_`. Open question 8 in
+  AGENT.md, closed. 7 tests.
+
+#### Changed
+
+- **The exercise screen is lazy-loaded.** CodeMirror is 450kB, and the main chunk had gone
+  to 1,196kB — every learner downloading an editor to read a lesson. Split on the same
+  reasoning §8 gives for the admin area; the main chunk is back to 744kB.
+
+- **`GET /submissions/:id` carries the feedback**, with the output id to flag and the job's
+  status for §5.11's two waiting messages. The model's `rubric` is deliberately left
+  behind: §6 rule 2 names rubrics among the things that never reach a learner, and §5.11's
+  screen does not show one.
+
+- **The module page has an exercise row.** The API had been sending code assessments all
+  along; nothing rendered them, so the exercise was reachable only by typing its address.
+
+#### Fixed
+
+- **The worker could have skipped the hidden cases and nothing would have failed.** Found
+  by mutation testing: adding `and is_visible` to the test-case query left all 35 tests
+  passing. The existing tests handed hidden outcomes *in* from a fake runner, so they never
+  checked that the worker asked for hidden cases in the first place. That mutation means a
+  solution hard-coding the visible answers passes and writes a `module_completions` row —
+  exactly what hidden cases exist to prevent. Now asserted directly.
+
+- **Another learner's roadmap could inflate this learner's shared count.** Also mutation
+  testing: dropping the user filter from the roadmap-items query left every assertion
+  passing, because the per-roadmap counts are filtered again in JS and only the "on how many
+  roadmaps" tally leaked. Now asserted.
+
+- **Two dead controls removed by being made real**, and a third made honest. §5.5's flag
+  works. §5.8's is absent rather than disabled — and for a reason worth writing down:
+  nothing writes `roadmap_technology_choices.recommendation_reason`, so there is no output
+  row to point a flag at. The Roadmap AI picks a track, not a framework. The control arrives
+  with `technology_recommendation`.
+
+#### Notes
+
+- **"Create roadmap" (§5.12) is not built.** It means running the survey and target steps
+  outside the onboarding guard, which does not exist. Left out rather than shipped as a
+  button that does nothing — two of those were just removed.
+- **No in-browser "Run tests" (§5.11).** The instant run is Sandpack practice for React and
+  Vue; Sandpack is not installed, and the seeded exercise is plain JavaScript, which
+  Sandpack is not the mechanism for anyway.
+- Four more mutations run against the flag endpoint and four against the roadmap list and
+  archive; all caught after the two gaps above were closed.
+- 420 API tests, 332 web, 36 worker. Typecheck, lint and build clean.
+
+---
+
+### 2026-09-25 — The coding exercise: content and the evidence boundary
+
+§5.11 is the largest remaining screen and the only place the Code Review AI would ever
+reach a learner. It has one hard dependency that is **named in three documents and set up
+in none**: Judge0. `project-proposal.md` §8, `database-schema.md` §1 and §8 all say the
+worker runs submissions through it; nothing configures it, and `worker.ts` claims `ai_jobs`
+only — there is no claim function for `code_submissions` at all.
+
+So this is the half that does not depend on which runner wins: **the content and the
+evidence boundary**, both fully tested. The runner and the screen are the next piece, and
+the runner is a decision rather than a task.
+
+#### Added
+
+- **An exercise, on Arrays and objects** — §5.11's own example, "Sum of even numbers". The
+  starter file carries §5.11's own bug, a loop starting at index 1, so the first run fails
+  a named visible case and the Code Review AI has something real to explain. Nothing tells
+  the learner that; the failing test does.
+  - **5 visible cases and 2 hidden.** The visible ones make a failure legible — "Includes
+    the first item, expected 2, got 0". The hidden ones exist so a solution that
+    special-cases the inputs it can see does not pass, which is the oldest trick in
+    automated marking.
+  - The seed loader validates this: an exercise with **no hidden case**, no visible case, no
+    starter files, no reference solution, or on a module that does not exist, is rejected
+    before anything is written. Mutation-tested, four defects, all four caught.
+- **Three endpoints**, and the rules that matter are all in one place:
+  - `GET /exercises/:id` — instructions, starter files, and **visible cases by name only**.
+    Nothing here selects from `reference_solutions`, and `test_code` is withheld even for a
+    visible case: §5.11's screen shows a name and an expected-versus-actual, so the
+    assertion would be payload nothing renders — and payload nothing renders is payload
+    that leaks into a screenshot for no benefit.
+  - `POST /exercises/:id/submissions` — **files and nothing else** (§6 rule 4), `.strict()`,
+    so a body carrying `passed`, `testResults`, `score` or `status` is refused rather than
+    ignored. `status` starts `queued` and `passed` stays null: a submission is a request to
+    be graded, not a claim to have passed.
+  - `GET /submissions/:id` — the state, scoped to the owner. 404 rather than 403, because
+    "exists, but not yours" confirms it exists.
+- **21 endpoint tests**, with the secrets planted rather than named: a value that only ever
+  existed in `test_cases.test_code` or `reference_solutions.files` cannot reach a response
+  by accident, whatever a field gets renamed to.
+
+#### Mutation-tested: four defects, all caught
+
+1. the `is_visible = true` filter dropped — caught
+2. `test_code` sent along with the names — caught
+3. the last-attempt lookup forgetting whose it is — caught
+4. a submission arriving already `completed` — caught
+
+#### The security suite caught real work, not a mutation
+
+`security.test.ts` reads Express's own route registry and fails when a registered route is
+not in its list. Adding these three endpoints made it fail **on the first run**, naming all
+three, before any test of theirs existed:
+
+```
+these routes are not in LEARNER_ROUTES:
+  [ 'get /exercises/:id', …(2) ]
+```
+
+That is exactly the failure mode the file was written for, and it is the first time it has
+fired on something other than a deliberate mutation. The endpoints are now on all four of
+its lists — session required, owned-id, secret-scan, and poisoned-body — and the planted
+secrets grew to cover hidden cases and reference solutions, which §6 rule 2 names and the
+suite previously had no fixture for.
+
+#### Verified
+
+**376 API + 280 web + 24 worker tests**, lint and typecheck clean. `npm run db:seed` loads
+the exercise: 1 starter file, 7 tests (5 visible, 2 hidden), a reference solution.
+
+#### The decision this leaves
+
+Judge0 is the specified runner and it needs Docker. The alternatives are running submissions
+on the public Judge0 API — which sends learner code to a third party and is rate-limited —
+or writing a Node runner in the worker, which would be executing untrusted code on the
+machine that also holds the database credentials. §6 rule 4 exists precisely because
+browser results cannot be trusted; replacing one weak boundary with another would miss the
+point.
+
+Nothing is broken while this is open: there is no screen yet, so no learner can queue a
+submission that never runs.
+
 ### 2026-09-25 — The security tests §9.2 commits to
 
 `project-proposal.md` §9.2 names five things endpoint tests must cover. Most were covered

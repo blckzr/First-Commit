@@ -1,0 +1,191 @@
+.page {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  min-width: 0;
+}
+
+.header {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.title {
+  margin: 0;
+  font-size: var(--text-h3);
+  font-weight: var(--fw-extrabold);
+  letter-spacing: var(--ls-heading);
+  color: var(--text-strong);
+}
+
+.lede {
+  margin: 0;
+  font-size: var(--text-body-base);
+  line-height: var(--lh-body);
+  color: var(--text-muted);
+  max-width: 68ch;
+}
+
+.summary {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  flex-wrap: wrap;
+  margin: 0;
+  font-size: var(--text-body-sm);
+  color: var(--text-body);
+}
+
+.filters {
+  display: flex;
+  gap: var(--space-6);
+  flex-wrap: wrap;
+}
+
+.filterGroup {
+  border: 0;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+.legend {
+  padding: 0;
+  font-size: var(--text-caption);
+  font-weight: var(--fw-bold);
+  letter-spacing: var(--ls-caps);
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+.chips {
+  display: flex;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+}
+
+.list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.cardHead {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-3);
+  flex-wrap: wrap;
+}
+
+.cardTitle {
+  margin: 0;
+  font-size: var(--text-h6);
+  font-weight: var(--fw-bold);
+  color: var(--text-strong);
+}
+
+.meta {
+  margin: 0;
+  font-size: var(--text-body-sm);
+  color: var(--text-muted);
+}
+
+.block {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+.blockTitle {
+  margin: 0;
+  font-size: var(--text-body-sm);
+  font-weight: var(--fw-bold);
+  color: var(--text-strong);
+}
+
+.quote {
+  margin: 0;
+  padding: var(--space-3) var(--space-4);
+  border-left: 3px solid var(--border-control);
+  background: var(--surface-card-soft);
+  border-radius: var(--radius-xs);
+  font-size: var(--text-body-sm);
+  line-height: var(--lh-body);
+  color: var(--text-body);
+}
+
+.output {
+  margin: 0;
+  padding: var(--space-3) var(--space-4);
+  background: var(--surface-inset);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-tile);
+  font-family: var(--font-mono);
+  font-size: var(--text-caption);
+  line-height: var(--lh-code);
+  color: var(--text-body);
+  /* Long output scrolls rather than widening the page (§12: reflow at 320px). */
+  overflow-x: auto;
+  max-height: 20rem;
+  overflow-y: auto;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.notesLabel {
+  font-size: var(--text-body-sm);
+  font-weight: var(--fw-semibold);
+  color: var(--text-strong);
+}
+
+.notes {
+  width: 100%;
+  font: inherit;
+  font-size: var(--text-body-sm);
+  line-height: var(--lh-body);
+  color: var(--text-body);
+  background: var(--surface-card);
+  /* §8: a control's edge is the only thing identifying it — 3:1. */
+  border: 1px solid var(--border-control);
+  border-radius: var(--radius-input);
+  padding: var(--space-3);
+  resize: vertical;
+}
+
+.notes:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 1px;
+}
+
+.rulingActions {
+  display: flex;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+}
+
+.muted {
+  margin: 0;
+  font-size: var(--text-body-base);
+  color: var(--text-muted);
+}
+
+.error {
+  margin: 0;
+  font-size: var(--text-body-sm);
+  color: var(--error);
+}

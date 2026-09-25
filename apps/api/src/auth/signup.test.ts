@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { Express } from "express";
 import { createApp } from "../app.js";
-import { createTestDb, type TestDb } from "../test/db.js";
+import { createTestDb, type TestDb } from "@first-commit/test-db";
 import { post } from "../test/http.js";
 import type { Mailer, MailMessage } from "../mail/index.js";
 import { verifyPassword } from "./passwords.js";

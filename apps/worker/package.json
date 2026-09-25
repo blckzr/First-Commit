@@ -14,7 +14,8 @@
     "worker": "tsx src/worker.ts",
     "typecheck": "tsc --noEmit",
     "test": "vitest",
-    "test:run": "vitest run"
+    "test:run": "vitest run",
+    "judge0:check": "tsx src/judge0/check.ts"
   },
   "dependencies": {
     "dotenv": "^17.4.2",
@@ -22,6 +23,7 @@
     "zod": "^4.6.5"
   },
   "devDependencies": {
+    "@first-commit/test-db": "*",
     "@types/node": "^22.20.3",
     "@types/pg": "^8.23.1",
     "tsx": "^4.23.13",

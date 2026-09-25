@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it } from "vitest";
 import request from "supertest";
 import type { Express } from "express";
 import { createApp } from "./app.js";
-import { createTestDb, type TestDb } from "./test/db.js";
+import { createTestDb, type TestDb } from "@first-commit/test-db";
 import { post } from "./test/http.js";
 import type { Mailer } from "./mail/index.js";
 import { config } from "./config.js";
@@ -42,6 +42,10 @@ interface Learner {
   id: string;
   cookie: string;
   roadmapId: string;
+  /** Their own submission, so the owned-id list can point at somebody else's. */
+  submissionId: string;
+  /** Their own AI output, for the same reason. */
+  aiOutputId: string;
 }
 
 /**
@@ -54,6 +58,10 @@ interface Learner {
  */
 const PLANTED = {
   explanation: "PLANTED-EXPLANATION",
+  /** §6 rule 2 names all three: hidden test cases, reference solutions, rubrics. */
+  hiddenCase: "PLANTED-HIDDEN-CASE",
+  hiddenCode: "PLANTED-HIDDEN-CODE",
+  solution: "PLANTED-REFERENCE-SOLUTION",
 };
 
 const as = (learner: Learner) => ({
@@ -149,6 +157,22 @@ async function seedContent(): Promise<Record<string, string>> {
     `insert into technology_decisions (track_id, title) values ($1,'Choose your framework') returning id`,
     [out.track],
   );
+  out.exercise = await one(
+    `insert into assessments (module_version_id, type, title, runtime, starter_files, passing_score)
+     values ($1,'code','Sum of even numbers','javascript','[{"path":"script.js","content":"x"}]',100) returning id`,
+    [out.version],
+  );
+  await db.pool.query(
+    `insert into test_cases (assessment_id, sort_order, name, test_code, is_visible) values
+       ($1,0,'Sums the evens','visible-code',true),
+       ($1,1,$2,$3,false)`,
+    [out.exercise, PLANTED.hiddenCase, PLANTED.hiddenCode],
+  );
+  await db.pool.query(
+    `insert into reference_solutions (assessment_id, files) values ($1, $2)`,
+    [out.exercise, JSON.stringify([{ path: "script.js", content: PLANTED.solution }])],
+  );
+
   out.technology = await one(
     `insert into technologies (slug, name, description) values ('react','React','') returning id`,
   );
@@ -180,6 +204,24 @@ async function giveRoadmap(userId: string): Promise<string> {
   return r.rows[0].id;
 }
 
+async function giveSubmission(userId: string): Promise<string> {
+  const r = await db.pool.query<{ id: string }>(
+    `insert into code_submissions (user_id, assessment_id, files)
+     values ($1, $2, '[{"path":"script.js","content":"mine"}]') returning id`,
+    [userId, ids.exercise],
+  );
+  return r.rows[0].id;
+}
+
+async function giveAiOutput(userId: string, roadmapId: string): Promise<string> {
+  const r = await db.pool.query<{ id: string }>(
+    `insert into ai_outputs (user_id, source_type, source_id, content)
+     values ($1, 'roadmap_generation', $2, $3) returning id`,
+    [userId, roadmapId, JSON.stringify({ explanation: PLANTED.explanation })],
+  );
+  return r.rows[0].id;
+}
+
 beforeEach(async () => {
   db = createTestDb();
   app = createApp({ pool: db.pool, mailer: silentMailer });
@@ -187,8 +229,20 @@ beforeEach(async () => {
 
   const a = await signUp("mine@example.com");
   const b = await signUp("theirs@example.com");
-  mine = { ...a, roadmapId: await giveRoadmap(a.id) };
-  theirs = { ...b, roadmapId: await giveRoadmap(b.id) };
+  const mineRoadmap = await giveRoadmap(a.id);
+  const theirsRoadmap = await giveRoadmap(b.id);
+  mine = {
+    ...a,
+    roadmapId: mineRoadmap,
+    submissionId: await giveSubmission(a.id),
+    aiOutputId: await giveAiOutput(a.id, mineRoadmap),
+  };
+  theirs = {
+    ...b,
+    roadmapId: theirsRoadmap,
+    submissionId: await giveSubmission(b.id),
+    aiOutputId: await giveAiOutput(b.id, theirsRoadmap),
+  };
 });
 
 /**
@@ -217,6 +271,10 @@ const LEARNER_ROUTES: [method: "get" | "post" | "put" | "patch", path: string][]
   ["post", "/lessons/LESSON/complete"],
   ["get", "/assessments/ASSESSMENT"],
   ["post", "/assessments/ASSESSMENT/attempts"],
+  ["get", "/exercises/EXERCISE"],
+  ["post", "/exercises/EXERCISE/submissions"],
+  ["get", "/submissions/SUBMISSION"],
+  ["post", "/ai-outputs/AI_OUTPUT/flags"],
 ];
 
 /**
@@ -266,7 +324,10 @@ const fill = (path: string, learner: Learner) =>
     .replace("DECISION", ids.decision)
     .replace("MODULE", ids.module)
     .replace("LESSON", ids.lesson)
-    .replace("ASSESSMENT", ids.assessment);
+    .replace("ASSESSMENT", ids.assessment)
+    .replace("EXERCISE", ids.exercise)
+    .replace("SUBMISSION", learner.submissionId)
+    .replace("AI_OUTPUT", learner.aiOutputId);
 
 /** A body the owner's request would be allowed to send. */
 const choice = () => ({ technologyId: ids.technology });
@@ -305,6 +366,14 @@ describe("§9.2 — every learner endpoint resolves a session", () => {
       "/events",
       "/health",
       "/health/db",
+      /**
+       * Admin routes are out of scope for `LEARNER_ROUTES` — they are not
+       * learner endpoints, and they are covered by `src/admin/flags.test.ts`,
+       * which asserts the §6.1 step 5 role check on each one and that a
+       * learner gets a 404. Listing them here would assert the wrong thing.
+       */
+      "/admin/flags",
+      "/admin/flags/:id",
     ];
 
     const listed = new Set(
@@ -314,7 +383,10 @@ describe("§9.2 — every learner endpoint resolves a session", () => {
           .replace("DECISION", ":decisionId")
           .replace("MODULE", ":moduleId")
           .replace("LESSON", ":lessonId")
-          .replace("ASSESSMENT", ":assessmentId")}`,
+          .replace("SUBMISSION", ":id")
+          .replace("EXERCISE", ":id")
+          .replace("ASSESSMENT", ":assessmentId")
+          .replace("AI_OUTPUT", ":id")}`,
       ),
     );
     // The roadmap decision routes name their first param differently.
@@ -349,6 +421,8 @@ const OWNED_ROUTES: [method: "get" | "post" | "patch", path: string, body: unkno
   ["patch", "/roadmaps/ROADMAP", { weeklyHours: 30 }],
   ["get", "/roadmaps/ROADMAP/decisions/DECISION", {}],
   ["post", "/roadmaps/ROADMAP/decisions/DECISION", "CHOICE"],
+  ["get", "/submissions/SUBMISSION", {}],
+  ["post", "/ai-outputs/AI_OUTPUT/flags", { reason: "not right" }],
 ];
 
 describe("§9.2 — a learner cannot reach another learner's records", () => {
@@ -422,6 +496,8 @@ describe("§9.2 — no learner response carries a secret", () => {
     "/roadmaps/ROADMAP/decisions/DECISION",
     "/modules/MODULE",
     "/assessments/ASSESSMENT",
+    "/exercises/EXERCISE",
+    "/submissions/SUBMISSION",
   ];
 
   it.each(LEARNER_GETS)("%s does not contain the explanation", async (path) => {
@@ -429,9 +505,11 @@ describe("§9.2 — no learner response carries a secret", () => {
 
     // Withheld until the learner answers correctly (§5.10), so it must not
     // arrive alongside the questions.
-    expect(JSON.stringify(res.body), `${path} leaked the explanation`).not.toContain(
-      PLANTED.explanation,
-    );
+    const body = JSON.stringify(res.body);
+    expect(body, `${path} leaked the explanation`).not.toContain(PLANTED.explanation);
+    expect(body, `${path} leaked a hidden test case`).not.toContain(PLANTED.hiddenCase);
+    expect(body, `${path} leaked a hidden assertion`).not.toContain(PLANTED.hiddenCode);
+    expect(body, `${path} leaked the reference solution`).not.toContain(PLANTED.solution);
   });
 
   it.each(LEARNER_GETS)("%s names no answer-key field", async (path) => {
@@ -488,6 +566,8 @@ describe("§9.2 — progress cannot be set from a request body", () => {
     ["post", "/modules/MODULE/start", {}],
     ["post", "/lessons/LESSON/complete", {}],
     ["post", "/assessments/ASSESSMENT/attempts", { answers: {} }],
+    ["post", "/exercises/EXERCISE/submissions", { files: [{ path: "a.js", content: "x" }] }],
+    ["post", "/ai-outputs/AI_OUTPUT/flags", { reason: "not right" }],
   ];
 
   const POISON = {
@@ -550,18 +630,57 @@ describe("§9.2 — progress cannot be set from a request body", () => {
 /**
  * §9.2: "A learner cannot reach admin endpoints."
  *
- * There are none yet — `requireAdmin` exists and nothing uses it. This asserts
- * that, so the day one is added the assertion fails and the route joins the
- * cross-role list rather than shipping untested.
+ * **Every registered `/admin` route is walked**, rather than a hand-kept list.
+ * The previous version of this asserted there were none — `requireAdmin`
+ * existed and no route used it — with a message saying to replace it the day
+ * one appeared. `/admin/flags` is that day.
+ *
+ * Reading the route table means a new admin endpoint is covered the moment it
+ * is mounted, which is the property that matters: the API fails open, so an
+ * admin route nobody remembered to list is an admin route serving every
+ * learner's data to anyone.
  */
 describe("§9.2 — admin endpoints", () => {
-  it("has no admin endpoints yet, and says so out loud", () => {
-    const registered = routeTable().map((r) => r.path);
+  const adminRoutes = () =>
+    routeTable().filter((r) => r.path.startsWith("/admin"));
 
-    expect(
-      registered.filter((p) => p.startsWith("/admin")),
-      "an /admin endpoint exists — add it to a cross-role test in this file",
-    ).toEqual([]);
+  it("registers at least one, so this suite is actually checking something", () => {
+    expect(adminRoutes().length).toBeGreaterThan(0);
+  });
+
+  it("answers 404 on every admin route for a learner", async () => {
+    const routes = adminRoutes();
+
+    for (const { method, path } of routes) {
+      const url = path.replace(/:[A-Za-z]+/g, "00000000-0000-0000-0000-000000000000");
+      const res = await as(mine)
+        [method as "get" | "post" | "patch" | "put"](url)
+        .send({});
+
+      expect(res.status, `${method} ${path} answered ${res.status} for a learner`).toBe(404);
+    }
+  });
+
+  it("answers 401 on every admin route with no session", async () => {
+    for (const { method, path } of adminRoutes()) {
+      const url = path.replace(/:[A-Za-z]+/g, "00000000-0000-0000-0000-000000000000");
+      const res = await request(app)
+        [method as "get" | "post" | "patch" | "put"](url)
+        .set("Origin", config.appOrigin)
+        .send({});
+
+      expect(res.status, `${method} ${path} answered ${res.status} unauthenticated`).toBe(401);
+    }
+  });
+
+  /** §6 rule 8: there is no request that can make an account an admin. */
+  it("gives a learner no way to become one", async () => {
+    for (const body of [{ role: "admin" }, { user: { role: "admin" } }]) {
+      await as(mine).patch(`/roadmaps/${mine.roadmapId}`).send({ weeklyHours: 6, ...body });
+      await as(mine).post(`/ai-outputs/${mine.aiOutputId}/flags`).send({ reason: "x", ...body });
+    }
+
+    expect(db.rows("users").find((u) => u.id === mine.id)!.role).toBe("learner");
   });
 
   /** The middleware itself works; `middleware/session.test.ts` mutation-tested it. */

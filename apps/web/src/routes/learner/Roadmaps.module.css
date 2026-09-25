@@ -1,0 +1,125 @@
+.page {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+}
+
+.header {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.title {
+  margin: 0;
+  font-size: var(--text-h2);
+  font-weight: var(--fw-extrabold);
+  letter-spacing: var(--ls-heading);
+  color: var(--text-strong);
+}
+
+.lede {
+  margin: 0;
+  font-size: var(--text-body-base);
+  line-height: var(--lh-body);
+  color: var(--text-muted);
+  max-width: 62ch;
+}
+
+.list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.cardHead {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-3);
+  flex-wrap: wrap;
+}
+
+.cardTitle {
+  margin: 0;
+  font-size: var(--text-h5);
+  font-weight: var(--fw-bold);
+  letter-spacing: var(--ls-heading);
+  color: var(--text-strong);
+}
+
+.cardFoot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  flex-wrap: wrap;
+}
+
+.studied {
+  margin: 0;
+  font-size: var(--text-body-sm);
+  color: var(--text-muted);
+}
+
+.cardActions {
+  display: flex;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+}
+
+.archived {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.archivedHead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+
+.archivedTitle {
+  margin: 0;
+  font-size: var(--text-h6);
+  font-weight: var(--fw-bold);
+  color: var(--text-body);
+}
+
+.empty {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  align-items: flex-start;
+}
+
+.emptyTitle {
+  margin: 0;
+  font-size: var(--text-h5);
+  font-weight: var(--fw-bold);
+  color: var(--text-strong);
+}
+
+.loading {
+  margin: 0;
+  padding: var(--space-6) 0;
+  font-size: var(--text-body-base);
+  color: var(--text-muted);
+}
+
+.error {
+  margin: 0;
+  font-size: var(--text-body-sm);
+  color: var(--error);
+}

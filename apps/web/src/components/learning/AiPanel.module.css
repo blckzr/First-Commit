@@ -1,0 +1,104 @@
+.panel {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-3);
+  padding: var(--space-5) var(--pad-card);
+}
+
+.label {
+  font-size: var(--text-caption);
+  font-weight: var(--fw-bold);
+  letter-spacing: var(--ls-caps);
+  text-transform: uppercase;
+  color: var(--ai);
+}
+
+.text {
+  margin: 0;
+  font-size: var(--text-body-base);
+  line-height: var(--lh-body);
+  color: var(--ink-700);
+  max-width: 620px;
+}
+
+.text > p { margin: 0; }
+
+.flag {
+  border: 0;
+  background: none;
+  padding: 0;
+  font: inherit;
+  font-size: var(--text-body-sm);
+  font-weight: var(--fw-semibold);
+  color: var(--ai);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  cursor: pointer;
+  /* §12: 44px of target without 44px of underline. */
+  min-height: 44px;
+  display: inline-flex;
+  align-items: center;
+}
+
+.flag:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 2px;
+  border-radius: var(--radius-xs);
+}
+
+.form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  width: 100%;
+  max-width: 620px;
+}
+
+.fieldLabel {
+  font-size: var(--text-body-sm);
+  font-weight: var(--fw-semibold);
+  color: var(--text-strong);
+}
+
+.field {
+  width: 100%;
+  font: inherit;
+  font-size: var(--text-body-sm);
+  line-height: var(--lh-body);
+  color: var(--text-body);
+  background: var(--surface-card);
+  /* §8: a control's edge is the only thing identifying it — 3:1, so
+     --border-control rather than --border-subtle. */
+  border: 1px solid var(--border-control);
+  border-radius: var(--radius-input);
+  padding: var(--space-3);
+  resize: vertical;
+}
+
+.field:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 1px;
+}
+
+.formActions {
+  display: flex;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+}
+
+.error {
+  margin: 0;
+  font-size: var(--text-body-sm);
+  color: var(--error);
+}
+
+.thanks {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin: 0;
+  font-size: var(--text-body-sm);
+  font-weight: var(--fw-semibold);
+  color: var(--verified);
+}

@@ -85,6 +85,9 @@ export const RoadmapSchema = z.object({
   testedOutCount: z.number().default(0),
   totalCount: z.number(),
   aiRationale: z.string().nullable().default(null),
+  /** The AI output the rationale came from, for §5.5's "Is this wrong?". */
+  aiOutputId: z.string().nullable().default(null),
+  aiFlagged: z.boolean().default(false),
   weeklyHours: z.number().nullable().default(null),
   estimatedWeeks: z.number().nullable().default(null),
 });
@@ -98,6 +101,12 @@ export const RoadmapSummary = z.object({
   trackTitle: z.string().nullable(),
   status: z.string(),
   weeklyHours: z.number().nullable(),
+  /** §5.12: "6 of 16 modules passed". */
+  passedCount: z.number().default(0),
+  totalCount: z.number().default(0),
+  /** Of `passedCount`, the ones also on another of this learner's roadmaps. */
+  sharedCount: z.number().default(0),
+  lastStudiedAt: z.string().nullable().default(null),
 });
 export type RoadmapSummary = z.infer<typeof RoadmapSummary>;
 
@@ -109,6 +118,18 @@ export const roadmapsApi = {
 
   get: (id: string, signal?: AbortSignal) =>
     apiRequest(`/roadmaps/${id}`, { schema: RoadmapResponse, signal }).then((r) => r.roadmap),
+
+  /**
+   * §5.12: archive a roadmap, or restore one. Status is the only other thing
+   * the browser may change, and only between active and archived — finishing
+   * a roadmap is the platform's conclusion, not a claim the browser makes.
+   */
+  setStatus: (id: string, status: "active" | "archived") =>
+    apiRequest(`/roadmaps/${id}`, {
+      method: "PATCH",
+      body: { status },
+      schema: RoadmapResponse,
+    }).then((r) => r.roadmap),
 
   /**
    * §5.5: "Adjust weekly hours". Hours are the learner's own statement about

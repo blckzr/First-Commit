@@ -77,7 +77,8 @@ ran ahead of Phase 1.
 - [x] Toolchain — ESLint 9 with `jsx-a11y` (a11y rules as errors), Vitest + Testing Library, axe helper. 21 tests.
 - [x] Component gallery route at `/dev/components` — every variant, live token swatches, live contrast table. Dev-only; excluded from production builds.
 - [x] Contrast gate — `contrast.test.ts` reads `tokens.css` from disk and asserts all 29 pairs, so §12 is enforced by a test, not by a one-off check
-- [x] `AdminShell` — grouped sidebar, persistent Admin indicator, admin Overview screen, and a named placeholder for the other ten §6 screens
+  - [ ] **Seven literal colours live outside `tokens.css`**, which AGENT.md §8 forbids — translucent overlays and focus glows in `AdminShell`, `Badge.onDark`, `Input`, `Select`, `SearchField`, `ProgressBar.onDark`, `RoadmapPanel`. Each needs a token (`--surface-on-dark-hover` and `--border-on-dark` already exist and cover two of them). The contrast gate cannot see them, which is exactly why they survived
+- [x] `AdminShell` — grouped sidebar, persistent Admin indicator, admin Overview screen, and a named placeholder for the other nine §6 screens
 - [x] Playwright — 23 tests across the four §11.4 widths, plus live-resize and 320px reflow. **92 assertions passing.**
 - [x] ~~Dev session override (`?as=`)~~ — **removed** in Phase 2 when `useSession` became a real `GET /auth/me` query. Playwright now stubs the API at the network boundary (`e2e/session.ts`), which exercises the real session path instead of a development-only branch.
 - [x] Named placeholders for every specified-but-unbuilt screen, so no navigation item dead-ends. Each cites the `design.md` section that specifies it.
@@ -119,16 +120,22 @@ changelog for 2026-09-22.
   - [ ] "Try taster lesson" is in the prototype; taster lessons still have nowhere to live (AGENT.md §11)
 - [x] `/app/module/:id` — **applied**. Header panel, notice tile, rail with the quiz as a row, reading panel, test-out strip
 - [x] `/app/quiz/:id` — **applied**. Green tick and a sentence on a pass, the same panel either way
-- [ ] `/app/roadmaps` · `/app/explore` · `/app/capstone` · `/app/certificates` · `/app/resume` · `/app/settings` — **designed**, not built. Each has a screen in the prototype
-- [ ] **Log out** is in the prototype's profile menu and absent here — signing out has no screen yet
-- [ ] `/app/exercise/:id` — **designed**, not built (Phase 2, needs CodeMirror)
+- [x] `/app/roadmaps` — **applied**. §5.12: per-roadmap progress with the shared count, last studied, archive and restore behind a disclosure
+  - [ ] "Create roadmap" is in §5.12 and absent here — it means running the survey and target steps outside the onboarding guard, which does not exist. Left out rather than shipped dead
+- [ ] `/app/explore` · `/app/capstone` · `/app/certificates` · `/app/resume` · `/app/settings` — **designed**, not built. Each has a screen in the prototype
+- [x] **Log out** — in the learner profile menu and the admin bar, one shared control. Ends the session server-side, clears the query cache (§13.6), then navigates; signs out anyway if the request fails
+- [x] `/app/exercise/:id` — **applied**. §5.11: CodeMirror 6, Instructions/Results tabs, the results panel, and the AI feedback panel under it
+  - [ ] "Run tests" is in §5.11 and absent here — the in-browser run is Sandpack practice for React and Vue, and Sandpack is not installed. Submit (the server run) is the only path, which is the only one that writes evidence anyway
+  - [ ] The screen shows one file. §5.11's file-tabs row and live preview arrive with Sandpack and the React/Vue exercises
 - [ ] `/app/notifications` — **to design**
 - [ ] Reconcile `/app/profile` against §4.3, which folds profile into Settings
 
 ### Admin
 
 - [ ] `/admin` — **not applied**. Overview is built, on mock data, and has no panel treatment
-- [ ] `/admin/paths` · `/modules` · `/briefs` · `/reviews` · `/flags` · `/analytics` · `/users` · `/settings` · `/log` — **designed**, not built
+  - [ ] Its "flagged AI feedback" count is now real data behind `GET /admin/flags`; the panel still reads a hard-coded array
+- [x] `/admin/flags` — **applied**. §6.8: the learner's reason beside the full output, source and status filters, and a logged ruling. The first admin screen on real data
+- [ ] `/admin/paths` · `/modules` · `/briefs` · `/reviews` · `/analytics` · `/users` · `/settings` · `/log` — **designed**, not built
 - [ ] `/admin/certificates` — **to design**
 
 ---
@@ -167,13 +174,23 @@ The main loop: sign up → roadmap → learn → pass.
   - [ ] "Review answers" is not built — the result screen shows topics to review and the explanations for correct answers, which is what §5.10 requires, but not a full answer review
   - [x] ~~Only 3 of 19 modules have a quiz~~ — **all 10 core modules** now have three lessons and a five-question quiz. The 9 still empty are concept and technology modules, which come after the technology choice
   - [x] ~~The correct answer was option 0 in all 51 questions~~ — the seed loader rotates each question's options by an amount derived from its prompt, so clicking the top option no longer passes every quiz on the platform
-  - [ ] No module has a coding exercise — the content and §5.11's screen need doing together
-- [ ] Coding exercise — CodeMirror, Sandpack practice, server grading via Judge0 / Vitest+jsdom, results over SSE
+  - [x] ~~No module has a coding exercise~~ — Arrays and objects has one, and §5.11's screen is built
+- [~] **Coding exercise (§5.11)** — content, API, worker pipeline and screen are built; **the sandbox is not**
+  - [x] **Content** — "Sum of even numbers" on Arrays and objects: starter files carrying §5.11's own bug, 5 visible test cases and 2 hidden, a reference solution. The seed loader validates it — an exercise with no hidden case is rejected, because a solution that hard-codes the visible answers would pass
+  - [x] **API** — `GET /exercises/:id` (visible cases by name only; nothing selects from `reference_solutions`), `POST /exercises/:id/submissions` (files and nothing else, `.strict()`), `GET /submissions/:id`. 21 tests, mutation-tested with four defects
+  - [x] **The worker pipeline** — `claim_next_code_submission()` (migration 0003), `runSubmission()` behind a one-file `Runner` interface, redaction of hidden cases, `module_completions` on a full pass, and `code_feedback` queued on a failure. 12 tests against the shared pg-mem harness, mutation-tested with four defects
+  - [x] **The screen** — CodeMirror 6, Instructions/Results tabs, the results panel, and the AI feedback panel beneath it. Lazy-loaded: the editor is 450kB, and a learner reading a lesson should not download it. 22 tests
+  - [x] **The sandbox — Judge0, built.** `Judge0Runner` behind the existing `Runner` interface, a harness that compiles the test cases into one program, and `npm run judge0:check` to prove it on this machine. 30 tests, mutation-tested with six defects (two of which found real gaps: an unobserved out-of-range guard, and a marker check nothing exercised). Setup in `docker/judge0/README.md`
+    - [ ] **Not yet installed on this machine.** WSL 2 and Docker Desktop are both absent, so `CODE_RUNNER=none` still stands. Virtualization is enabled in firmware and there is 31 GB RAM and 64 GB disk free, so no BIOS work is needed — it is `wsl --install`, Docker Desktop, the `.wslconfig` cgroup line, and the v1.13.1 release zip
+    - [ ] **React and Vue are not Judge0's job** — they need Vitest with jsdom and a node_modules tree. `supports()` returns false for them, so the worker records an honest error rather than blaming a syntax error on the learner. A separate runner
+  - [ ] **No in-browser "Run tests".** §5.11's instant run is Sandpack practice for React and Vue; Sandpack is not installed, and the seeded exercise is plain JavaScript, which Sandpack is not the mechanism for anyway
+  - [x] `code_feedback` now has a user: a failing submission queues one, with the outcomes attached and no test code in the payload
 - [x] **Home on real data** — `GET /home`: the Continue panel, roadmap progress, and §5.6's Updates. It reuses `buildRoadmap`, so Home and the chart can never disagree about "You are here"
   - [ ] §5.6: "During the capstone, the Continue panel shows the current milestone instead of a lesson." `ContinuePanel` is a union with one member; the milestone variant arrives with Phase 4
   - [ ] Updates are **derived**, not read from `notifications` — nothing writes that table yet. §5.17's screen is where an event history belongs
   - [ ] §5.6's Updates panel offers "[Remove]" on an AI-added module. That changes the roadmap, so it needs the same endpoint the roadmap panel's Remove is waiting on
-- [ ] My roadmaps, Explore modules, Settings
+- [x] **My roadmaps (§5.12)** — `GET /roadmaps` now carries per-roadmap progress, the shared count, and last studied; `PATCH` archives and restores. 15 API tests (4 mutations), 17 screen tests
+- [ ] Explore modules, Settings
 - [ ] **Design + build `/app/notifications`** — not in the prototype (see *Screen design coverage*)
 - [ ] Reconcile `/app/profile` vs `design.md` §4.3, which folds profile into Settings
 
@@ -186,22 +203,24 @@ The main loop: sign up → roadmap → learn → pass.
   - [ ] This replaces an admin content editor, which is still unbuilt
 - [x] **`roadmap_generation`** — handler, prompt, validation against real module IDs, prerequisite order, full core coverage; reject and regenerate on invalid. 24 tests on the validator
   - [x] **Run against the model.** Three runs on qwen3.5:4b: **one attempt each**, 7.5–8s warm, all chose Frontend with an explanation tied to the learner's stated goal. The prompt measures ~2,400 tokens of the 8,192 context, so there is room for the answer and retries
-  - [ ] **`apps/worker` has no database test harness**, so `catalogue.ts`, `apply.ts` and the retry backoff are only ever checked against the real database by hand. `apps/api/src/test/db.ts` builds pg-mem from the real migration; moving it to `packages/` would let the worker use it too
+  - [x] **`apps/worker` now has a database test harness.** `apps/api/src/test/db.ts` moved to `packages/test-db` as `@first-commit/test-db`, so both suites build pg-mem from the same real migrations. The submission pipeline is the first worker code tested against a database (12 tests); `catalogue.ts` and `apply.ts` are still by hand
   - [x] **`AI_JSON_MODE` measured on this machine** — all three modes 5/5 valid, 5/5 first try on qwen3.5:4b. `think_off_schema` 1.1s, `prompt_only` 1.0s, `think_on_schema` 12.5s. Schema mode is reliable here, so `think_off_schema` stands
   - [ ] Evaluation harness (`project-proposal.md` §9, `model-setup-guide.md` §12) — three runs is a sanity check, not a measurement
   - [~] `apps/worker/.env` exists. Its `DATABASE_URL` points at `db.<project-ref>.supabase.co`, which is **IPv6-only** and unreachable here — use the **session pooler** instead: the API's string with 6543 changed to 5432
   - [x] ~~§5.4 reads as though placement removes modules~~ — it now states the two rules the validator enforces, and that only testing out really skips a module
   - [ ] `weeklySchedule` was removed from `RoadmapPlan` — nothing stored it, and §5.5's "about 14 weeks" is arithmetic the platform does
-- [ ] **Roadmap review screen** — AI rationale panel, track override, weekly hours, flag control
+- [x] **Roadmap review screen** — AI rationale panel, weekly hours, and a working flag control
+  - [ ] **Track override is not built.** §5.5 offers a track dropdown; changing track means regenerating the roadmap against a forced track, which `roadmap_generation` does not accept
 - [x] **Technology decision** — comparison, switching, and the AI panel when there is a recommendation to show. `GET`/`POST /roadmaps/:id/decisions/:decisionId`; choosing adds that framework's modules to the roadmap, switching archives the old ones. 23 API tests, 23 screen tests
   - [ ] **Taster lessons are not built.** §5.8 offers "Try taster lesson" per option — "the same small counter in each framework, about 10 minutes" — and the schema has nowhere for one. It is not a module (it is not on the roadmap) and not a lesson (it belongs to no version). Settle where it lives before building it
   - [ ] **`technology_recommendation` is not built**, so the AI panel is absent rather than filled in. The job type is in the enum and `roadmap_technology_choices` already has `recommended_technology_id` and `recommendation_reason`
-  - [ ] "Is this wrong?" is disabled until `ai_feedback_flags` has an endpoint
+  - [x] ~~"Is this wrong?" is disabled until `ai_feedback_flags` has an endpoint~~ — the endpoint exists and the shared `AiPanel` carries the control. **This panel still has none**, and for a different reason: nothing writes `recommendation_reason`, so there is no `ai_outputs` row to point a flag at. It arrives with `technology_recommendation` above
 - [ ] **Adaptive modules** — reinforcement after repeated low scores, challenge after high ones
 - [ ] **`milestone_review`** — diff-only, split by file, `AI_CONTEXT_LARGE`
 - [ ] **`resume_generation`** — evidence-only, cross-checked against verified skills
 - [ ] **Prompt versioning** — `ai_prompts` rows, version recorded per job
-- [ ] **Flagging** — "Is this wrong?" writes `ai_feedback_flags`
+- [x] **Flagging** — `POST /ai-outputs/:id/flags` writes `ai_feedback_flags`. One endpoint for every AI panel, because a flag points at the output row rather than at the screen. The shared `AiPanel` component carries label, reason, and control together, so a screen cannot ship two of §7's three. 13 API tests (4 mutations), 9 component tests
+  - [x] ~~`/admin/flags` is where these land. Nothing reviews them yet~~ — built. `GET /admin/flags`, `GET /admin/flags/:id`, `PATCH /admin/flags/:id`, and the screen. **The first admin route in the API**, so §6.1 step 5 and `admin_activity_log` have their first implementation and their first tests. 31 API tests (6 mutations), 19 screen tests
 
 ## Phase 4 — Capstone and certificates
 
@@ -240,5 +259,5 @@ Not code, but the MVP is not demonstrable without it (`project-proposal.md` §2.
 - [x] **All 19 modules written** — 57 lessons and 96 quiz questions. 10 core, 3 concept, 6 technology; three lessons and a five-question quiz each, every question linked to the lesson that taught it
   - The technology modules are three **pairs** — React/Vue components, React/Vue state, Express/Django routing — written together so the two halves teach the same ideas in the same order. §5.8 promises that switching keeps your progress on shared modules, and that only means something if the pairs match
 - [x] **Placement assessment questions** — 25 across the four core skills, sized at ~2.5 questions per module a pass clears
-- [ ] **Coding exercises** — no module has one, and §5.11's screen is unbuilt. Content and screen need designing together
+- [x] **Coding exercises** — one, on Arrays and objects. More arrive with the sandbox; there is no point writing exercises nothing can run
 - [ ] At least one capstone brief with milestones, checks, and starter templates for both technologies

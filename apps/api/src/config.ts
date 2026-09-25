@@ -16,6 +16,34 @@ function required(name: string): string {
   return value;
 }
 
+/**
+ * A secret, checked for being one.
+ *
+ * `required()` only asks whether a value is non-empty, which let
+ * `SESSION_SECRET=<node -e "…">` — the instruction text from `.env.example`,
+ * pasted rather than run — pass validation and go on to sign real cookies.
+ * That is exactly the kind of thing that reaches production, so a secret gets
+ * two more questions: is it long enough to be one, and does it look like a
+ * placeholder somebody forgot to replace.
+ */
+export function secret(name: string, minLength = 32): string {
+  const value = required(name);
+
+  if (value.startsWith("<") || value.includes("$(") || value.includes("YOUR_")) {
+    throw new Error(
+      `${name} looks like the instruction from .env.example rather than a value. ` +
+        `Generate one with: node -e "console.log(crypto.randomBytes(32).toString('hex'))"`,
+    );
+  }
+  if (value.length < minLength) {
+    throw new Error(
+      `${name} is ${value.length} characters; it needs at least ${minLength}. ` +
+        `Generate one with: node -e "console.log(crypto.randomBytes(32).toString('hex'))"`,
+    );
+  }
+  return value;
+}
+
 function optional(name: string): string | null {
   return process.env[name]?.trim() || null;
 }
@@ -35,7 +63,7 @@ export const config = {
   databaseUrl: required("DATABASE_URL"),
 
   /** Signs session cookies. */
-  sessionSecret: required("SESSION_SECRET"),
+  sessionSecret: secret("SESSION_SECRET"),
 
   /** The frontend's origin, for CORS and cookies. Credentials require it to be explicit. */
   appOrigin: required("APP_ORIGIN"),

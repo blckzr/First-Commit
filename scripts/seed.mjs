@@ -32,6 +32,7 @@ import {
 } from "../supabase/seed/junior-web-developer.mjs";
 import { lessons as lessonsBySlug } from "../supabase/seed/lessons.mjs";
 import { placement } from "../supabase/seed/placement.mjs";
+import { exercises } from "../supabase/seed/exercises.mjs";
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 void ROOT;
@@ -212,6 +213,38 @@ function validate() {
         `placement check "${slug}": ${check.questions.length} questions clears ${covered} modules — ` +
           `at least ${covered * 2} needed`,
       );
+    }
+  }
+
+  /**
+   * Coding exercises. An exercise on a module that does not exist is an
+   * authoring mistake; so is one with no hidden test case, because a solution
+   * that special-cases the visible inputs would pass it.
+   */
+  const moduleSlugs = new Set(modules.map((m) => m.slug));
+  for (const [slug, exercise] of Object.entries(exercises)) {
+    if (!moduleSlugs.has(slug)) {
+      problems.push(`exercise "${slug}": no such module`);
+      continue;
+    }
+    if (!exercise.starterFiles?.length) {
+      problems.push(`exercise "${slug}": no starter files, so there is nothing to open`);
+    }
+    if (!exercise.testCases?.length) {
+      problems.push(`exercise "${slug}": no test cases, so nothing decides whether it passed`);
+    }
+    if (!exercise.testCases?.some((t) => t.visible)) {
+      problems.push(
+        `exercise "${slug}": every test case is hidden, so a failure would be unreadable (§5.11)`,
+      );
+    }
+    if (!exercise.testCases?.some((t) => !t.visible)) {
+      problems.push(
+        `exercise "${slug}": no hidden test case — a solution that hard-codes the visible answers would pass`,
+      );
+    }
+    if (!exercise.referenceSolution?.length) {
+      problems.push(`exercise "${slug}": no reference solution to check the tests against`);
     }
   }
 
@@ -450,6 +483,8 @@ async function seed() {
   let versions = 0;
   let quizzes = 0;
   let lessonCount = 0;
+  /** Published version per module slug, so later passes can attach to it. */
+  const versionIds = new Map();
   for (const m of modules) {
     const moduleId = moduleIds.get(m.slug);
 
@@ -469,6 +504,7 @@ async function seed() {
        returning id`,
       [moduleId, m.version.title, m.version.description, m.version.estimatedHours],
     );
+    versionIds.set(m.slug, versionId);
     versions++;
 
     /**
@@ -559,6 +595,71 @@ async function seed() {
     checks += 1;
   }
   console.log(ok(`${checks} placement checks with answer keys`));
+
+  /**
+   * Coding exercises (§5.11). A second assessment on the module version, with
+   * `type = 'code'` — the module quiz keeps its own row, and the module page
+   * lists both.
+   */
+  let codeAssessments = 0;
+  for (const [slug, exercise] of Object.entries(exercises)) {
+    const versionId = versionIds.get(slug);
+    if (!versionId) continue;
+
+    const found = await client.query(
+      `select id from assessments where module_version_id = $1 and type = 'code'`,
+      [versionId],
+    );
+    const assessmentId =
+      found.rows[0]?.id ??
+      (await upsert(
+        `insert into assessments (module_version_id, type, title, instructions, passing_score, runtime, starter_files, sort_order)
+         values ($1, 'code', $2, $3, $4, $5, $6, 1) returning id`,
+        [
+          versionId,
+          exercise.title,
+          exercise.instructions,
+          exercise.passingScore ?? 100,
+          exercise.runtime,
+          JSON.stringify(exercise.starterFiles),
+        ],
+      ));
+    await client.query(
+      `update assessments
+          set title = $2, instructions = $3, passing_score = $4, runtime = $5, starter_files = $6
+        where id = $1`,
+      [
+        assessmentId,
+        exercise.title,
+        exercise.instructions,
+        exercise.passingScore ?? 100,
+        exercise.runtime,
+        JSON.stringify(exercise.starterFiles),
+      ],
+    );
+
+    for (const [i, test] of exercise.testCases.entries()) {
+      await upsert(
+        `insert into test_cases (assessment_id, sort_order, name, test_code, is_visible)
+         values ($1, $2, $3, $4, $5)
+         on conflict (assessment_id, sort_order) do update
+           set name = excluded.name,
+               test_code = excluded.test_code,
+               is_visible = excluded.is_visible
+         returning id`,
+        [assessmentId, i, test.name, test.code, test.visible !== false],
+      );
+    }
+
+    // §6 rule 2: admin-only, and no learner endpoint may select from here.
+    await client.query(
+      `insert into reference_solutions (assessment_id, files) values ($1, $2)
+       on conflict (assessment_id) do update set files = excluded.files`,
+      [assessmentId, JSON.stringify(exercise.referenceSolution)],
+    );
+    codeAssessments += 1;
+  }
+  if (codeAssessments) console.log(ok(`${codeAssessments} coding exercises with test cases`));
 
   await client.query("commit");
 }

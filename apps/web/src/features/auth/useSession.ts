@@ -1,4 +1,4 @@
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ApiError } from "../../api/client";
 import { authApi, type SessionUser } from "../../api/auth";
 
@@ -72,4 +72,31 @@ export function useSessionActions() {
       client.clear();
     },
   };
+}
+
+/**
+ * Signing out.
+ *
+ * Three things have to happen in order, and the order is the point:
+ *
+ * 1. **The API clears the session row** (§6.3: "Clear sessions on log out"), so
+ *    the cookie cannot be replayed even if it was copied.
+ * 2. **The query cache is cleared** (§13.6), so the next person at the same
+ *    computer sees nothing of the last one.
+ * 3. **Then navigate**, because a guard reacting to a half-cleared session
+ *    would bounce through the signed-in tree on the way out.
+ *
+ * A failed request still clears and navigates. If the server cannot be reached,
+ * leaving somebody looking at their own account because the network was down is
+ * the worse outcome — and their cookie has an expiry regardless.
+ */
+export function useLogOut() {
+  const { clearSession } = useSessionActions();
+
+  return useMutation({
+    mutationFn: () => authApi.logOut(),
+    onSettled: async () => {
+      await clearSession();
+    },
+  });
 }

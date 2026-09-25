@@ -1,0 +1,19 @@
+# Copy to %UserProfile%\.wslconfig, then run `wsl --shutdown` and restart Docker Desktop.
+#
+# If you already have a .wslconfig, merge the kernelCommandLine line into your
+# existing [wsl2] section rather than replacing the file.
+
+[wsl2]
+# Judge0 sandboxes with `isolate`, which needs cgroup v1. A modern WSL 2 kernel
+# defaults to cgroup v2, and the failure is silent: every submission comes back
+# as an internal error with no explanation of why.
+#
+# `npm run judge0:check` step 3 is what catches this — it runs one trivial
+# program before anything real depends on the sandbox.
+kernelCommandLine = systemd.unified_cgroup_hierarchy=0
+
+# Optional. Judge0's four containers are light, but WSL 2 will claim up to half
+# your RAM by default, and this machine also runs Ollama with a model loaded.
+# Capping it leaves the GPU host room.
+memory = 8GB
+processors = 4

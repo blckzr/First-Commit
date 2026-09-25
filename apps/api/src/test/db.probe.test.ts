@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { createTestDb } from "./db.js";
+import { createTestDb } from "@first-commit/test-db";
 
 /**
  * Proves the harness itself works before anything relies on it: the real DDL

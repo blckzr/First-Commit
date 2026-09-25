@@ -59,7 +59,17 @@ describe("the AI explanation", () => {
     await open();
     expect(screen.getByText("AI")).toBeInTheDocument();
     expect(screen.getByText(/I recommend the Frontend track/)).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /is this wrong/i })).toBeDisabled();
+    expect(screen.getByRole("button", { name: /is this wrong/i })).toBeEnabled();
+  });
+
+  /**
+   * A roadmap planned before outputs were recorded has nothing to flag, so the
+   * control is not offered rather than offered broken.
+   */
+  it("offers no flag when the output was not recorded", async () => {
+    await open({ ...mockRoadmap, aiOutputId: null });
+    expect(screen.getByText("AI")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /is this wrong/i })).not.toBeInTheDocument();
   });
 
   it("is absent when the roadmap has no explanation", async () => {

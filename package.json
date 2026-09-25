@@ -25,6 +25,7 @@
     "db:migrate": "node --env-file=apps/api/.env scripts/db.mjs migrate",
     "db:verify": "node --env-file=apps/api/.env scripts/db.mjs verify",
     "db:seed": "node --env-file=apps/api/.env scripts/seed.mjs",
-    "db:accounts": "tsx --env-file=apps/api/.env scripts/accounts.mts"
+    "db:accounts": "tsx --env-file=apps/api/.env scripts/accounts.mts",
+    "judge0:check": "npm run judge0:check -w @first-commit/worker"
   }
 }

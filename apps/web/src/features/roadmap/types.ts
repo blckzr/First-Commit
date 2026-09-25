@@ -98,6 +98,14 @@ export interface Roadmap {
   totalCount: number;
   /** §5.5's AI panel — the Roadmap AI's reason for this plan. */
   aiRationale: string | null;
+  /**
+   * The `ai_outputs` row the rationale came from, which is what a flag points
+   * at (§7). Null on a roadmap planned before outputs were recorded, and the
+   * flag control is then not offered rather than offered broken.
+   */
+  aiOutputId: string | null;
+  /** Whether this learner has already flagged that output. */
+  aiFlagged: boolean;
   weeklyHours: number | null;
   /** §5.5: "about 14 weeks at 6 hours a week". Null without the hours. */
   estimatedWeeks: number | null;

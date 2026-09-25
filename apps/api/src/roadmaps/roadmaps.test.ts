@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it } from "vitest";
 import request from "supertest";
 import type { Express } from "express";
 import { createApp } from "../app.js";
-import { createTestDb, type TestDb } from "../test/db.js";
+import { createTestDb, type TestDb } from "@first-commit/test-db";
 import { post } from "../test/http.js";
 import type { Mailer } from "../mail/index.js";
 import { config } from "../config.js";
@@ -542,5 +542,197 @@ describe("GET /auth/me — where a learner belongs", () => {
       [learnerId],
     );
     expect((await read("/auth/me")).body.next).toBe("/onboarding/target");
+  });
+});
+
+describe("GET /roadmaps — §5.12 the list", () => {
+  let roadmapId: string;
+  beforeEach(async () => {
+    roadmapId = await buildRoadmapRow(learnerId);
+  });
+
+  const list = async () => (await read("/roadmaps")).body.roadmaps as Record<string, unknown>[];
+
+  it("counts the modules passed against the modules on it", async () => {
+    await db.pool.query(
+      `insert into module_completions (user_id, module_id, module_version_id, method, score)
+       values ($1,$2,$3,'passed',100)`,
+      [learnerId, ids.htmlBasics, ids.htmlBasicsVersion],
+    );
+
+    const [roadmap] = await list();
+    expect(roadmap.passedCount).toBe(1);
+    expect(roadmap.totalCount).toBe(5);
+  });
+
+  /**
+   * §6 rule 7: "Passing Git once counts everywhere." A module on two of this
+   * learner's roadmaps is counted on both and marked shared, which is what
+   * §5.12's "(3 shared)" tells them.
+   */
+  it("marks a passed module that is on another roadmap as shared", async () => {
+    const second = await buildRoadmapRow(learnerId);
+    await db.pool.query(
+      `insert into module_completions (user_id, module_id, module_version_id, method, score)
+       values ($1,$2,$3,'passed',100)`,
+      [learnerId, ids.htmlBasics, ids.htmlBasicsVersion],
+    );
+
+    const roadmaps = await list();
+    expect(roadmaps).toHaveLength(2);
+    for (const r of roadmaps) {
+      expect(r.passedCount, `${r.id as string}`).toBe(1);
+      expect(r.sharedCount).toBe(1);
+    }
+    expect(roadmaps.map((r) => r.id)).toContain(second);
+  });
+
+  it("counts nothing as shared when a module is on one roadmap only", async () => {
+    await db.pool.query(
+      `insert into module_completions (user_id, module_id, module_version_id, method, score)
+       values ($1,$2,$3,'passed',100)`,
+      [learnerId, ids.htmlBasics, ids.htmlBasicsVersion],
+    );
+
+    const [roadmap] = await list();
+    expect(roadmap.sharedCount).toBe(0);
+  });
+
+  it("reports nothing studied on a roadmap nobody has opened", async () => {
+    const [roadmap] = await list();
+    expect(roadmap.lastStudiedAt).toBeNull();
+    expect(roadmap.passedCount).toBe(0);
+  });
+
+  it("reports when a module on it was last worked on", async () => {
+    const lesson = (
+      await db.pool.query<{ id: string }>(
+        `insert into lessons (module_version_id, sort_order, title, content)
+         values ($1, 0, 'What HTML is', '[]') returning id`,
+        [ids.htmlBasicsVersion],
+      )
+    ).rows[0].id;
+    await db.pool.query(
+      `insert into lesson_progress (user_id, lesson_id, completed_at)
+       values ($1,$2,'2026-03-04T10:00:00Z')`,
+      [learnerId, lesson],
+    );
+
+    const [roadmap] = await list();
+    expect(roadmap.lastStudiedAt).toContain("2026-03-04");
+  });
+
+  /** §5.12 shows archived roadmaps behind a disclosure, so they are listed. */
+  it("includes an archived roadmap", async () => {
+    await db.pool.query(`update roadmaps set status = 'archived' where id = $1`, [roadmapId]);
+
+    const roadmaps = await list();
+    expect(roadmaps).toHaveLength(1);
+    expect(roadmaps[0].status).toBe("archived");
+  });
+
+  /**
+   * **"Shared" means shared across *this learner's* roadmaps.** Somebody else
+   * having the same module on theirs is not this learner's business, and
+   * mutation-testing found nothing stopping it from counting: dropping the
+   * user filter on the items query left every assertion passing.
+   */
+  it("does not count another learner's roadmap as sharing a module", async () => {
+    const other = (
+      await db.pool.query<{ id: string }>(
+        `insert into users (email, password_hash, full_name) values ('other@example.com','h','O') returning id`,
+      )
+    ).rows[0].id;
+    await buildRoadmapRow(other);
+    await db.pool.query(
+      `insert into module_completions (user_id, module_id, module_version_id, method, score)
+       values ($1,$2,$3,'passed',100)`,
+      [learnerId, ids.htmlBasics, ids.htmlBasicsVersion],
+    );
+
+    const roadmaps = await list();
+    expect(roadmaps).toHaveLength(1);
+    expect(roadmaps[0].passedCount).toBe(1);
+    expect(roadmaps[0].sharedCount).toBe(0);
+  });
+
+  it("lists no other learner's roadmaps", async () => {
+    const other = (
+      await db.pool.query<{ id: string }>(
+        `insert into users (email, password_hash, full_name) values ('other@example.com','h','O') returning id`,
+      )
+    ).rows[0].id;
+    const theirs = await buildRoadmapRow(other);
+
+    const roadmaps = await list();
+    expect(roadmaps.map((r) => r.id)).not.toContain(theirs);
+  });
+});
+
+describe("PATCH /roadmaps/:id — §5.12 archive and restore", () => {
+  let roadmapId: string;
+  beforeEach(async () => {
+    roadmapId = await buildRoadmapRow(learnerId);
+  });
+
+  const patch = (id: string, body: unknown) =>
+    request(app)
+      .patch(`/roadmaps/${id}`)
+      .set("Cookie", cookie)
+      .set("Origin", config.appOrigin)
+      .send(body);
+
+  const statusOf = (id: string) => db.rows("roadmaps").find((r) => r.id === id)!.status;
+
+  it("archives a roadmap without touching its items", async () => {
+    const before = db.rows("roadmap_items").filter((i) => i.roadmap_id === roadmapId).length;
+
+    const res = await patch(roadmapId, { status: "archived" });
+
+    expect(res.status).toBe(200);
+    expect(statusOf(roadmapId)).toBe("archived");
+    // §6 rule 5: archiving is a status, never a delete.
+    expect(db.rows("roadmap_items").filter((i) => i.roadmap_id === roadmapId)).toHaveLength(before);
+  });
+
+  it("restores an archived roadmap", async () => {
+    await patch(roadmapId, { status: "archived" });
+    const res = await patch(roadmapId, { status: "active" });
+
+    expect(res.status).toBe(200);
+    expect(statusOf(roadmapId)).toBe("active");
+  });
+
+  /** Finishing a roadmap is the platform's conclusion, not the browser's claim. */
+  it("refuses to set a roadmap completed", async () => {
+    const res = await patch(roadmapId, { status: "completed" });
+
+    expect(res.status).toBe(400);
+    expect(statusOf(roadmapId)).toBe("active");
+  });
+
+  it("does not reopen a completed roadmap by restoring it", async () => {
+    await db.pool.query(`update roadmaps set status = 'completed' where id = $1`, [roadmapId]);
+
+    await patch(roadmapId, { status: "archived" });
+    expect(statusOf(roadmapId)).toBe("completed");
+  });
+
+  it("answers 404 for another learner's roadmap", async () => {
+    const other = (
+      await db.pool.query<{ id: string }>(
+        `insert into users (email, password_hash, full_name) values ('other@example.com','h','O') returning id`,
+      )
+    ).rows[0].id;
+    const theirs = await buildRoadmapRow(other);
+
+    const res = await patch(theirs, { status: "archived" });
+
+    expect(res.status).toBe(404);
+    expect(statusOf(theirs)).toBe("active");
+  });
+
+  it("refuses a body that changes nothing", async () => {
+    expect((await patch(roadmapId, {})).status).toBe(400);
   });
 });

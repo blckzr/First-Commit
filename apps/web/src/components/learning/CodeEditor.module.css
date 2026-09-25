@@ -1,0 +1,47 @@
+.editor {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+.host {
+  border: 1px solid var(--border-control);
+  border-radius: var(--radius-tile);
+  overflow: hidden;
+  background: var(--surface-inset);
+}
+
+.host :global(.cm-editor) {
+  font-family: var(--font-mono);
+  font-size: var(--text-body-sm);
+  line-height: var(--lh-code);
+  max-height: 60vh;
+}
+
+/* §12: a visible 2px focus outline everywhere, including inside the editor. */
+.host :global(.cm-editor.cm-focused) {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: -2px;
+}
+
+.host :global(.cm-gutters) {
+  background: var(--surface-inset);
+  border-right: 1px solid var(--border-subtle);
+  color: var(--text-faint);
+}
+
+.host :global(.cm-activeLine) {
+  background: var(--surface-card-soft);
+}
+
+.host :global(.cm-content) {
+  caret-color: var(--text-strong);
+  color: var(--text-body);
+}
+
+.hint {
+  margin: 0;
+  font-size: var(--text-caption);
+  color: var(--text-muted);
+}

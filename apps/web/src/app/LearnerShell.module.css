@@ -198,6 +198,28 @@
 
 .profileItem:hover { background: var(--surface-inset); text-decoration: none; color: var(--ink-900); }
 
+/* The one item that ends the session rather than opening a page. */
+.profileSeparated {
+  margin-top: var(--space-1);
+  padding-top: var(--space-1);
+  border-top: 1px solid var(--border-subtle);
+}
+
+/* The menu item is a button here, so it needs what the NavLink got for free. */
+.profileItem {
+  width: 100%;
+  border: 0;
+  background: none;
+  font-family: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.profileItem:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: -2px;
+}
+
 /* --- Body ---------------------------------------------------------------- */
 .body {
   display: flex;

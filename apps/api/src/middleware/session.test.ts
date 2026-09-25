@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it } from "vitest";
 import request from "supertest";
 import express, { type Express } from "express";
 import cookieParser from "cookie-parser";
-import { createTestDb, type TestDb } from "../test/db.js";
+import { createTestDb, type TestDb } from "@first-commit/test-db";
 import { post } from "../test/http.js";
 import { createApp } from "../app.js";
 import { SESSION_COOKIE } from "../auth/sessions.js";

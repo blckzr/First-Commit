@@ -29,6 +29,8 @@ export const mockRoadmap: Roadmap = {
   pathColor: "path-1",
   passedCount: 6,
   testedOutCount: 1,
+  aiOutputId: "00000000-0000-4000-8000-00000000a1a1",
+  aiFlagged: false,
   aiRationale:
     "You passed the HTML placement questions, so those modules are tested out. Since you want a company job, I recommend the Frontend track.",
   weeklyHours: 6,

@@ -81,6 +81,14 @@ export interface Roadmap {
    * and labelled as AI wherever it is shown (AGENT.md §7).
    */
   aiRationale: string | null;
+  /**
+   * The `ai_outputs` row `aiRationale` came from, so §5.5's "Is this wrong?"
+   * has something to point at. Null on a roadmap made before the output was
+   * recorded, and the control is then not offered rather than offered broken.
+   */
+  aiOutputId: string | null;
+  /** Whether this learner has already flagged that output. */
+  aiFlagged: boolean;
   weeklyHours: number | null;
   /**
    * §5.5: "16 modules, about 14 weeks at 6 hours a week". Arithmetic over the
@@ -150,6 +158,25 @@ export async function buildRoadmap(
   );
   if (!head.rows[0]) return null;
   const roadmap = head.rows[0];
+
+  /**
+   * Written by the worker when it planned this roadmap. Kept as its own query
+   * rather than a join on the head: pg-mem does not run correlated subqueries
+   * against an outer alias, and the tests build their database from the real
+   * migration.
+   */
+  const aiOutput = await pool.query<{ id: string; flagged: boolean }>(
+    `select o.id, (f.id is not null) as flagged
+       from ai_outputs o
+       left join ai_feedback_flags f
+              on f.ai_output_id = o.id and f.user_id = $1
+      where o.user_id = $1
+        and o.source_type = 'roadmap_generation'
+        and o.source_id = $2
+      order by o.created_at desc
+      limit 1`,
+    [userId, roadmapId],
+  );
 
   const items = await pool.query<ItemRow>(
     `select i.module_id,
@@ -425,6 +452,8 @@ export async function buildRoadmap(
     testedOutCount: allModules.filter((m) => m.status === "tested_out").length,
     totalCount: allModules.length,
     aiRationale: roadmap.ai_rationale,
+    aiOutputId: aiOutput.rows[0]?.id ?? null,
+    aiFlagged: aiOutput.rows[0]?.flagged ?? false,
     weeklyHours,
     estimatedWeeks,
   };

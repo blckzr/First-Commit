@@ -24,6 +24,7 @@
     "zod": "^4.6.5"
   },
   "devDependencies": {
+    "@first-commit/test-db": "*",
     "@types/cookie-parser": "^1.4.10",
     "@types/cors": "^2.8.17",
     "@types/express": "^5.0.0",

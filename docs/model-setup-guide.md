@@ -443,7 +443,81 @@ Run it a few times with both models. The output varies slightly each run.
 
 ---
 
-# 12. Choose Between 4B and 9B
+# 12. The Code Sandbox (Judge0)
+
+The model explains test results; **something else has to produce them**. That is Judge0, and
+until it is running every coding submission fails with an explanation rather than queueing
+forever (`CODE_RUNNER=none`).
+
+**Full setup: [`docker/judge0/README.md`](../docker/judge0/README.md).** It is kept beside the
+configuration rather than here because it is Docker and WSL work, not model work. The short
+version:
+
+1. `wsl --install` (Administrator, then reboot)
+2. `winget install --id Docker.DockerDesktop`
+3. **Put `kernelCommandLine = systemd.unified_cgroup_hierarchy=0` in `%UserProfile%\.wslconfig`,
+   then `wsl --shutdown`.** Judge0 sandboxes with `isolate`, which needs cgroup v1; a modern
+   WSL 2 kernel defaults to v2 and the failure is silent
+4. Unzip the **v1.13.1** release (not v1.13.0 — it has three known CVEs), set
+   `REDIS_PASSWORD` and `POSTGRES_PASSWORD` in `judge0.conf`
+5. `docker compose up -d db redis`, wait 10s, `docker compose up -d`
+6. `npm run judge0:check`
+7. `CODE_RUNNER=judge0` in `apps/worker/.env`
+
+## What `npm run judge0:check` proves
+
+The same reason `npm run check` exists for Ollama: the guide says what should be true, the
+script says what *is* true on this machine. Judge0's language ids move between releases, and
+the cgroup requirement is the fiddly part, so both are measured rather than assumed.
+
+| Step | Catches |
+|---|---|
+| 1. `/about` answers | The stack is not up |
+| 2. `/languages` | A missing runtime, and the ids on *this* install |
+| 3. One trivial program runs | **cgroup v2** — the silent failure |
+| 4. The seeded exercise, end to end | A harness that is not running the assertions |
+
+Step 4 should report **3 of 5 passing**. The seeded starter carries §5.11's own bug — a loop
+starting at index 1 — so it drops whatever is first. Five of five is a failure, not success.
+
+## How an exercise becomes something Judge0 can run
+
+Judge0 takes one source file and compares stdout; it was built for competitive programming.
+Our exercises hold an assertion per case (`expect(sumEven([2, 4, 6])).toBe(12)`) and §5.11
+shows a per-case tick with an expected and an actual.
+
+So `src/judge0/harness.ts` compiles the cases **into** the program: the learner's files, a
+minimal `expect`, then each case wrapped so it reports itself as a line of JSON. One
+container per submission, and every case runs even after one fails — because §5.11 shows the
+whole list, not the first thing that broke.
+
+Three consequences worth knowing:
+
+- **The program always exits 0.** A case's outcome is data, not an exit code.
+- **A case that reports nothing is a failure.** Code that exits early or deletes the
+  assertions fails the exercise; silence is never a pass. This is mutation-tested.
+- **No database id or case name goes into the source.** A learner's code shares stdout with
+  the results, so it could print a forged result line — it just has nothing real to attach
+  it to, and the first line for a case wins.
+
+## What Judge0 does not cover
+
+**React and Vue.** They need a component test run — Vitest with jsdom and a `node_modules`
+tree — which Judge0 has not got. `Judge0Runner.supports()` returns false for them, so the
+worker records an honest error instead of sending a component test to a bare Node runtime and
+reporting the resulting syntax error as the learner's fault. That runner is separate work.
+
+## Keep it local
+
+Port 2358 must not be exposed. An open Judge0 runs arbitrary code for anyone who finds it.
+The worker is on the same machine and is the only thing that talks to it. Every submission is
+sent with `enable_network: false`, and with the CPU and memory limits from
+`JUDGE0_CPU_SECONDS` and `JUDGE0_MEMORY_KB` — tight on purpose, because this machine is also
+holding a model in VRAM and the worker runs one job at a time.
+
+---
+
+# 13. Choose Between 4B and 9B
 
 Don't decide by feel. Use a small test set, as planned in the proposal's evaluation section.
 
@@ -462,7 +536,7 @@ Keep prompts versioned in the `ai_prompts` table so your evaluation results matc
 
 ---
 
-# 13. Troubleshooting
+# 14. Troubleshooting
 
 | Problem | Likely cause | Fix |
 |---|---|---|
@@ -483,3 +557,8 @@ Keep prompts versioned in the `ai_prompts` table so your evaluation results matc
 | `The stored … prompt version N differs from the code` | A published prompt was edited in place | Bump `PROMPT_VERSION` in the prompt module; never change a version that has already run jobs |
 | Worker saves nothing to `ai_outputs` | Job has no `user_id` or `source_id` | Always create jobs with both |
 | Out-of-memory errors | Another app is using VRAM | Close it, or set `OLLAMA_GPU_OVERHEAD` to reserve memory for the desktop |
+| `No sandbox is configured` on every submission | `CODE_RUNNER=none` | Expected until §12 is done. It is an honest refusal, not a bug — nothing can pass an exercise that never ran |
+| Every submission is an internal error in Judge0 | **cgroup v2** | §12 step 3: the `.wslconfig` kernel line, then `wsl --shutdown` and restart Docker Desktop |
+| "The code runner isn't responding" | Judge0 is down | `docker compose ps` in the release folder. The learner's files are saved and the message says so |
+| `CODE_RUNNER is "…", which is not a runner` | Typo in `.env` | Use `judge0` or `none`. It throws rather than silently falling back to no sandbox |
+| `judge0:check` reports 5 of 5 passing | The harness is not running the assertions | A bug in `src/judge0/harness.ts`. It should be **3 of 5** on the seeded starter |

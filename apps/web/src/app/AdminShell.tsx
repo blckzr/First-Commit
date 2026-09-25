@@ -1,5 +1,6 @@
 import { NavLink, Outlet } from "react-router";
 import { Icon } from "../components/core/Icon";
+import { LogOutButton } from "../features/auth/LogOutButton";
 import type { IconName } from "../components/core/Icon";
 import { IconButton } from "../components/core/IconButton";
 import styles from "./AdminShell.module.css";
@@ -71,7 +72,11 @@ export function AdminShell() {
         </span>
         <div className={styles.topbarEnd}>
           <IconButton icon="user" label="Your profile" variant="bare" size="sm" />
-          <IconButton icon="log-out" label="Log out" variant="bare" size="sm" />
+          {/* An IconButton would take an onClick; the shared control owns what
+              signing out means, so both shells do the same three things. */}
+          <LogOutButton className={styles.logOut} label="Log out">
+            <Icon name="log-out" size={16} />
+          </LogOutButton>
         </div>
       </header>
 

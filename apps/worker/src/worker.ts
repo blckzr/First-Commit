@@ -15,6 +15,8 @@ import { buildCodeFeedbackMessages, type CodeFeedbackInput } from "./prompts/cod
 import { PROMPT_VERSION as ROADMAP_PROMPT_VERSION, SYSTEM as ROADMAP_SYSTEM } from "./prompts/roadmap.js";
 import { runRoadmapGeneration } from "./roadmap/index.js";
 import { CodeFeedback, noSolutionLeak } from "./schemas.js";
+import { createRunner } from "./runner.js";
+import { queueFeedback, runSubmission, type Submission } from "./submissions.js";
 
 const db = dbConfig();
 
@@ -147,13 +149,75 @@ async function wait(ms: number): Promise<void> {
  * `claim_next_ai_job()` only ever looks at `queued`.
  */
 async function requeueStranded(): Promise<void> {
-  const { rowCount } = await pool.query(
+  const jobs = await pool.query(
     `update ai_jobs
         set status = 'queued'
       where status = 'running'
         and started_at < now() - interval '15 minutes'`,
   );
-  if (rowCount) console.log(`Requeued ${rowCount} job(s) left running by a previous worker.`);
+  if (jobs.rowCount) console.log(`Requeued ${jobs.rowCount} job(s) left running by a previous worker.`);
+
+  // Submissions strand the same way, and for the same reason.
+  const submissions = await pool.query(
+    `update code_submissions
+        set status = 'queued'
+      where status = 'running'
+        and submitted_at < now() - interval '15 minutes'`,
+  );
+  if (submissions.rowCount) {
+    console.log(`Requeued ${submissions.rowCount} submission(s) left running by a previous worker.`);
+  }
+}
+
+const runner = createRunner();
+
+/**
+ * Takes one code submission, if there is one (design.md §5.11).
+ *
+ * Separate from `processOne` because a submission is not an AI job: it has its
+ * own table, its own claim function, and it runs **before** any model call —
+ * §7's rule that tests and checks produce the facts the model then explains.
+ */
+async function processSubmission(): Promise<boolean> {
+  const claimed = await pool.query<Submission>("select * from claim_next_code_submission()");
+  const submission = claimed.rows[0];
+  if (!submission) return false;
+
+  const started = Date.now();
+  console.log(`→ submission ${submission.id} (${runner.name})`);
+
+  try {
+    const { passed, status } = await runSubmission(pool, runner, submission);
+
+    const stored = await pool.query<{ test_results: unknown }>(
+      `select test_results from code_submissions where id = $1`,
+      [submission.id],
+    );
+    const outcomes = Array.isArray(stored.rows[0]?.test_results)
+      ? (stored.rows[0].test_results as { name: string; passed: boolean }[])
+      : [];
+    await queueFeedback(pool, submission, outcomes as never);
+
+    const took = ((Date.now() - started) / 1000).toFixed(1);
+    console.log(
+      status === "error"
+        ? `✕ submission ${submission.id}: could not be run in ${took}s`
+        : `${passed ? "✓" : "✕"} submission ${submission.id} in ${took}s`,
+    );
+    await notifyApi({
+      id: submission.id,
+      type: "code_submission",
+      user_id: submission.user_id,
+    } as AiJob);
+  } catch (err) {
+    // A database failure, not a failed test run — those are recorded as
+    // results. Put it back so a restart tries again.
+    await pool.query(`update code_submissions set status = 'queued' where id = $1`, [
+      submission.id,
+    ]);
+    console.error(`✕ submission ${submission.id}: ${(err as Error).message} (requeued)`);
+  }
+  return true;
 }
 
 /**
@@ -240,6 +304,11 @@ async function processOne(): Promise<boolean> {
 
 async function main() {
   console.log(`First Commit AI worker started. Model ${config.model}, mode ${config.jsonMode}.`);
+  console.log(
+    runner.name === "none"
+      ? "No code sandbox configured: submissions will fail with an explanation. Set CODE_RUNNER."
+      : `Code sandbox: ${runner.name}.`,
+  );
   await registerPrompts();
   await requeueStranded();
   if (!db.apiUrl || !db.workerSecret) {
@@ -248,7 +317,10 @@ async function main() {
 
   while (running) {
     try {
-      const didWork = await processOne();
+      // Submissions first: a learner is watching one, and nothing else on the
+      // queue has somebody sitting in front of it.
+      const ranSubmission = await processSubmission();
+      const didWork = ranSubmission || (await processOne());
       if (!didWork) await new Promise((r) => setTimeout(r, db.pollMs));
     } catch (err) {
       console.error((err as Error).message);

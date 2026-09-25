@@ -72,7 +72,14 @@ describe("the AI recommendation", () => {
 
     expect(screen.getByText("AI")).toBeInTheDocument();
     expect(screen.getByText(/appears in more junior job postings/)).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /is this wrong/i })).toBeInTheDocument();
+    /*
+     * No flag control here yet. A flag points at the `ai_outputs` row the text
+     * came from, and nothing writes
+     * `roadmap_technology_choices.recommendation_reason` — the Roadmap AI
+     * picks a track, not a framework. The control arrives with the
+     * recommendation that would produce one.
+     */
+    expect(screen.queryByRole("button", { name: /is this wrong/i })).not.toBeInTheDocument();
   });
 
   /** §12: the recommendation is announced as text, not only a visual label. */

@@ -17,6 +17,30 @@ export const config = {
   context: Number(env("AI_CONTEXT", "8192")),
   contextLarge: Number(env("AI_CONTEXT_LARGE", "16384")),
   timeoutMs: Number(env("AI_TIMEOUT_MS", "120000")),
+
+  /**
+   * Which sandbox runs a learner's code (§5.11). `none` until one is set up,
+   * which makes a submission fail with a message rather than wait forever.
+   * See `src/runner.ts`.
+   */
+  codeRunner: env("CODE_RUNNER", "none"),
+
+  /**
+   * Judge0, when `CODE_RUNNER=judge0`. Setup is `docker/judge0/README.md`.
+   *
+   * `127.0.0.1` rather than `localhost`: on Windows `localhost` can resolve to
+   * `::1` first, and Judge0's published port binds IPv4 — the same trap the
+   * Ollama URL avoids for the same reason.
+   *
+   * The limits are per submission and deliberately tight. This machine also
+   * holds a model in VRAM and runs one job at a time (AGENT.md §7), so a
+   * learner's runaway loop must not be able to take the slot for long or
+   * pressure the host.
+   */
+  judge0Url: env("JUDGE0_URL", "http://127.0.0.1:2358"),
+  judge0Token: process.env.JUDGE0_TOKEN?.trim() || null,
+  judge0CpuSeconds: Number(env("JUDGE0_CPU_SECONDS", "5")),
+  judge0MemoryKb: Number(env("JUDGE0_MEMORY_KB", "128000")),
 };
 
 /**

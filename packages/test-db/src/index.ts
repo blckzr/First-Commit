@@ -1,11 +1,12 @@
 import { readdirSync, readFileSync } from "node:fs";
-import { resolve } from "node:path";
+import { dirname, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
 import { DataType, newDb } from "pg-mem";
 import { randomUUID } from "node:crypto";
 import type { Pool } from "pg";
 
 /**
- * An in-memory PostgreSQL for endpoint tests.
+ * An in-memory PostgreSQL for endpoint and worker tests.
  *
  * The DDL is **extracted from the real migration**, not hand-written here, so
  * these tests fail if a column is renamed or a constraint moves. A hand-copied
@@ -17,7 +18,18 @@ import type { Pool } from "pg";
  * types. Anything relying on a trigger still needs a real database.
  */
 
-const MIGRATIONS_DIR = resolve(process.cwd(), "../../supabase/migrations");
+/**
+ * Resolved from this file, not from `process.cwd()`.
+ *
+ * It used to be cwd-relative, which worked while only `apps/api` imported it.
+ * The worker runs its tests from `apps/worker`, and "two levels up" is the
+ * same place from both — but only by luck, and luck is a poor thing for a
+ * test harness to depend on.
+ */
+const MIGRATIONS_DIR = resolve(
+  dirname(fileURLToPath(import.meta.url)),
+  "../../../supabase/migrations",
+);
 
 /**
  * Every migration, in order — not just the first one.
@@ -51,6 +63,9 @@ const TABLES = [
   // AI results, for the event stream
   "ai_jobs",
   "ai_outputs",
+  "ai_feedback_flags",
+  // The admin surface
+  "admin_activity_log",
   // Onboarding
   "career_paths",
   "tracks",        // roadmaps references it
@@ -78,6 +93,9 @@ const TABLES = [
   "quiz_options",
   "quiz_answer_keys",
   "assessment_attempts",
+  "test_cases",
+  "reference_solutions",
+  "code_submissions",
   // certificates.project_id points into the capstone chain, so the whole chain
   // has to exist even though nothing here reads it yet.
   "capstone_briefs",

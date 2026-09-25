@@ -4,6 +4,7 @@ import { Badge } from "../../components/core/Badge";
 import { Button } from "../../components/core/Button";
 import { Card } from "../../components/core/Card";
 import { LinkButton } from "../../components/core/LinkButton";
+import { AiPanel } from "../../components/learning/AiPanel";
 import { ApiError } from "../../api/client";
 import type { DecisionOption, DecisionPage } from "../../api/decisions";
 import { useChooseTechnology, useDecision } from "../../features/decision/useDecision";
@@ -77,15 +78,20 @@ function ChoiceView({ decision }: { decision: DecisionPage }) {
         </p>
       </Card>
 
-      {/* §7: AI output is labelled, carries a reason, and is flaggable. */}
+      {/*
+        * §7: AI output is labelled, carries a reason, and is flaggable.
+        *
+        * `aiOutputId` is null here because nothing writes
+        * `roadmap_technology_choices.recommendation_reason` yet — the Roadmap
+        * AI picks a track, not a framework, so this panel has no output row to
+        * point a flag at and does not render at all today. The control comes
+        * with the recommendation when one is generated; recorded in
+        * docs/task-tracker.md.
+        */}
       {decision.recommendation && (
-        <Card surface="soft" radius="card" padding="md" className={styles.aiPanel}>
-          <span className={styles.aiLabel}>AI</span>
-          <p className={styles.aiText}>{decision.recommendation.reason}</p>
-          <button type="button" className={styles.aiFlag} disabled title="Not built yet">
-            Is this wrong?
-          </button>
-        </Card>
+        <AiPanel aiOutputId={null} className={styles.aiPanel}>
+          <p>{decision.recommendation.reason}</p>
+        </AiPanel>
       )}
 
       {error && <p role="alert" className={styles.error}>{error.message}</p>}

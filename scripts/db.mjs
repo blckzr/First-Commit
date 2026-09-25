@@ -124,6 +124,7 @@ async function verify() {
   await check("functions", async () => {
     const wanted = [
       "claim_next_ai_job",
+      "claim_next_code_submission",
       "purge_expired_auth_rows",
       "purge_processed_github_events",
       "set_updated_at",

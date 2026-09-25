@@ -250,3 +250,46 @@ describe("accessibility", () => {
     await expectNoAxeViolations(container);
   });
 });
+
+describe("§5.9 — the exercise row", () => {
+  const withExercise = {
+    ...mockModule,
+    assessments: [
+      ...mockModule.assessments,
+      {
+        id: "eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee",
+        type: "code" as const,
+        title: "Sum of even numbers",
+        instructions: "Return the sum of the evens.",
+        passingScore: 100,
+        questionCount: 0,
+        bestScore: null,
+        attempts: 0,
+        passed: false,
+      },
+    ],
+  };
+
+  it("links to the exercise screen", async () => {
+    await open(withExercise);
+    expect(screen.getByRole("link", { name: /Exercise/ })).toHaveAttribute(
+      "href",
+      "/app/exercise/eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee",
+    );
+  });
+
+  it("says when it has been passed", async () => {
+    await open({
+      ...withExercise,
+      assessments: withExercise.assessments.map((a) =>
+        a.type === "code" ? { ...a, passed: true } : a,
+      ),
+    });
+    expect(screen.getByRole("link", { name: /Exercise/ })).toHaveTextContent("Passed");
+  });
+
+  it("shows no exercise row on a module without one", async () => {
+    await open();
+    expect(screen.queryByRole("link", { name: /Exercise/ })).not.toBeInTheDocument();
+  });
+});
