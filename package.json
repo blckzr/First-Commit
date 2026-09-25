@@ -26,6 +26,7 @@
     "db:verify": "node --env-file=apps/api/.env scripts/db.mjs verify",
     "db:seed": "node --env-file=apps/api/.env scripts/seed.mjs",
     "db:accounts": "tsx --env-file=apps/api/.env scripts/accounts.mts",
-    "sandbox:check": "npm run sandbox:check -w @first-commit/worker"
+    "sandbox:check": "npm run sandbox:check -w @first-commit/worker",
+    "exercises:check": "npm run exercises:check -w @first-commit/worker"
   }
 }

@@ -124,6 +124,29 @@ describe("§5.12 — the list", () => {
     expect(screen.getByText(expected)).toBeInTheDocument();
   });
 
+  /**
+   * **A real state, not a hypothetical.** Roadmap generation can fail — Ollama
+   * being off produced exactly this — and §6 rule 5 means the empty roadmap
+   * stays. "0 of 0 modules passed" under an empty bar reads as broken.
+   */
+  it("explains a roadmap whose generation never finished", async () => {
+    listing([{ ...web, passedCount: 0, totalCount: 0 }]);
+    await open();
+
+    expect(await screen.findByText(/no modules yet/)).toBeInTheDocument();
+    expect(screen.queryByText("0 of 0 modules passed")).not.toBeInTheDocument();
+    expect(screen.queryByRole("progressbar")).not.toBeInTheDocument();
+  });
+
+  /** It can still be archived, which is how a learner clears it (§6 rule 5). */
+  it("still offers to archive an empty roadmap", async () => {
+    listing([{ ...web, passedCount: 0, totalCount: 0 }]);
+    await open();
+
+    await userEvent.click(screen.getByRole("button", { name: "Archive" }));
+    await waitFor(() => expect(sent?.body).toEqual({ status: "archived" }));
+  });
+
   it("says so when a roadmap has not been opened", async () => {
     listing([{ ...web, lastStudiedAt: null }]);
     await open();

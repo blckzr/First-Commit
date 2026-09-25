@@ -275,6 +275,7 @@ const LEARNER_ROUTES: [method: "get" | "post" | "put" | "patch", path: string][]
   ["post", "/exercises/EXERCISE/submissions"],
   ["get", "/submissions/SUBMISSION"],
   ["post", "/ai-outputs/AI_OUTPUT/flags"],
+  ["get", "/certificates"],
 ];
 
 /**
@@ -374,6 +375,15 @@ describe("§9.2 — every learner endpoint resolves a session", () => {
        */
       "/admin/flags",
       "/admin/flags/:id",
+      /**
+       * §5.15's verification page is reachable without logging in, by link or QR
+       * code — that is the whole point of a "publicly verifiable" certificate.
+       * So §6.1's session filter cannot be its safety net, and
+       * `certificates.test.ts` asserts instead what it withholds: no email, no
+       * ids, and no revocation reason.
+       */
+      "/verify/:code",
+      "/verify",
     ];
 
     const listed = new Set(

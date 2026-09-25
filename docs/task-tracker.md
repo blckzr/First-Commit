@@ -107,7 +107,7 @@ changelog for 2026-09-22.
 - [x] `/` · `/signup` · `/login` — **applied** (Phase 1.5 reference screens, straight from the prototype)
 - [x] `/forgot-password` · `/reset-password` — **applied**; designed against §5.3 rather than the prototype, which does not cover them
 - [x] `/onboarding/about` · `/target` · `/placement` · `/generating` — **applied**, through `OnboardingLayout`
-- [ ] `/verify/:code` — **to design**. Public, mobile-first, opened from a QR code
+- [x] `/verify/:code` — **applied**. Designed against §5.15 rather than the prototype, which does not cover it
 
 ### Learner
 
@@ -122,7 +122,8 @@ changelog for 2026-09-22.
 - [x] `/app/quiz/:id` — **applied**. Green tick and a sentence on a pass, the same panel either way
 - [x] `/app/roadmaps` — **applied**. §5.12: per-roadmap progress with the shared count, last studied, archive and restore behind a disclosure
   - [ ] "Create roadmap" is in §5.12 and absent here — it means running the survey and target steps outside the onboarding guard, which does not exist. Left out rather than shipped dead
-- [ ] `/app/explore` · `/app/capstone` · `/app/certificates` · `/app/resume` · `/app/settings` — **designed**, not built. Each has a screen in the prototype
+- [x] `/app/certificates` — **applied**. §5.15: earned certificates with View and Copy verification link, each unfinished roadmap with its reason, and the Project Certificate locked
+- [ ] `/app/explore` · `/app/capstone` · `/app/resume` · `/app/settings` — **designed**, not built. Each has a screen in the prototype
 - [x] **Log out** — in the learner profile menu and the admin bar, one shared control. Ends the session server-side, clears the query cache (§13.6), then navigates; signs out anyway if the request fails
 - [x] `/app/exercise/:id` — **applied**. §5.11: CodeMirror 6, Instructions/Results tabs, the results panel, and the AI feedback panel under it
   - [ ] "Run tests" is in §5.11 and absent here — the in-browser run is Sandpack practice for React and Vue, and Sandpack is not installed. Submit (the server run) is the only path, which is the only one that writes evidence anyway
@@ -185,7 +186,8 @@ The main loop: sign up → roadmap → learn → pass.
     - [x] **`DockerRunner` is the sandbox in use** — one throwaway container per submission on the Docker already installed. Verified end to end: the seeded exercise scores 3 of 5 in 0.4s, a loop that never ends is stopped at 5.4s, and `pids.max`/`memory.max`/`cpu.max` read back as set. 26 tests, mutation-tested with six dropped flags
     - [x] ~~`project-proposal.md` §8 still names Judge0~~ — **§8.3 "Exercise Execution: Why Not Judge0"** now records the measurement, the three reasons a Linux VM was a poor trade, and the container controls used instead. §8.1, §8.2 and §5 updated to match; the old §8.3 and §8.4 renumbered to §8.4 and §8.5
     - [ ] **React and Vue are not Judge0's job** — they need Vitest with jsdom and a node_modules tree. `supports()` returns false for them, so the worker records an honest error rather than blaming a syntax error on the learner. A separate runner
-  - [ ] **No in-browser "Run tests".** §5.11's instant run is Sandpack practice for React and Vue; Sandpack is not installed, and the seeded exercise is plain JavaScript, which Sandpack is not the mechanism for anyway
+  - [ ] **No in-browser "Run tests".** §5.11's instant run is Sandpack practice for React and Vue; Sandpack is not installed, and the seeded exercises are plain JavaScript, which Sandpack is not the mechanism for anyway
+  - [ ] **The jsdom runner is the next sandbox piece.** A container image with Vitest and jsdom unlocks `js-dom` and the four React/Vue modules at once — five modules, versus writing more content for the three that already work
   - [x] `code_feedback` now has a user: a failing submission queues one, with every outcome attached, the rubric for the model, and no test code in the payload
   - [x] **Run against the real database.** 4 of 7 in 4s, correct expected-and-actual values. It found two bugs that every isolated test had missed: a failing hidden case would have leaked its values (§6 rule 2), and `code_feedback` crashed on a payload shape nothing consumed. Both fixed, both mutation-tested; `CodeFeedbackInput` is a Zod schema used by producer and consumer
 - [x] **Home on real data** — `GET /home`: the Continue panel, roadmap progress, and §5.6's Updates. It reuses `buildRoadmap`, so Home and the chart can never disagree about "You are here"
@@ -234,8 +236,14 @@ The main loop: sign up → roadmap → learn → pass.
 - [ ] Automatic checks — `file_exists`, `workflow_test`, `deployment_url`
 - [ ] Worker commit polling — backstop for deliveries missed while Render wakes
 - [ ] Integrity signals — single-commit detection, similarity, `integrity_flags`
-- [ ] **Certificates** — automatic issuance on requirements met, `public_code`, name snapshot, PDF to Storage
-- [ ] **Design + build `/verify/:code`** — not in the prototype (see *Screen design coverage*). QR code, mobile-first, revoked state
+- [~] **Certificates** — issuance, `public_code`, and the name-and-skills snapshot are built; the PDF is not
+  - [x] **No endpoint issues one** (§6 rule 1). `syncCertificates()` reads completions and decides; the check runs on read, because the worker writes completions from another process and cannot call it. Idempotent. 32 API tests, mutation-tested with five defects
+  - [x] **Two false positives guarded**: a roadmap with zero items (vacuously "complete"), and an unanswered technology decision (§3 counts technology modules). Both found in the real database
+  - [x] **`GET /verify/:code`** — the API's only public read of a learner's record. Valid, revoked and unknown all answer 200; no email, no ids, and a revoked certificate gives the date but never the reason
+  - [ ] **PDF to Supabase Storage** — §5.15's "Download PDF". The bucket is specified (private, signed URLs); nothing generates a PDF, so the control is absent rather than dead
+  - [ ] **Admin revocation has no screen** (§6.7). `revoked_reason` already enforces §6 rule 10 through a check constraint; revoking is SQL for now
+- [x] **`/verify/:code` designed and built** — from §5.15's content and §3's tokens, since the prototype does not cover it. Public, outside every shell, with all three states. A test asserts it offers nothing to sign into and no link into `/app`
+  - [ ] No QR code yet. §5.15 mentions scanning one; generating it belongs with the PDF
 
 ## Phase 5 — Resume and admin
 
@@ -262,5 +270,8 @@ Not code, but the MVP is not demonstrable without it (`project-proposal.md` §2.
 - [x] **All 19 modules written** — 57 lessons and 96 quiz questions. 10 core, 3 concept, 6 technology; three lessons and a five-question quiz each, every question linked to the lesson that taught it
   - The technology modules are three **pairs** — React/Vue components, React/Vue state, Express/Django routing — written together so the two halves teach the same ideas in the same order. §5.8 promises that switching keeps your progress on shared modules, and that only means something if the pairs match
 - [x] **Placement assessment questions** — 25 across the four core skills, sized at ~2.5 questions per module a pass clears
-- [x] **Coding exercises** — one, on Arrays and objects. More arrive with the sandbox; there is no point writing exercises nothing can run
+- [~] **Coding exercises** — three, on the three core modules that can have one
+  - [x] `js-arrays-objects` "Sum of even numbers", `js-basics` "Count the long words", `js-functions` "Build a greeting". Each starter carries the mistake its module teaches, and each has two hidden cases
+  - [x] **`npm run exercises:check`** proves every reference solution passes and every starter fails something *visible*, through the real sandbox. It caught a wrong expected value on its first run — the seed loader checks shape and cannot check arithmetic
+  - [ ] **Seven modules cannot have one until the jsdom runner exists.** `js-dom` plus the four React/Vue modules need a `document` and a dependency tree; HTML, CSS and Git modules are not programs at all. The reasoning is a table in `supabase/seed/exercises.mjs`
 - [ ] At least one capstone brief with milestones, checks, and starter templates for both technologies

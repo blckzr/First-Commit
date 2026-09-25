@@ -2,6 +2,7 @@ import { useState } from "react";
 import { Badge } from "../../components/core/Badge";
 import { Button } from "../../components/core/Button";
 import { Card } from "../../components/core/Card";
+import { Icon } from "../../components/core/Icon";
 import { LinkButton } from "../../components/core/LinkButton";
 import { ProgressBar } from "../../components/learning/ProgressBar";
 import { useRoadmaps, useSetRoadmapStatus } from "../../features/roadmap/useRoadmap";
@@ -127,8 +128,23 @@ function RoadmapCard({ roadmap }: { roadmap: RoadmapSummary }) {
         </Badge>
       </div>
 
-      {/* §7: a progress bar is always paired with text, which is its label. */}
-      <ProgressBar value={percent} label={progress} />
+      {/*
+        A roadmap with no modules is a real state: generation can fail — Ollama
+        being off produced exactly this — and §6 rule 5 means the empty roadmap
+        stays. "0 of 0 modules passed" under an empty bar reads as broken, so it
+        says what happened instead. The Certificates screen explains the same
+        state the same way.
+      */}
+      {roadmap.totalCount === 0 ? (
+        <p className={styles.unbuilt}>
+          <Icon name="info" size={16} aria-hidden />
+          This roadmap has no modules yet — building it didn&apos;t finish. Open it to try
+          again, or archive it.
+        </p>
+      ) : (
+        /* §7: a progress bar is always paired with text, which is its label. */
+        <ProgressBar value={percent} label={progress} />
+      )}
 
       <div className={styles.cardFoot}>
         <p className={styles.studied}>{lastStudied(roadmap.lastStudiedAt)}</p>

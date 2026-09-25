@@ -17,6 +17,8 @@ import { NotFound } from "../routes/public/NotFound";
 import { Home } from "../routes/learner/Home";
 import { Roadmap } from "../routes/learner/Roadmap";
 import { Roadmaps } from "../routes/learner/Roadmaps";
+import { Certificates } from "../routes/learner/Certificates";
+import { Verify } from "../routes/public/Verify";
 import { RoadmapReview } from "../routes/learner/RoadmapReview";
 import { Module } from "../routes/learner/Module";
 import { Quiz } from "../routes/learner/Quiz";
@@ -76,17 +78,14 @@ const publicRoutes = [
   { element: <RedirectIfSignedIn />, children: signedOutOnlyRoutes },
   { path: "/forgot-password", element: <ForgotPassword /> },
   { path: "/reset-password", element: <ResetPassword /> },
-  {
-    path: "/verify/:code",
-    element: (
-      <Placeholder
-        standalone
-        title="Verify a certificate"
-        section="section 5.15"
-        purpose="Public and mobile-first, since it is usually opened by scanning a QR code."
-      />
-    ),
-  },
+  /**
+   * §5.15's verification page. Public on purpose — it is opened by a stranger
+   * from a link or a QR code, so it sits outside every shell and offers nothing
+   * to sign into.
+   */
+  { path: "/verify/:code", element: <Verify /> },
+  /** A bare `/verify` answers the same way an unknown code does. */
+  { path: "/verify", element: <Verify /> },
 ];
 
 /** design.md §5.4 — one page per step, each with its own address. */
@@ -123,7 +122,7 @@ const learnerRoutes = [
     ),
   },
   { path: "capstone", title: "Capstone project", section: "section 5.14", purpose: "Choose a brief, connect a repository, and track milestones." },
-  { path: "certificates", title: "Certificates", section: "section 5.15", purpose: "View, download, and share what has been earned." },
+  { path: "certificates", element: <Certificates /> },
   { path: "resume", title: "Resume", section: "section 5.16", purpose: "Built only from verified skills, certificates, and completed projects." },
   { path: "notifications", title: "Notifications", section: "section 5.17", purpose: "Module updates, roadmap changes, milestones, and certificates." },
   { path: "settings", title: "Settings", section: "section 5.18", purpose: "Profile, password, GitHub connection, and deleting your data." },

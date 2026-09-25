@@ -11,6 +11,180 @@ lives under `[Unreleased]` until there is something to version.
 
 ## [Unreleased]
 
+### 2026-09-26 — An empty roadmap explains itself
+
+A roadmap with no modules showed "0 of 0 modules passed" under an empty progress bar, which
+reads as broken. It is a **real state**: generation can fail — Ollama being off produced
+exactly this — and §6 rule 5 means the empty roadmap stays.
+
+#### Changed
+
+- **My roadmaps (§5.12) says what happened** instead of rendering 0 of 0: "This roadmap has no
+  modules yet — building it did not finish. Open it to try again, or archive it." The
+  Certificates screen already explained the same state the same way; now both do.
+- Archive still works on it, which is how a learner clears one without anything being
+  hard-deleted.
+
+#### Notes
+
+- **The cause was already fixed.** `PUT /onboarding/target` used to insert a roadmap
+  unconditionally, so every pass through placement left another active one behind; it now
+  reuses the existing active roadmap for that career path. The two roadmaps in the development
+  database predate that fix — stale data, not a live bug.
+
+---
+
+### 2026-09-26 — Two more exercises, and a check that proves content is passable
+
+The sandbox had one exercise to run. It now has three — and, more usefully, a script that
+proves an exercise is actually doable before a learner meets it.
+
+#### Added
+
+- **`npm run exercises:check`** — runs every seeded exercise through the real sandbox, twice:
+
+  1. **The reference solution must pass every case.** An exercise nobody can pass is worse
+     than no exercise: a learner would grind at correct code while the tests said no.
+  2. **The starter must fail at least one *visible* case.** A starter that already passes is
+     not an exercise. Failing only a hidden case is nearly as bad — the learner sees all green
+     and a failed submission with nothing to work from.
+
+  The seed loader validates an exercise's *shape* — starter files present, at least one hidden
+  case, a reference solution. It cannot tell whether any of it works. This is the same
+  relationship `npm run check` has with Ollama: the content claims something, and this measures
+  it.
+
+  **It found a bug in its own first run.** The hidden case on "Count the long words" asserted 4
+  where the answer is 3 — `learning`, `software`, `practice` are the words of six letters or
+  more in that sentence, not four of them. The reference solution was right and my assertion was
+  wrong, which is precisely the failure this script exists to catch and precisely the one that
+  would have been invisible: the starter failed, so the exercise *looked* fine.
+
+- **"Count the long words"** on JavaScript basics. The starter uses `>` where the instructions
+  say "at least", which is the off-by-one every beginner meets — so it fails the case named for
+  the boundary and passes its neighbours, and the failing test names the idea rather than just
+  reporting a number.
+
+- **"Build a greeting"** on Functions. The starter has no default for `greeting`, so
+  `greet("Ada")` returns `"undefined, Ada!"`. The module teaches default parameters, and the
+  failure shows the lesson as text a learner can read.
+
+  Both carry two hidden cases: one that defeats hard-coding the visible answers, and one that
+  checks the function does not mutate what it was given.
+
+#### Notes
+
+- **Three of ten core modules can have an exercise, and that is the ceiling for now.** An
+  exercise needs a `code_runtime`, the sandbox runs `javascript` and `python`, and most modules
+  are neither. Written into `supabase/seed/exercises.mjs` as a table so the gaps do not read as
+  oversights:
+
+  - `html-basics`, `forms-and-semantics`, `css-basics`, `css-layout` — markup and styling. A
+    quiz checks these; a program cannot.
+  - `git-basics`, `git-branching` — Git operations, not a program. The capstone is where Git is
+    really exercised.
+  - `js-dom` — needs a `document`, so it waits on the jsdom runner.
+  - The concept modules — an exercise here would be a contrivance dressed as practice.
+  - React, Vue — component tests, so the jsdom runner again.
+  - Express, Django — would need the framework in the image, and testing a hand-rolled
+    imitation of a router teaches the imitation.
+
+  **The jsdom runner lifts the ceiling by five modules at once** (`js-dom` plus the four
+  React/Vue ones), which makes it the highest-value next piece of sandbox work rather than more
+  content.
+
+- 487 API tests, 376 web, 109 worker. Typecheck, lint and build clean, and `npm run db:seed`
+  loads three exercises.
+
+---
+
+### 2026-09-26 — Certificates, and the fourth evidence table
+
+A learner could do everything the platform teaches and then nothing happened. All the
+accumulated evidence — quizzes, tested-out placements, and as of yesterday a real coding
+exercise — paid off in nothing at all. It does now.
+
+`certificates` is the last of §6 rule 1's four evidence tables to be written, and the only one
+a browser could plausibly just ask for. So the design point is what is *absent*: **there is no
+endpoint that issues a certificate.** Nothing takes a roadmap id and grants anything.
+
+#### Added
+
+- **`syncCertificates()`** (`apps/api/src/certificates/issue.ts`) — reads completions the
+  platform wrote and decides for itself. Proposal §3: "Completing the roadmap (core, track, and
+  technology modules)", which in schema terms is every active roadmap item whose module is
+  `required_for_certificate`. `method` is irrelevant: §6 rule 7 means a tested-out module counts,
+  so placement evidence earns a certificate.
+
+  **Two things that look like completion and are not**, both found by reading the real database
+  rather than by imagining cases:
+
+  - **A roadmap with no items.** "Every one of zero modules is complete" is vacuously true and
+    would issue a certificate for a roadmap that was never generated. There is such a roadmap in
+    the development database, so this was live, not hypothetical.
+  - **An unchosen technology.** §3 counts technology modules and those only join a roadmap once
+    the learner picks a framework, so an open `roadmap_technology_choices` row means the roadmap
+    is incomplete however many of its current items are done.
+
+  Idempotent, and safe to call on a read. The three writers of `module_completions` are quiz
+  grading, placement, and the worker's exercise run — and the worker is a **different process**,
+  so it cannot call this. Rather than have two processes race to issue, the check runs when the
+  certificates are read: the same backstop shape §8.4 uses for missed SSE notices. A certificate
+  may be recorded a moment after it was earned, never missed.
+
+  `recipient_name` and `skills` are snapshots. A certificate has to keep saying what it said the
+  day it was issued, even if the career path is edited afterwards.
+
+- **`public_code`** — `FC-7K2M-94QX`, from `randomBytes` over Crockford's alphabet minus the
+  ambiguous letters. No `I`, `O`, `U` or `1`/`0` lookalikes, so a code read off a printed
+  certificate or a QR code cannot be mistyped into a *different valid one*. Not
+  `Math.random`: this is the public handle on somebody's credential, and a guessable one would
+  let anybody enumerate them. Collisions are retried rather than swallowed — `on conflict do
+  nothing` would issue nothing and explain nothing.
+
+- **`GET /certificates`** — what has been earned, plus why each unfinished roadmap has not
+  earned one, so §5.15's locked card can say something true instead of "0 of 0".
+
+- **`GET /verify/:code`** — **the API's only public read of a learner's record.** No session, so
+  §6.1's "filter by the session user" cannot be the safety net; every field it returns is chosen
+  and the ones it withholds are asserted. No email, no user id, no roadmap id, and for a revoked
+  certificate the **date but never the reason** — that is between the learner and the platform.
+
+  All three states answer **200**: valid, revoked, and not found. A 404 for an unknown code is
+  the obvious choice and the wrong one — §5.15 specifies a page that says "No certificate found
+  with ID …", which is an answer, not an error. Answering identically also means the status code
+  alone cannot distinguish a real code from a fake.
+
+- **§5.15's two screens.** `/app/certificates` lists what was earned with View and "Copy
+  verification link", and shows each unfinished roadmap with its reason. `/verify/:code` is
+  public and outside every shell — a stranger opens it, and must not be shown an account they do
+  not have. The prototype does not cover it, so it is designed from §5.15's content and §3's
+  tokens, the same way Forgot and Reset password were.
+
+  The verification result is a **discriminated union**, so reading `recipientName` off a revoked
+  result is a compile error rather than `undefined` on somebody's credential.
+
+#### Notes
+
+- **Five mutations, all caught**: dropping the empty-roadmap and technology guards, treating
+  optional modules as required, counting anybody's completions, losing idempotence, and leaking
+  the revocation reason onto the public page.
+- **"Download PDF" is absent, not disabled.** §5.15 offers it; the PDF is generated to Supabase
+  Storage and served through a signed URL, and none of that is built. A test asserts no download
+  control exists — four dead controls were removed earlier in this project and this stops a
+  fifth appearing.
+- **Admin revocation has no screen.** §6.7 specifies one, and the `revoked_reason` column
+  already enforces §6 rule 10's "required reason" through a check constraint. Revoking is SQL
+  for now; the public page handles the state correctly.
+- The Project Certificate is Phase 4, reported as locked with "capstones aren't built yet" —
+  a more honest reason than a milestone count the platform cannot produce.
+- `roadmapStates` uses four flat queries merged in JS. The first version put `path_skills` in a
+  subquery joined on `r.career_path_id` and failed under pg-mem with `column "r.career_path_id"
+  does not exist`; `buildRoadmap` and the roadmap list solve it the same way.
+- 487 API tests, 376 web, 109 worker, 152 Playwright. Typecheck, lint and build clean.
+
+---
+
 ### 2026-09-26 — Two bugs the first real submission found
 
 The sandbox worked on its first run against the real database: 4 of 7 cases passing in 4

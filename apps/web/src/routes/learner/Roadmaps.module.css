@@ -123,3 +123,14 @@
   font-size: var(--text-body-sm);
   color: var(--error);
 }
+
+/* A roadmap whose generation never finished. §8: icon + text, not colour alone. */
+.unbuilt {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-2);
+  margin: 0;
+  font-size: var(--text-body-sm);
+  line-height: var(--lh-body);
+  color: var(--text-muted);
+}
