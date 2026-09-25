@@ -323,7 +323,7 @@ The Code Review AI works in two contexts.
 ### Coding Exercises
 
 1. The learner submits code.
-2. The code runs against the exercise's test cases: single-file JavaScript and Python exercises run in a sandbox (Judge0); React and Vue exercises run in an in-browser sandbox (e.g., Sandpack).
+2. The code runs against the exercise's test cases: single-file JavaScript and Python exercises run in a container sandbox on the proponent's machine (Section 8.3); React and Vue exercises need a component test runner, which is not built yet.
 3. A linter checks syntax and style.
 4. The model receives the code, test results, linter output, and the exercise rubric, and explains what went wrong in simple language.
 
@@ -496,7 +496,7 @@ flowchart TB
     subgraph Local machine
         W[AI worker]
         LLM[Ollama - Qwen3.5]
-        SB[Judge0 sandbox]
+        SB[Container sandbox]
     end
     GH[GitHub App and learner repositories]
     GA[GitHub Actions checks]
@@ -515,7 +515,7 @@ flowchart TB
 
 **Flow summary:**
 - The browser talks only to the Express API. Every permission check happens there, because no browser reaches the database.
-- Coding exercises are graded on the server: Judge0 for single-file JavaScript and Python, and a Node test runner for React and Vue. The in-browser sandbox is only for instant practice, since results from the browser could be tampered with.
+- Coding exercises are graded on the server: a container sandbox for single-file JavaScript and Python (Section 8.3), and a Node test runner for React and Vue. Any in-browser run is instant practice only, since results from the browser could be tampered with.
 - Capstone pushes arrive as GitHub webhooks at the API's public address, so no tunneling tool is needed during development.
 - The AI worker runs on the proponent's machine beside Ollama, claims jobs from the database, and writes results back. It only makes outgoing connections, so it does not need to be reachable from the internet.
 - Finished feedback, check results, and notifications reach the browser through server-sent events.
@@ -530,7 +530,7 @@ flowchart TB
 | Database | PostgreSQL, hosted on Supabase |
 | File storage | Supabase Storage |
 | API hosting | Render (Singapore region) |
-| Exercise execution | Judge0 (single-file), in-browser sandbox for React and Vue practice, Node test runner for grading |
+| Exercise execution | One throwaway Docker container per submission (Section 8.3); Node test runner for React and Vue grading |
 | Capstone tracking | GitHub App, GitHub template repositories, GitHub Actions |
 | AI runtime | Ollama, running on the proponent's machine |
 | AI model | Qwen3.5 (4B / 9B) |
@@ -538,7 +538,72 @@ flowchart TB
 
 **Why this stack:** Node with Express lets the API and the AI worker share one TypeScript codebase, and it is also one of the backend technologies First Commit teaches. Keeping authentication in the backend gives the project full control over accounts and avoids depending on a hosted auth provider, at the cost of implementing password hashing, sessions, and reset flows carefully (Section 10.1).
 
-## 8.3 Core Data Model
+## 8.3 Exercise Execution: Why Not Judge0
+
+An earlier version of this proposal named **Judge0** as the code sandbox, and Sections 8.1 and
+8.2 said so. It was replaced, and this section records why, because the reason is a property of
+the development machine rather than a change of preference.
+
+**Judge0 cannot run on Docker Desktop for Windows.** Judge0 sandboxes with `isolate`, which
+speaks cgroup v1 only. The WSL 2 virtual machine that Docker Desktop runs its daemon in is
+cgroup v2 unified, and it refuses to mount a v1 hierarchy even to a privileged container:
+
+```
+$ docker run --rm --privileged alpine sh -c "mount -t cgroup -o memory cgroup /tmp/cg"
+mount: mounting cgroup on /tmp/cg failed: Invalid argument
+```
+
+Every controller reports `hierarchy 0` in `/proc/cgroups`, meaning all of them are bound to
+the v2 hierarchy, which is what makes a v1 mount fail. The `systemd.unified_cgroup_hierarchy=0`
+kernel parameter that Judge0's own notes give for Ubuntu does not help here, because it is read
+by systemd and the `docker-desktop` distribution does not run systemd. Installing Ubuntu inside
+WSL does not help either: all WSL 2 distributions share one kernel and one virtual machine, so
+the cgroup configuration is the same. This is an open issue in Judge0's tracker
+([judge0#583](https://github.com/judge0/judge0/issues/583), after
+[#549](https://github.com/judge0/judge0/issues/549)).
+
+Judge0 would therefore require a full Linux virtual machine. Three further considerations made
+that a poor trade for this project:
+
+1. **It covers half the runtimes.** The schema's `code_runtime` values are `javascript`,
+   `python`, `react` and `vue`. Judge0 handles the first two; React and Vue need a component
+   test run with jsdom and a dependency tree, which Judge0 cannot provide. A second runner is
+   needed either way, and a container is the natural shape for it.
+2. **Judge0's release is old.** v1.13.1 dates from April 2024 and fixes three critical
+   vulnerabilities (CVE-2024-28185, CVE-2024-28189, CVE-2024-29021); a sandbox escape has also
+   been published. Running security-sensitive software that is years behind, in a virtual
+   machine that must stay on, is a maintenance cost with no offsetting benefit here.
+3. **The threat model is narrower than a public judge's.** `isolate` is built for contests
+   where anonymous submitters actively attack the sandbox. First Commit's submissions come from
+   authenticated accounts, and the risk being defended against is a learner's code reading the
+   worker's environment — which holds the database credentials — or refusing to terminate.
+
+**What is used instead:** one throwaway Docker container per submission, on the Docker already
+installed. The isolation comes from Docker's own controls, each verified against a real
+container rather than assumed:
+
+| Control | Stops | Verified as |
+|---|---|---|
+| `--network none` | Fetching an answer; reaching the host | DNS fails with `EAI_AGAIN` |
+| `--memory` equal to `--memory-swap` | Unbounded allocation, and swapping around the cap | `memory.max` 134217728, `memory.swap.max` 0 |
+| `--cpus` | Saturating a host that also holds a model in VRAM | `cpu.max` 100000 100000 |
+| `--pids-limit` | Fork bombs | `pids.max` 64 |
+| `--read-only` plus a `noexec` tmpfs | Writing outside scratch; executing from scratch | Writing to `/` fails with `EROFS` |
+| `--cap-drop ALL`, `--security-opt no-new-privileges` | Privilege escalation inside the container | — |
+| `--user 1000:1000` | Running as root | `uid 1000` |
+| `--init` with an in-container timeout | Programs that never terminate | Killed at the limit; without `--init` an infinite loop ran for 631 seconds |
+| `--rm`, a fresh container each time | One submission affecting the next | — |
+
+The timeout is enforced twice — inside the container and by the worker killing the container —
+because the inner mechanism failing silently is a defect that occurred during development.
+
+**This does not change Section 6's rule that browser results never count.** Grading still
+happens on the server, from tests the worker ran itself. Nor does it close Judge0 off: all
+sandbox access goes through one `Runner` interface, `Judge0Runner` is implemented and tested,
+and selecting it is a single environment variable on a host where it can run.
+
+
+## 8.4 Core Data Model
 
 | Entity | Key fields | Notes |
 |---|---|---|
@@ -578,7 +643,7 @@ flowchart TB
 | **Notification** | id, user_id, type, message, read | |
 | **AdminActivityLog** | id, admin_id, action, target, reason, created_at | Read-only |
 
-## 8.4 Data Privacy
+## 8.5 Data Privacy
 
 The platform stores personal information such as names, contact details, GitHub usernames, and resume content. It will follow the principles of the Data Privacy Act of 2012 (Republic Act No. 10173):
 

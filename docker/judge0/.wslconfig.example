@@ -1,19 +1,24 @@
-# Copy to %UserProfile%\.wslconfig, then run `wsl --shutdown` and restart Docker Desktop.
+# Copy to %UserProfile%\.wslconfig, then run `wsl --shutdown`.
 #
-# If you already have a .wslconfig, merge the kernelCommandLine line into your
-# existing [wsl2] section rather than replacing the file.
+# If you already have a .wslconfig, merge these into your existing [wsl2]
+# section rather than replacing the file.
+#
+# ---------------------------------------------------------------------------
+# This does NOT make Judge0 work on Docker Desktop.
+#
+# An earlier version of this file carried
+#     kernelCommandLine = systemd.unified_cgroup_hierarchy=0
+# as the cgroup v1 fix Judge0 needs. It was removed because it does nothing
+# here: that flag is read by **systemd**, and the `docker-desktop` WSL distro
+# does not run systemd. Measured on this machine — a privileged container still
+# cannot mount a cgroup v1 hierarchy (`Invalid argument`).
+#
+# See the warning at the top of README.md for what Judge0 actually needs.
+# ---------------------------------------------------------------------------
 
 [wsl2]
-# Judge0 sandboxes with `isolate`, which needs cgroup v1. A modern WSL 2 kernel
-# defaults to cgroup v2, and the failure is silent: every submission comes back
-# as an internal error with no explanation of why.
-#
-# `npm run judge0:check` step 3 is what catches this — it runs one trivial
-# program before anything real depends on the sandbox.
-kernelCommandLine = systemd.unified_cgroup_hierarchy=0
-
-# Optional. Judge0's four containers are light, but WSL 2 will claim up to half
-# your RAM by default, and this machine also runs Ollama with a model loaded.
-# Capping it leaves the GPU host room.
+# Optional, and unrelated to Judge0. WSL 2 will claim up to half your RAM by
+# default, and this machine also runs Ollama with a model loaded — capping it
+# leaves the GPU host room.
 memory = 8GB
 processors = 4

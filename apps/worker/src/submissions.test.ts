@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import { createTestDb, type TestDb } from "@first-commit/test-db";
 import { queueFeedback, runSubmission, type Submission } from "./submissions.js";
+import { CodeFeedbackInput } from "./prompts/code-feedback.js";
 import { UnconfiguredRunner, type RunResult, type Runner } from "./runner.js";
 
 /**
@@ -182,6 +183,68 @@ describe("runSubmission", () => {
     expect(lastRequest!.cases.filter((c) => !c.visible)).toHaveLength(1);
   });
 
+  /**
+   * **End to end, with the real reader.** The earlier redaction test fed
+   * `runSubmission` a `hidden: true` outcome from a fake runner — so it proved
+   * `redact()` works, and proved nothing about whether anything ever sets the
+   * flag. Nothing did: `readOutcomes` reported `hidden: false` for every case,
+   * so a failing hidden case would have put its expected and actual on the
+   * learner's screen.
+   *
+   * This drives the **real** reader over the **real** harness cases, which is
+   * the seam the leak lived in.
+   */
+  it("redacts a failing hidden case when the reader supplies the flag", async () => {
+    const { buildHarness } = await import("./sandbox/harness.js");
+    const { readOutcomes } = await import("./sandbox/results.js");
+
+    /** The shape `runSubmission` builds for the runner, hidden case included. */
+    const request = {
+      runtime: "javascript",
+      files: submission.files,
+      cases: [
+        { id: ids.visible, name: "Sums the evens", code: "expect(1).toBe(1);", visible: true },
+        {
+          id: ids.hidden,
+          name: "Works on a longer list",
+          code: "expect(2).toBe(2);",
+          visible: false,
+        },
+      ],
+    };
+    const harness = buildHarness(request);
+
+    const runner: Runner = {
+      name: "real-reader",
+      supports: () => true,
+      run: () =>
+        Promise.resolve(
+          // Both fail with values. The hidden one's must not reach the learner.
+          readOutcomes(
+            harness.cases
+              .map((c) =>
+                JSON.stringify({ i: c.i, passed: false, expected: "44", actual: "41" }),
+              )
+              .map((json) => `__fc_result__ ${json}`)
+              .join("\n"),
+            harness.cases,
+          ),
+        ),
+    };
+
+    await runSubmission(db.pool, runner, submission);
+
+    const results = stored().test_results as Record<string, unknown>[];
+    const visible = results.find((r) => r.testCaseId === ids.visible)!;
+    const hidden = results.find((r) => r.testCaseId === ids.hidden)!;
+
+    expect(visible.expected).toBe("44");
+    expect(hidden.hidden).toBe(true);
+    expect(hidden.name).toBe("Works on a longer list");
+    expect(hidden.expected, "a hidden case's expected value reached the learner").toBeUndefined();
+    expect(hidden.actual, "a hidden case's actual value reached the learner").toBeUndefined();
+  });
+
   it("records an error rather than a pass when the code could not run", async () => {
     const result = await runSubmission(
       db.pool,
@@ -250,7 +313,7 @@ describe("UnconfiguredRunner", () => {
 
 describe("queueFeedback", () => {
   /** §7: the model explains results that already exist. */
-  it("queues code_feedback with the failing cases", async () => {
+  it("queues code_feedback against the submission", async () => {
     await queueFeedback(db.pool, submission, [
       outcome(ids.visible, "Sums the evens", false),
       outcome(ids.hidden, "Works on a longer list", true, true),
@@ -261,10 +324,109 @@ describe("queueFeedback", () => {
     expect(jobs[0].type).toBe("code_feedback");
     expect(jobs[0].user_id).toBe(ids.user);
     expect(jobs[0].source_id).toBe(ids.submission);
+  });
 
-    const payload = jobs[0].payload as { failing: { name: string }[] };
-    expect(payload.failing).toHaveLength(1);
-    expect(payload.failing[0].name).toBe("Sums the evens");
+  /**
+   * **The test that was missing.** The old version asserted the payload matched
+   * what this function wrote — a `{ files, failing }` shape nothing consumed —
+   * so it passed while every real job died on
+   * `Cannot read properties of undefined (reading 'map')`.
+   *
+   * Parsing with the *handler's own schema* is what ties producer to consumer.
+   * A payload the handler cannot read now fails here instead.
+   */
+  it("writes a payload the handler can actually parse", async () => {
+    await queueFeedback(db.pool, submission, [
+      outcome(ids.visible, "Sums the evens", false),
+      outcome(ids.hidden, "Works on a longer list", true, true),
+    ]);
+
+    const parsed = CodeFeedbackInput.safeParse(db.rows("ai_jobs")[0].payload);
+    expect(parsed.success, parsed.error?.message).toBe(true);
+
+    const payload = parsed.data!;
+    expect(payload.exerciseTitle).toBe("Sum of even numbers");
+    expect(payload.language).toBe("javascript");
+    expect(payload.files[0].path).toBe("script.js");
+    // Every case, passes included — the model should be able to say what works.
+    expect(payload.testResults).toHaveLength(2);
+    expect(payload.testResults.filter((t) => t.passed)).toHaveLength(1);
+  });
+
+  /**
+   * The rubric goes to the model and never to the learner (§6 rule 2). It is
+   * what lets feedback speak to what the exercise was teaching rather than only
+   * to the assertion that failed.
+   */
+  it("includes the rubric for the model", async () => {
+    await db.pool.query(
+      `insert into rubrics (assessment_id, criteria) values ($1, $2)`,
+      [
+        ids.exercise,
+        JSON.stringify([{ name: "Uses a loop", description: "Iterates rather than hard-coding" }]),
+      ],
+    );
+
+    await queueFeedback(db.pool, submission, [outcome(ids.visible, "Sums the evens", false)]);
+
+    const payload = CodeFeedbackInput.parse(db.rows("ai_jobs")[0].payload);
+    expect(payload.rubric).toEqual([
+      { name: "Uses a loop", description: "Iterates rather than hard-coding" },
+    ]);
+  });
+
+  /** `rubrics.criteria` is jsonb, so it is whatever an author put there. */
+  it("survives a malformed rubric rather than failing the job", async () => {
+    await db.pool.query(`insert into rubrics (assessment_id, criteria) values ($1, $2)`, [
+      ids.exercise,
+      JSON.stringify(["not an object", { name: "no description" }]),
+    ]);
+
+    await queueFeedback(db.pool, submission, [outcome(ids.visible, "Sums the evens", false)]);
+
+    const payload = CodeFeedbackInput.parse(db.rows("ai_jobs")[0].payload);
+    expect(payload.rubric).toEqual([]);
+  });
+
+  /**
+   * A hidden case reaches the model the same way it reaches the learner: a name
+   * and an outcome. Otherwise the hint could hand over the value the hidden case
+   * was checking.
+   */
+  it("sends a hidden case with no values", async () => {
+    await queueFeedback(db.pool, submission, [
+      outcome(ids.visible, "Sums the evens", false),
+      // Redacted, as `runSubmission` stores it: name and outcome only.
+      { testCaseId: ids.hidden, name: "Works on a longer list", passed: false, hidden: true },
+    ]);
+
+    const payload = CodeFeedbackInput.parse(db.rows("ai_jobs")[0].payload);
+    const hidden = payload.testResults.find((t) => t.name === "Works on a longer list")!;
+    expect(hidden.passed).toBe(false);
+    expect(hidden.expected).toBeUndefined();
+    expect(hidden.actual).toBeUndefined();
+  });
+
+  /**
+   * **The exact payload that broke production**, pinned. `{ files, failing }` was
+   * what this function used to write; the handler cast it to
+   * `CodeFeedbackInput` and died on `Cannot read properties of undefined
+   * (reading 'map')` — a message naming neither the field nor the producer.
+   *
+   * The schema now rejects it and says which fields are missing, so the same
+   * mistake becomes a readable error instead of three silent retries.
+   */
+  it("rejects the old payload shape, naming what is missing", () => {
+    const parsed = CodeFeedbackInput.safeParse({
+      files: [{ path: "script.js", content: "x" }],
+      failing: [{ name: "Sums the evens" }],
+    });
+
+    expect(parsed.success).toBe(false);
+    const missing = parsed.error!.issues.map((i) => i.path.join("."));
+    expect(missing).toContain("testResults");
+    expect(missing).toContain("exerciseTitle");
+    expect(missing).toContain("rubric");
   });
 
   /** Nothing to explain about a pass, and a hint is not what a pass needs. */
@@ -277,5 +439,10 @@ describe("queueFeedback", () => {
   it("sends no test code to the model", async () => {
     await queueFeedback(db.pool, submission, [outcome(ids.visible, "Sums the evens", false)]);
     expect(JSON.stringify(db.rows("ai_jobs")[0].payload)).not.toContain("expect(x).toBe(12)");
+  });
+
+  it("queues nothing when there are no results at all", async () => {
+    await queueFeedback(db.pool, submission, []);
+    expect(db.rows("ai_jobs")).toHaveLength(0);
   });
 });

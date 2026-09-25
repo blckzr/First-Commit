@@ -1,4 +1,4 @@
-import type { RunRequest } from "../runner.js";
+import type { RunRequest } from "./types.js";
 
 /**
  * Turning an exercise into one program Judge0 can run.
@@ -42,6 +42,18 @@ export interface HarnessCase {
   i: number;
   id: string;
   name: string;
+  /**
+   * **Carried through, because redaction depends on it.** `is_visible = false`
+   * decides what a learner may read; the outcome has to say so or
+   * `submissions.ts` cannot strip the values. This field was missing at first,
+   * so every outcome came back `hidden: false` and a failing hidden case would
+   * have sent its expected and actual straight to the learner's screen — the
+   * §6 rule 2 leak that hidden cases exist to prevent.
+   *
+   * It is **not** in the generated source. The container never learns which
+   * cases are hidden, only their index.
+   */
+  hidden: boolean;
 }
 
 export interface Harness {
@@ -63,7 +75,12 @@ export class UnsupportedRuntime extends Error {
 }
 
 export function buildHarness(request: RunRequest): Harness {
-  const cases = request.cases.map((c, i) => ({ i, id: c.id, name: c.name }));
+  const cases = request.cases.map((c, i) => ({
+    i,
+    id: c.id,
+    name: c.name,
+    hidden: !c.visible,
+  }));
 
   switch (request.runtime) {
     case "javascript":

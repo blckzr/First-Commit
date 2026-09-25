@@ -1,5 +1,6 @@
 import type { Pool } from "pg";
 import type { Runner, TestOutcome } from "./runner.js";
+import { CodeFeedbackInput } from "./prompts/code-feedback.js";
 
 /**
  * Running a learner's coding exercise (design.md §5.11).
@@ -155,33 +156,88 @@ async function fail(pool: Pool, id: string, message: string): Promise<void> {
  * model explains a run that happened rather than reading the code and guessing
  * at one.
  *
+ * **It builds the payload the handler declares.** An earlier version wrote
+ * `{ files, failing }` — a shape nothing consumed — and the handler cast
+ * `job.payload as CodeFeedbackInput` without checking, so every attempt died on
+ * `Cannot read properties of undefined (reading 'map')` and retried twice before
+ * giving up. `CodeFeedbackInput` is a Zod schema now, and this function is
+ * checked against it before anything is written, so a mismatch fails here —
+ * beside the code that caused it — rather than three retries later.
+ *
  * Queued for failures only. There is nothing to explain about a pass, and
- * `code_feedback` gives hints — which a learner who just passed does not need.
+ * `code_feedback` gives hints, which a learner who just passed does not need.
  */
 export async function queueFeedback(
   pool: Pool,
   submission: Submission,
-  outcomes: TestOutcome[],
+  /**
+   * The **redacted** outcomes, as written to `code_submissions.test_results`.
+   * A hidden case arrives as a name and an outcome with no values, so the model
+   * cannot repeat something the learner is not allowed to see — the hint would
+   * otherwise hand over the hidden case's answer.
+   *
+   * Typed as the four fields this actually reads rather than a whole
+   * `TestOutcome`, so a caller with only the stored shape does not need a cast.
+   * The *redacted* part is a contract the caller keeps; no type can state it.
+   */
+  outcomes: Pick<TestOutcome, "name" | "passed" | "expected" | "actual">[],
 ): Promise<void> {
-  const failing = outcomes.filter((o) => !o.passed);
-  if (failing.length === 0) return;
+  if (outcomes.length === 0) return;
+  if (outcomes.every((o) => o.passed)) return;
+
+  const meta = await pool.query<{
+    title: string;
+    instructions: string;
+    runtime: string | null;
+  }>(
+    `select title, instructions, runtime from assessments where id = $1`,
+    [submission.assessment_id],
+  );
+  if (!meta.rows[0]) return;
+
+  /**
+   * The rubric goes to the **model**, never to the learner (§6 rule 2 names
+   * rubrics, and `GET /submissions/:id` strips it from the output). It is what
+   * lets feedback speak to what the exercise was teaching rather than only to
+   * the assertion that failed.
+   */
+  const rubric = await pool.query<{ criteria: unknown }>(
+    `select criteria from rubrics where assessment_id = $1`,
+    [submission.assessment_id],
+  );
+
+  const payload = CodeFeedbackInput.parse({
+    exerciseTitle: meta.rows[0].title,
+    instructions: meta.rows[0].instructions,
+    language: meta.rows[0].runtime ?? "javascript",
+    files: submission.files,
+    // Passes included: the model should be able to say what already works.
+    testResults: outcomes.map((o) => ({
+      name: o.name,
+      passed: o.passed,
+      ...(o.expected !== undefined ? { expected: o.expected } : {}),
+      ...(o.actual !== undefined ? { actual: o.actual } : {}),
+    })),
+    // §5's flow names a linter. It is not built, so there is nothing to report
+    // and the prompt says "No linter issues." rather than inventing any.
+    lintResults: [],
+    rubric: criteriaOf(rubric.rows[0]?.criteria),
+  });
 
   await pool.query(
     `insert into ai_jobs (type, user_id, source_id, payload)
      values ('code_feedback', $1, $2, $3)`,
-    [
-      submission.user_id,
-      submission.id,
-      JSON.stringify({
-        files: submission.files,
-        // Names and values only. The assertion itself stays server-side, and
-        // a hidden case has already been redacted by the time it gets here.
-        failing: failing.map((o) => ({
-          name: o.name,
-          expected: o.expected,
-          actual: o.actual,
-        })),
-      }),
-    ],
+    [submission.user_id, submission.id, JSON.stringify(payload)],
   );
+}
+
+/** `rubrics.criteria` is `jsonb`, so it is whatever an author put there. */
+function criteriaOf(value: unknown): { name: string; description: string }[] {
+  if (!Array.isArray(value)) return [];
+  return value.flatMap((c) => {
+    const row = c as Record<string, unknown>;
+    return typeof row?.name === "string" && typeof row?.description === "string"
+      ? [{ name: row.name, description: row.description }]
+      : [];
+  });
 }

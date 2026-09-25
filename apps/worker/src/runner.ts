@@ -1,5 +1,7 @@
 import { config } from "./config.js";
-import { Judge0Runner } from "./judge0/index.js";
+import type { Runner, RunRequest, RunResult } from "./sandbox/types.js";
+import { DockerRunner } from "./sandbox/docker.js";
+import { Judge0Runner } from "./sandbox/judge0.js";
 
 /**
  * Where a learner's code is run.
@@ -9,9 +11,14 @@ import { Judge0Runner } from "./judge0/index.js";
  * call passes through.
  *
  * `database-schema.md` §8 specifies Judge0 for JavaScript and Python, and a
- * Node test runner for React and Vue. **Judge0 is built** — see `src/judge0/`
- * and `docker/judge0/README.md` — and is selected with `CODE_RUNNER=judge0`.
- * The React and Vue runner is not.
+ * Node test runner for React and Vue.
+ *
+ * **Judge0 does not run on Docker Desktop for Windows** — `isolate` needs cgroup
+ * v1 and the WSL 2 VM is cgroup v2 unified. So the sandbox in use here is
+ * `DockerRunner` (`CODE_RUNNER=docker`): one throwaway container per submission,
+ * on the Docker that is already installed. `Judge0Runner` is kept and tested for
+ * a Linux host, where it works unchanged. `docker/judge0/README.md` records the
+ * measurement. The React and Vue runner is built in neither.
  *
  * With `CODE_RUNNER=none`, the default implementation **refuses honestly**: a
  * submission it cannot run is marked `error` with a message saying why, rather
@@ -28,39 +35,12 @@ import { Judge0Runner } from "./judge0/index.js";
  * trust results the browser computed.
  */
 
-/** One case as the worker reports it. The shape `code_submissions.test_results` holds. */
-export interface TestOutcome {
-  testCaseId: string;
-  name: string;
-  passed: boolean;
-  /**
-   * What the case expected and what it got, for §5.11's "Expected 2, got 0".
-   * Absent when the run never reached the assertion.
-   */
-  expected?: string;
-  actual?: string;
-  /** Present on a case the learner may not read. Its name is still shown. */
-  hidden: boolean;
-}
-
-export interface RunRequest {
-  runtime: string;
-  files: { path: string; content: string }[];
-  cases: { id: string; name: string; code: string; visible: boolean }[];
-}
-
-export interface RunResult {
-  outcomes: TestOutcome[];
-  /** Compiler or interpreter output when the code did not run at all. */
-  error?: string;
-}
-
-export interface Runner {
-  name: string;
-  /** Whether this runner can handle a `code_runtime`. */
-  supports(runtime: string): boolean;
-  run(request: RunRequest): Promise<RunResult>;
-}
+/**
+ * The types live in `sandbox/types.ts`, which imports nothing — otherwise this
+ * file and the implementations it constructs form a cycle. Re-exported here so
+ * every existing `from "./runner.js"` keeps working.
+ */
+export type { Runner, RunRequest, RunResult, TestOutcome } from "./sandbox/types.js";
 
 /**
  * The runner used when none is configured.
@@ -101,6 +81,20 @@ export class UnconfiguredRunner implements Runner {
  */
 export function createRunner(): Runner {
   switch (config.codeRunner) {
+    /**
+     * The default sandbox here. One throwaway container per submission, on the
+     * Docker that is already installed. `project-proposal.md` §8.3 records why
+     * this rather than Judge0.
+     */
+    case "docker":
+      return new DockerRunner({
+        binary: config.dockerBinary ?? undefined,
+        timeoutSeconds: config.sandboxTimeoutSeconds,
+        memoryMb: config.sandboxMemoryMb,
+        cpus: config.sandboxCpus,
+        pidsLimit: config.sandboxPidsLimit,
+      });
+
     case "judge0":
       return new Judge0Runner({
         url: config.judge0Url,
@@ -117,7 +111,8 @@ export function createRunner(): Runner {
        * about setup they believe they have done.
        */
       throw new Error(
-        `CODE_RUNNER is "${config.codeRunner}", which is not a runner. Use "judge0" or "none".`,
+        `CODE_RUNNER is "${config.codeRunner}", which is not a runner. ` +
+          `Use "docker", "judge0", or "none".`,
       );
   }
 }

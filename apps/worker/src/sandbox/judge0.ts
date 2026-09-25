@@ -1,15 +1,18 @@
 import { z } from "zod";
-import type { Runner, RunRequest, RunResult, TestOutcome } from "../runner.js";
-import { buildHarness, RESULT_MARKER, UnsupportedRuntime, type HarnessCase } from "./harness.js";
+import type { Runner, RunRequest, RunResult } from "./types.js";
+import { buildHarness, UnsupportedRuntime, type HarnessCase } from "./harness.js";
+import { failAll, readOutcomes, trim } from "./results.js";
 
 /**
  * Judge0 — the sandbox `project-proposal.md` §8 and `database-schema.md` §1
  * and §8 name.
  *
- * **It runs on your machine, beside Ollama.** The worker already pulls work
- * rather than being called, so nothing on the internet needs to reach either.
- * Setup is `docker/judge0/README.md`; `npm run judge0:check` proves it works
- * before a learner depends on it.
+ * **Not in use on this machine.** Judge0 sandboxes with `isolate`, which speaks
+ * cgroup v1 only, and Docker Desktop's WSL 2 VM is cgroup v2 unified — measured:
+ * even a privileged container cannot mount a v1 hierarchy. It needs a real Linux
+ * VM. `DockerRunner` in `docker.ts` is what runs here; this is kept, and kept
+ * tested, because it works unchanged the day there is a Linux host to point it
+ * at. Setup and the evidence are in `docker/judge0/README.md`.
  *
  * ### What this trusts, and what it does not
  *
@@ -50,15 +53,6 @@ const Submission = z.object({
   status: z.object({ id: z.number(), description: z.string() }),
 });
 export type Judge0Submission = z.infer<typeof Submission>;
-
-/** One reported case, as the harness prints it. */
-const ResultLine = z.object({
-  i: z.number().int().nonnegative(),
-  passed: z.boolean(),
-  expected: z.string().optional(),
-  actual: z.string().optional(),
-  error: z.string().optional(),
-});
 
 /**
  * Judge0 status ids. 3 is Accepted; everything above it is a way of not
@@ -182,87 +176,7 @@ export class Judge0Runner implements Runner {
       };
     }
 
-    const reported = this.parseLines(submission.stdout ?? "", cases.length);
-
-    /**
-     * **A case with no line is a failure.** The program ran but said nothing
-     * about this case: it exited early, or the assertions were removed. Neither
-     * is a pass, and treating silence as success is exactly how hidden cases
-     * would stop meaning anything.
-     */
-    const outcomes: TestOutcome[] = cases.map((c) => {
-      const line = reported.get(c.i);
-      if (!line) {
-        return {
-          testCaseId: c.id,
-          name: c.name,
-          passed: false,
-          hidden: false,
-          actual: "the test did not report a result",
-        };
-      }
-      return {
-        testCaseId: c.id,
-        name: c.name,
-        passed: line.passed,
-        hidden: false,
-        ...(line.expected !== undefined ? { expected: line.expected } : {}),
-        ...(line.actual !== undefined ? { actual: line.actual } : {}),
-        ...(line.error !== undefined && line.actual === undefined
-          ? { actual: line.error }
-          : {}),
-      };
-    });
-
-    /**
-     * Nothing parsed at all, with the program reporting success. stdout is not
-     * what the harness writes — a runtime that printed nothing, or output
-     * mangled beyond use. Reported as an error rather than as every test
-     * failing, because the learner's code is not what went wrong.
-     */
-    if (reported.size === 0 && cases.length > 0) {
-      return {
-        outcomes,
-        error:
-          "The tests ran but reported nothing back. This is a problem on our side, not with " +
-          "your code — your work is saved.",
-      };
-    }
-
-    return { outcomes };
-  }
-
-  /**
-   * Reads result lines out of stdout, ignoring everything else.
-   *
-   * A learner's own `console.log` shares this stream, so only lines carrying the
-   * marker *and* parsing as a result *and* naming an index this run actually
-   * sent are kept. The first line for an index wins, so a forged duplicate
-   * cannot overwrite a real failure.
-   */
-  private parseLines(stdout: string, count: number): Map<number, z.infer<typeof ResultLine>> {
-    const found = new Map<number, z.infer<typeof ResultLine>>();
-
-    for (const raw of stdout.split("\n")) {
-      const line = raw.trim();
-      if (!line.startsWith(RESULT_MARKER)) continue;
-
-      let json: unknown;
-      try {
-        json = JSON.parse(line.slice(RESULT_MARKER.length).trim());
-      } catch {
-        continue;
-      }
-
-      const parsed = ResultLine.safeParse(json);
-      if (!parsed.success) continue;
-      if (parsed.data.i >= count) continue;
-      if (found.has(parsed.data.i)) continue;
-
-      found.set(parsed.data.i, parsed.data);
-    }
-
-    return found;
+    return readOutcomes(submission.stdout ?? "", cases);
   }
 
   private async languageFor(runtime: string): Promise<number> {
@@ -348,23 +262,6 @@ export class Judge0Runner implements Runner {
       error,
     };
   }
-}
-
-function failAll(cases: HarnessCase[]): TestOutcome[] {
-  return cases.map((c) => ({
-    testCaseId: c.id,
-    name: c.name,
-    passed: false,
-    hidden: false,
-  }));
-}
-
-function trim(value: string | null): string | null {
-  const text = value?.trim();
-  if (!text) return null;
-  // Long compiler output is read on a phone too (§11). Enough to find the
-  // problem, not the whole trace.
-  return text.length > 2000 ? `${text.slice(0, 2000)}\n…` : text;
 }
 
 /**

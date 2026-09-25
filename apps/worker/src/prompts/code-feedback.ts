@@ -1,3 +1,4 @@
+import { z } from "zod";
 import type { ChatMessage } from "../ollama.js";
 
 export interface TestResult {
@@ -7,15 +8,41 @@ export interface TestResult {
   actual?: string;
 }
 
-export interface CodeFeedbackInput {
-  exerciseTitle: string;
-  instructions: string;
-  language: string;
-  files: { path: string; content: string }[];
-  testResults: TestResult[];
-  lintResults: string[];
-  rubric: { name: string; description: string }[];
-}
+/**
+ * What a `code_feedback` job carries.
+ *
+ * **A Zod schema, not just an interface.** The handler used to cast
+ * `job.payload as CodeFeedbackInput`, and when `submissions.ts` queued a
+ * different shape the failure was `Cannot read properties of undefined (reading
+ * 'map')`, three times, across two retries. §8's rule — validate at the
+ * boundary, not just at the type level — applies to a job payload as much as to
+ * an HTTP response: it crossed a process and a database on the way here.
+ */
+export const CodeFeedbackInput = z.object({
+  exerciseTitle: z.string(),
+  instructions: z.string(),
+  /** `assessments.runtime` — `javascript`, `python`, `react`, `vue`. */
+  language: z.string(),
+  files: z.array(z.object({ path: z.string(), content: z.string() })).min(1),
+  /**
+   * Every case, passes included: the prompt shows the whole picture so the model
+   * can tell a learner what already works. Already redacted — a hidden case
+   * arrives as a name and an outcome, so the model cannot repeat a value the
+   * learner is not allowed to see.
+   */
+  testResults: z.array(
+    z.object({
+      name: z.string(),
+      passed: z.boolean(),
+      expected: z.string().optional(),
+      actual: z.string().optional(),
+    }),
+  ),
+  /** Nothing lints yet. §5's flow names a linter; it is not built. */
+  lintResults: z.array(z.string()),
+  rubric: z.array(z.object({ name: z.string(), description: z.string() })),
+});
+export type CodeFeedbackInput = z.infer<typeof CodeFeedbackInput>;
 
 const SYSTEM = `You are a patient code reviewer for First Commit, a platform for beginner programmers.
 

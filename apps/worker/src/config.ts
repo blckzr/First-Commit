@@ -26,6 +26,28 @@ export const config = {
   codeRunner: env("CODE_RUNNER", "none"),
 
   /**
+   * Per-submission limits, applied by whichever sandbox is configured.
+   *
+   * Tight on purpose: this machine also holds a model in VRAM and the worker
+   * runs one job at a time (AGENT.md §7), so a learner's runaway loop must not
+   * be able to hold the slot for long or pressure the host. Verified against a
+   * real container — `pids.max`, `memory.max` and `cpu.max` all read back as
+   * set.
+   */
+  sandboxTimeoutSeconds: Number(env("SANDBOX_TIMEOUT_SECONDS", "5")),
+  sandboxMemoryMb: Number(env("SANDBOX_MEMORY_MB", "128")),
+  sandboxCpus: Number(env("SANDBOX_CPUS", "1")),
+  sandboxPidsLimit: Number(env("SANDBOX_PIDS_LIMIT", "64")),
+
+  /**
+   * Where `docker` is, when it is not on PATH. Usually unset — but a terminal
+   * opened before Docker Desktop was installed has a PATH without it, which
+   * fails as `spawn docker ENOENT`, and pointing at the binary is the escape
+   * hatch when restarting the shell is not an option.
+   */
+  dockerBinary: process.env.DOCKER_BINARY?.trim() || null,
+
+  /**
    * Judge0, when `CODE_RUNNER=judge0`. Setup is `docker/judge0/README.md`.
    *
    * `127.0.0.1` rather than `localhost`: on Windows `localhost` can resolve to

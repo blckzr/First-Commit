@@ -443,42 +443,60 @@ Run it a few times with both models. The output varies slightly each run.
 
 ---
 
-# 12. The Code Sandbox (Judge0)
+# 12. The Code Sandbox
 
-The model explains test results; **something else has to produce them**. That is Judge0, and
-until it is running every coding submission fails with an explanation rather than queueing
-forever (`CODE_RUNNER=none`).
+The model explains test results; **something else has to produce them**. Until a sandbox is
+configured, every coding submission fails with an explanation rather than queueing forever
+(`CODE_RUNNER=none`).
 
-**Full setup: [`docker/judge0/README.md`](../docker/judge0/README.md).** It is kept beside the
-configuration rather than here because it is Docker and WSL work, not model work. The short
-version:
+**`CODE_RUNNER=docker` is what this machine uses:** one throwaway container per submission,
+on the Docker Desktop already installed. Setup is three commands —
+[`docker/README.md`](../docker/README.md).
 
-1. `wsl --install` (Administrator, then reboot)
-2. `winget install --id Docker.DockerDesktop`
-3. **Put `kernelCommandLine = systemd.unified_cgroup_hierarchy=0` in `%UserProfile%\.wslconfig`,
-   then `wsl --shutdown`.** Judge0 sandboxes with `isolate`, which needs cgroup v1; a modern
-   WSL 2 kernel defaults to v2 and the failure is silent
-4. Unzip the **v1.13.1** release (not v1.13.0 — it has three known CVEs), set
+```powershell
+docker pull node:20-alpine
+npm run sandbox:check
+# then CODE_RUNNER=docker in apps/worker/.env
+```
+
+**Judge0**, which `project-proposal.md` §8 names, is built and tested but **cannot run on
+Docker Desktop for Windows** — the measurement and the alternatives are in
+[`docker/judge0/README.md`](../docker/judge0/README.md). It needs a Linux host, where
+`Judge0Runner` works unchanged.
+
+> **Judge0 does not run on Docker Desktop for Windows.** `isolate` needs cgroup v1; the
+> WSL 2 VM is cgroup v2 unified and refuses a v1 mount even to a privileged container
+> (measured — `Invalid argument`). The `systemd.unified_cgroup_hierarchy=0` flag does not
+> help: the `docker-desktop` distro has no systemd to read it. Judge0 needs a **Linux VM**,
+> a hosted Judge0, or a different runner — see
+> [`docker/judge0/README.md`](../docker/judge0/README.md).
+
+Once there is a Judge0 to talk to:
+
+1. Unzip the **v1.13.1** release (not v1.13.0 — it has three known CVEs), set
    `REDIS_PASSWORD` and `POSTGRES_PASSWORD` in `judge0.conf`
-5. `docker compose up -d db redis`, wait 10s, `docker compose up -d`
-6. `npm run judge0:check`
-7. `CODE_RUNNER=judge0` in `apps/worker/.env`
+2. `docker compose up -d db redis`, wait 10s, `docker compose up -d`
+3. `npm run judge0:check`
+4. `CODE_RUNNER=judge0` and `JUDGE0_URL` in `apps/worker/.env`
 
-## What `npm run judge0:check` proves
+## What `npm run sandbox:check` proves
 
 The same reason `npm run check` exists for Ollama: the guide says what should be true, the
-script says what *is* true on this machine. Judge0's language ids move between releases, and
-the cgroup requirement is the fiddly part, so both are measured rather than assumed.
+script says what *is* true on this machine. It checks whichever runner `CODE_RUNNER` selects.
 
 | Step | Catches |
 |---|---|
-| 1. `/about` answers | The stack is not up |
-| 2. `/languages` | A missing runtime, and the ids on *this* install |
-| 3. One trivial program runs | **cgroup v2** — the silent failure |
-| 4. The seeded exercise, end to end | A harness that is not running the assertions |
+| The runtimes it accepts | A runner claiming React or Vue, which neither sandbox can do |
+| The seeded exercise, end to end | A harness that is not running the assertions |
+| A program that never finishes | A sandbox that cannot stop a runaway loop |
 
-Step 4 should report **3 of 5 passing**. The seeded starter carries §5.11's own bug — a loop
-starting at index 1 — so it drops whatever is first. Five of five is a failure, not success.
+The exercise should report **3 of 5 passing**. The seeded starter carries §5.11's own bug — a
+loop starting at index 1 — so it drops whatever is first. **Five of five is a failure**, not
+success: it means the assertions are not running.
+
+The runaway-loop step earned its place. Without `--init` the in-container `timeout` runs as
+PID 1, where signal defaults differ, and it silently does nothing — an infinite loop ran for
+**631 seconds** before it was killed by hand.
 
 ## How an exercise becomes something Judge0 can run
 
@@ -486,34 +504,45 @@ Judge0 takes one source file and compares stdout; it was built for competitive p
 Our exercises hold an assertion per case (`expect(sumEven([2, 4, 6])).toBe(12)`) and §5.11
 shows a per-case tick with an expected and an actual.
 
-So `src/judge0/harness.ts` compiles the cases **into** the program: the learner's files, a
-minimal `expect`, then each case wrapped so it reports itself as a line of JSON. One
-container per submission, and every case runs even after one fails — because §5.11 shows the
-whole list, not the first thing that broke.
+So `src/sandbox/harness.ts` compiles the cases **into** the program: the learner's files, a
+minimal `expect`, then each case wrapped so it reports itself as a line of JSON. One container
+per submission, and every case runs even after one fails — because §5.11 shows the whole list,
+not the first thing that broke.
+
+**The program goes in on stdin.** `node` and `python3 -` both read a program from stdin, so
+there is no temporary file and no bind mount — and therefore no Windows path translation, the
+part of Docker-on-Windows most likely to break.
 
 Three consequences worth knowing:
 
 - **The program always exits 0.** A case's outcome is data, not an exit code.
 - **A case that reports nothing is a failure.** Code that exits early or deletes the
-  assertions fails the exercise; silence is never a pass. This is mutation-tested.
+  assertions fails the exercise; silence is never a pass. `src/sandbox/results.ts` owns that
+  rule, both sandboxes use it, and it is mutation-tested.
 - **No database id or case name goes into the source.** A learner's code shares stdout with
   the results, so it could print a forged result line — it just has nothing real to attach
   it to, and the first line for a case wins.
 
-## What Judge0 does not cover
+## What neither sandbox covers
 
 **React and Vue.** They need a component test run — Vitest with jsdom and a `node_modules`
-tree — which Judge0 has not got. `Judge0Runner.supports()` returns false for them, so the
-worker records an honest error instead of sending a component test to a bare Node runtime and
-reporting the resulting syntax error as the learner's fault. That runner is separate work.
+tree. `supports()` returns false for them, so the worker records an honest error instead of
+sending a component test to a bare runtime and reporting the resulting syntax error as the
+learner's fault. A container image with those dependencies baked in is the natural shape for
+it; that runner is separate work.
 
-## Keep it local
+## The limits
 
-Port 2358 must not be exposed. An open Judge0 runs arbitrary code for anyone who finds it.
-The worker is on the same machine and is the only thing that talks to it. Every submission is
-sent with `enable_network: false`, and with the CPU and memory limits from
-`JUDGE0_CPU_SECONDS` and `JUDGE0_MEMORY_KB` — tight on purpose, because this machine is also
-holding a model in VRAM and the worker runs one job at a time.
+`SANDBOX_TIMEOUT_SECONDS`, `SANDBOX_MEMORY_MB`, `SANDBOX_CPUS` and `SANDBOX_PIDS_LIMIT` apply
+to whichever sandbox is configured. Tight on purpose: this machine is also holding a model in
+VRAM and the worker runs one job at a time, so a runaway loop must not hold the slot or
+pressure the host. Verified against a real container — `pids.max`, `memory.max` and `cpu.max`
+all read back as set, and swap is capped at zero so a program cannot swap around the memory
+limit.
+
+Every submission runs with **no network**, as a **non-root** user, on a **read-only**
+filesystem. If Judge0 is ever used, keep port 2358 closed: an open Judge0 runs arbitrary code
+for anyone who finds it.
 
 ---
 

@@ -15,7 +15,7 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest",
     "test:run": "vitest run",
-    "judge0:check": "tsx src/judge0/check.ts"
+    "sandbox:check": "tsx src/sandbox/check.ts"
   },
   "dependencies": {
     "dotenv": "^17.4.2",

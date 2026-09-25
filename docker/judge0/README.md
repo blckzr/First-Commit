@@ -17,6 +17,45 @@ is the same reason the worker pulls jobs rather than listening for them.
 
 ---
 
+## Judge0 does not run on Docker Desktop for Windows
+
+**Measured on this machine, 2026-09-25.** Judge0 sandboxes with `isolate`, which speaks
+**cgroup v1 only**. The WSL 2 VM that Docker Desktop runs its daemon in is **cgroup v2
+unified**, and it will not hand out a v1 hierarchy even to a privileged container:
+
+```
+$ docker run --rm --privileged alpine sh -c "mount -t cgroup -o memory cgroup /tmp/cg"
+mount: mounting cgroup on /tmp/cg failed: Invalid argument
+```
+
+`/proc/filesystems` does list `cgroup` alongside `cgroup2`, so v1 is compiled in — but every
+controller is bound to the v2 hierarchy, which is what makes a v1 mount fail with `EINVAL`.
+
+**The `systemd.unified_cgroup_hierarchy=0` kernel flag does not fix this**, and an earlier
+version of this guide was wrong to say it would. That flag is read by **systemd**, and the
+`docker-desktop` WSL distro does not run systemd, so nothing there acts on it. Judge0's own
+notes give it as an *Ubuntu* instruction, where systemd is init; it does not transfer.
+
+This is [judge0/judge0#583](https://github.com/judge0/judge0/issues/583), open with no fix,
+and [#549](https://github.com/judge0/judge0/issues/549) before it.
+
+### What Judge0 needs instead
+
+| Path | Works? | Cost |
+|---|---|---|
+| **Linux VM** (Hyper-V), Ubuntu 22.04 with the GRUB flag | Yes — Judge0's documented environment | A full VM: ~4 GB RAM, ~20 GB disk |
+| **Judge0 Cloud / RapidAPI** | Yes | Learner code leaves the machine; API key; rate limits |
+| **A plain-container runner instead of Judge0** | Yes, on what is already installed | Not what `project-proposal.md` §8 names |
+| Docker Desktop + WSL 2 | **No** | — |
+
+`Judge0Runner` is finished and tested either way: it talks to a Judge0 over HTTP and does not
+care where that Judge0 lives. Only `JUDGE0_URL` changes.
+
+**The steps below assume you have solved the above.** In a Hyper-V Ubuntu VM, run steps 3–5
+inside the VM and point `JUDGE0_URL` at its IP rather than `127.0.0.1`.
+
+---
+
 ## What you need
 
 | | |
@@ -51,38 +90,17 @@ wsl --status
 winget install --id Docker.DockerDesktop --accept-package-agreements --accept-source-agreements
 ```
 
-Start it, and leave **Settings → General → "Use the WSL 2 based engine"** ticked (the
-default). Confirm from a normal terminal:
+Start it. **There is no "Use the WSL 2 based engine" setting to tick** — recent Docker
+Desktop removed the Hyper-V backend, so WSL 2 is the only one and the toggle is gone.
+Confirm from a normal terminal:
 
 ```powershell
 docker --version
 docker compose version
+wsl --list --verbose   # docker-desktop should read VERSION 2
 ```
 
-## 3. Switch the WSL kernel to cgroup v1 — do this before step 4
-
-**This is the step that decides whether Judge0 works**, and skipping it does not produce a
-clear error. Judge0 sandboxes with `isolate`, which needs **cgroup v1**. Modern kernels
-default to v2, and the symptom is every submission coming back as an internal error with no
-explanation.
-
-Create or edit `%UserProfile%\.wslconfig` — there is a copy in this folder to start from:
-
-```ini
-[wsl2]
-kernelCommandLine = systemd.unified_cgroup_hierarchy=0
-```
-
-Then apply it:
-
-```powershell
-wsl --shutdown
-```
-
-Start Docker Desktop again. (`wsl --shutdown` stops Docker's WSL backend, so Docker Desktop
-needs restarting — that is expected.)
-
-## 4. Get Judge0
+## 3. Get Judge0
 
 Use **v1.13.1**, not v1.13.0. v1.13.1 is a security release fixing three critical
 vulnerabilities (CVE-2024-28185, CVE-2024-28189, CVE-2024-29021), and most tutorials still
@@ -100,7 +118,7 @@ release cycle and its own `docker-compose.yml`; vendoring it would mean maintain
 somebody else's security-sensitive software. This folder holds only what is ours — the
 `.wslconfig` line and this guide.
 
-## 5. Set its passwords
+## 4. Set its passwords
 
 Open `judge0.conf` and fill in two blanks:
 
@@ -122,7 +140,7 @@ DISABLE_TELEMETRY=true
 Leave `AUTHN_TOKEN` empty. It only matters if the API is reachable from outside this machine,
 and it should not be — see *Keep it local* below.
 
-## 6. Start it
+## 5. Start it
 
 The order matters: the database and Redis have to be accepting connections before the server
 and workers try to use them.
@@ -137,7 +155,7 @@ docker compose ps
 
 All four services (`server`, `workers`, `db`, `redis`) should read `running`.
 
-## 7. Prove it works
+## 6. Prove it works
 
 From this repo:
 
@@ -161,7 +179,7 @@ item happens not to matter for them.
 **Five of five passing is a failure**, not good news: it means the harness is not running the
 assertions.
 
-## 8. Turn it on
+## 7. Turn it on
 
 In `apps/worker/.env`:
 
@@ -197,9 +215,9 @@ anyone who finds it. Specifically:
 | What you see | Almost always |
 |---|---|
 | `judge0:check` says not reachable | Stack is down. `docker compose ps` in `judge0-v1.13.1` |
-| Every submission is an internal error | cgroup v2. Step 3 was skipped, or `wsl --shutdown` was not run after it |
+| Every submission is an internal error | **cgroup v2** — see the warning at the top. Not fixable on Docker Desktop |
 | `workers` container restarts in a loop | Same cgroup problem — check `docker compose logs workers` |
-| `db` or `redis` unhealthy | Passwords not set in `judge0.conf`, or step 6 was run in one go without the waits |
+| `db` or `redis` unhealthy | Passwords not set in `judge0.conf`, or step 5 was run in one go without the waits |
 | Submissions hang as `queued` in Judge0 | `workers` is not running |
 | `judge0:check` reports 5 of 5 passing | The harness is not running the assertions — a bug in `src/judge0/harness.ts`, not good news |
 | `judge0:check` reports some other count | Same place. It should be 3 of 5, failing cases 1 and 3 |

@@ -9,14 +9,31 @@
  * the machine with the GPU (docs/database-schema.md §1).
  */
 import { Pool } from "pg";
+import { z } from "zod";
 import { dbConfig, config } from "./config.js";
 import { chatJson } from "./ollama.js";
-import { buildCodeFeedbackMessages, type CodeFeedbackInput } from "./prompts/code-feedback.js";
+import { buildCodeFeedbackMessages, CodeFeedbackInput } from "./prompts/code-feedback.js";
 import { PROMPT_VERSION as ROADMAP_PROMPT_VERSION, SYSTEM as ROADMAP_SYSTEM } from "./prompts/roadmap.js";
 import { runRoadmapGeneration } from "./roadmap/index.js";
 import { CodeFeedback, noSolutionLeak } from "./schemas.js";
 import { createRunner } from "./runner.js";
 import { queueFeedback, runSubmission, type Submission } from "./submissions.js";
+
+/**
+ * `code_submissions.test_results` as stored. `jsonb`, so it is parsed rather
+ * than trusted — the alternative was `as never`, which is how the payload
+ * mismatch below reached production in the first place.
+ */
+const TestOutcomes = z.array(
+  z.object({
+    testCaseId: z.string().optional(),
+    name: z.string(),
+    passed: z.boolean(),
+    expected: z.string().optional(),
+    actual: z.string().optional(),
+    hidden: z.boolean().default(false),
+  }),
+);
 
 const db = dbConfig();
 
@@ -48,7 +65,12 @@ type Handler = (job: AiJob) => Promise<{
 
 const handlers: Record<string, Handler> = {
   async code_feedback(job) {
-    const input = job.payload as CodeFeedbackInput;
+    /**
+     * Parsed, not cast. The payload crossed a process and a database to get
+     * here, so it is a boundary (§8) — and casting it once cost three retries
+     * and an error message that named nothing.
+     */
+    const input = CodeFeedbackInput.parse(job.payload);
     const r = await chatJson({
       schema: CodeFeedback,
       messages: buildCodeFeedbackMessages(input),
@@ -193,10 +215,12 @@ async function processSubmission(): Promise<boolean> {
       `select test_results from code_submissions where id = $1`,
       [submission.id],
     );
-    const outcomes = Array.isArray(stored.rows[0]?.test_results)
-      ? (stored.rows[0].test_results as { name: string; passed: boolean }[])
-      : [];
-    await queueFeedback(pool, submission, outcomes as never);
+    /**
+     * Read back rather than reused, so the model sees exactly what the learner
+     * sees — the redacted results, with hidden cases carrying no values.
+     */
+    const outcomes = TestOutcomes.safeParse(stored.rows[0]?.test_results);
+    if (outcomes.success) await queueFeedback(pool, submission, outcomes.data);
 
     const took = ((Date.now() - started) / 1000).toFixed(1);
     console.log(

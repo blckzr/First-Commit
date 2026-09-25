@@ -11,6 +11,209 @@ lives under `[Unreleased]` until there is something to version.
 
 ## [Unreleased]
 
+### 2026-09-26 — Two bugs the first real submission found
+
+The sandbox worked on its first run against the real database: 4 of 7 cases passing in 4
+seconds, with correct expected-and-actual values. Two defects showed up either side of it,
+both in the seam between components that were each tested against their own assumptions.
+
+#### Fixed
+
+- **A failing hidden case would have shown the learner its expected and actual values** —
+  §6 rule 2, in the one place hidden cases exist to enforce.
+
+  `HarnessCase` did not carry visibility, so `readOutcomes` reported `hidden: false` for
+  every case, and `redact()` in `submissions.ts` keys on exactly that. Nothing was ever
+  redacted. It did not show in the real run only because both hidden cases happened to pass,
+  so there were no values to leak.
+
+  **Why the tests missed it.** `submissions.test.ts` handed redaction a `hidden: true`
+  outcome from a *fake* runner — proving `redact()` works and proving nothing about whether
+  anything sets the flag. `results.test.ts` never asserted the flag at all. Each side was
+  correct about its own half.
+
+  Fixed by carrying `hidden` through `HarnessCase` and `readOutcomes`. Three tests assert the
+  flag survives the reader, and one drives the **real** reader over **real** harness cases
+  into the database — the seam the leak lived in. Mutation-tested three ways: the reader
+  flattening the flag, the harness dropping it, and redaction removed entirely; all caught.
+  The flag is still absent from the generated program, so the container never learns which
+  cases are hidden.
+
+- **`code_feedback` crashed on every attempt**: `Cannot read properties of undefined (reading
+  'map')`, twice retried, then abandoned.
+
+  `queueFeedback` wrote `{ files, failing }`. The handler expects `CodeFeedbackInput` —
+  `exerciseTitle`, `instructions`, `language`, `files`, `testResults`, `lintResults`,
+  `rubric` — and obtained it with `job.payload as CodeFeedbackInput`, a cast that checks
+  nothing. So the mismatch surfaced as a missing `.map` deep in the prompt builder, naming
+  neither the field nor the producer.
+
+  `queueFeedback` now builds the real payload: title, instructions and runtime from
+  `assessments`, criteria from `rubrics`, and **every** outcome rather than only the failures,
+  so the model can say what already works. `lintResults` is empty — §5's flow names a linter
+  and it is not built, so the prompt says "No linter issues." rather than inventing any.
+
+  **`CodeFeedbackInput` is a Zod schema now**, and both ends use it: `queueFeedback` parses
+  before writing, the handler parses before reading. §8's rule — validate at the boundary, not
+  just at the type level — applies to a job payload, which crossed a process and a database to
+  get here.
+
+- **Two `as` casts were hiding both defects from the compiler**: `outcomes as never` at the
+  `queueFeedback` call site, and `job.payload as CodeFeedbackInput` in the handler. Both are
+  gone. `queueFeedback` now asks for the four fields it actually reads, so no cast is needed,
+  and the stored results are parsed rather than asserted.
+
+#### Added
+
+- **A test that ties producer to consumer.** The old test asserted the payload matched what
+  `queueFeedback` wrote, which is why it passed while every real job died. It now parses the
+  written payload with **the handler's own schema**, so a shape the handler cannot read fails
+  in the test that produced it.
+- **The broken payload pinned.** `{ files, failing }` is asserted to fail validation and to
+  name `testResults`, `exerciseTitle` and `rubric` as missing — the error message the original
+  bug should have produced.
+- Tests for the rubric reaching the model, a malformed `rubrics.criteria` degrading to an
+  empty list rather than failing the job, and a hidden case arriving at the model with no
+  values — the model must not be able to repeat an answer the learner may not see.
+- `rubrics` joined the pg-mem harness.
+
+#### Notes
+
+- **What the real run proved that the tests could not:** every link is tested in isolation, and
+  both of these bugs lived precisely between links. The submission path itself was correct
+  first time — sandbox, results, evidence, and the 5-second and memory limits all behaved.
+- Four mutations run; the one that is not observable is `queueFeedback` parsing its own output,
+  because with a correct payload parsing and not parsing produce identical bytes. The guard
+  that carries the weight is the handler's parse, and the pinned-shape test documents what it
+  catches.
+- 454 API tests, 359 web, 109 worker. Typecheck, lint and build clean.
+
+---
+
+### 2026-09-25 — The sandbox that runs here: one container per submission
+
+Judge0 was the plan and it does not work on this machine. The measurement, then the
+replacement — and the exercise chain built over the last two tasks now produces real evidence.
+
+#### Fixed
+
+- **Judge0 cannot run on Docker Desktop for Windows, and my setup guide said it could.**
+  `isolate` speaks cgroup v1 only. The WSL 2 VM that Docker Desktop runs its daemon in is
+  cgroup v2 unified, and it refuses a v1 hierarchy even to a privileged container:
+
+  ```
+  $ docker run --rm --privileged alpine sh -c "mount -t cgroup -o memory cgroup /tmp/cg"
+  mount: mounting cgroup on /tmp/cg failed: Invalid argument
+  ```
+
+  Every controller reads `hierarchy 0` in `/proc/cgroups` — all bound to v2, which is what
+  makes the v1 mount fail with `EINVAL`. The `systemd.unified_cgroup_hierarchy=0` flag I put
+  in the guide **does nothing**: it is read by systemd, and the `docker-desktop` distro does
+  not run systemd. Judge0's own notes give it as an *Ubuntu* instruction; it does not transfer.
+  This is [judge0#583](https://github.com/judge0/judge0/issues/583), open, after
+  [#549](https://github.com/judge0/judge0/issues/549).
+
+  **Installing Ubuntu in WSL does not help either** — all WSL 2 distros share one kernel and
+  one VM, so it is the same cgroup state. Judge0 needs a real Linux VM with its own kernel.
+  `docker/judge0/README.md` now leads with this and lists the three real options.
+
+#### Added
+
+- **`DockerRunner` — one throwaway container per submission** (`apps/worker/src/sandbox/`).
+  `CODE_RUNNER=docker`, on the Docker Desktop already installed. Verified end to end: the
+  seeded exercise scores **3 of 5 in 0.4s**, failing exactly the two cases §5.11's deliberate
+  bug breaks.
+
+  **The program goes in on stdin**, not a bind mount — `node` and `python3 -` both read a
+  program from stdin, so there is no temporary file and no Windows path translation, which is
+  the part of Docker-on-Windows most likely to break.
+
+  Every isolation flag was measured against a real container before being written down, and
+  `containerArgs()` is exported so a unit test asserts each one is still present:
+
+  | Flag | Verified |
+  |---|---|
+  | `--network none` | DNS fails, `EAI_AGAIN` |
+  | `--memory` = `--memory-swap` | `memory.max` 134217728, `memory.swap.max` 0 |
+  | `--cpus 1` | `cpu.max` 100000 100000 |
+  | `--pids-limit 64` | `pids.max` 64 |
+  | `--read-only` | writing `/evil.txt` fails `EROFS` |
+  | `--user 1000:1000` | `uid 1000` |
+
+- **`sandbox/results.ts`** — reading a run's stdout into outcomes, **one copy used by both
+  sandboxes**. The rule that decides whether a learner passed was about to exist twice, which
+  is exactly how one of them drifts into treating silence as success.
+
+- **`sandbox/types.ts`** — the `Runner` types, in a module that imports nothing. `runner.ts`
+  holds `createRunner()` and therefore has to import every implementation, while the
+  implementations need the types; keeping both in one file made a cycle, and TypeScript
+  quietly resolved `RunResult` as `any` partway round it. That is worse than a build error —
+  it turns off checking exactly where the outcomes are decided.
+
+- **`npm run sandbox:check`** (replacing `judge0:check`) — checks whichever runner
+  `CODE_RUNNER` selects, so it keeps working if the sandbox is swapped again. Three steps: the
+  runtimes it accepts, the seeded exercise end to end, and a program that never finishes.
+
+- **`docker/README.md`** for the sandbox in use, with the verified flag table.
+  `docker/judge0/README.md` keeps the Judge0 path for a Linux host.
+
+#### Changed
+
+- `CODE_RUNNER` takes `docker`, `judge0`, or `none`. The per-submission limits moved to
+  `SANDBOX_*` since they apply to whichever sandbox is configured.
+- `src/judge0/` became `src/sandbox/`, and the tests split to match: `results.test.ts` for the
+  shared reader, `harness.test.ts` for the program builder, `judge0.test.ts` for Judge0's
+  status mapping only, `docker.test.ts` for the flags and the refusals.
+
+#### Two bugs the verification caught
+
+- **`--init` was missing, and an infinite loop ran for 631 seconds.** Without it the
+  in-container `timeout` runs as PID 1, where signal defaults differ, and it silently does
+  nothing. A sandbox that cannot stop a runaway program would hold the worker's only slot
+  indefinitely. `sandbox:check` now runs `while (true) {}` every time, and a unit test asserts
+  the flag.
+
+- **A timeout was being reported as an out-of-memory failure.** Both kill with SIGKILL and
+  both exit 137, so the exit code cannot tell them apart — and they need different sentences,
+  because they tell a learner to look at different things (§9). Elapsed time separates them: a
+  timeout takes the whole allowance, an OOM against a 128 MB cap happens long before. Verified
+  both ways — 5.4s → "still running after 5 seconds", 4.5s of a 20s allowance → "used more
+  memory".
+
+#### Fixed after the first real run
+
+- **`spawn docker ENOENT` explained nothing.** The first time this was run from a terminal
+  that predated the Docker Desktop install, the check reported all five cases failing and
+  "spawn docker ENOENT" — which names neither the cause nor the fix. `docker` works when
+  typed and fails when npm spawns it, because the shell's PATH was captured before Docker
+  added itself.
+
+  The message now names it: *"not on PATH in this shell. If Docker Desktop was installed
+  after this terminal was opened, close it and open a new one."* And because the learner-facing
+  and operator-facing messages need different sentences — a learner must not be told to restart
+  a terminal they do not have — `DockerUnavailable` carries both, the learner gets "your work
+  is saved", and `sandbox:check` prints the operator hint plus what a learner would see.
+  `DOCKER_BINARY` is the escape hatch for an install that genuinely is not on PATH.
+
+#### Notes
+
+- Six mutations run against the flag list — `--init`, `--network none`, `--read-only`,
+  `--user`, `--memory-swap`, and `supports()` claiming React and Vue. All caught. The unit test
+  proves the flags are *asked for*; `sandbox:check` proves the kernel *applied* them.
+- **Neither sandbox covers React or Vue.** They need Vitest with jsdom and a `node_modules`
+  tree. A container image with those baked in is the natural shape for that runner — which is
+  another reason a container runner suits this platform better than Judge0, whose two
+  supported runtimes are half of what `code_runtime` lists.
+- **`project-proposal.md` §8.3 now records the decision** — "Exercise Execution: Why Not
+  Judge0": the cgroup measurement, why a Linux VM was a poor trade (it covers half the
+  runtimes, the release is from April 2024 with published CVEs, and the threat model is
+  narrower than a public judge's), and the container controls used instead with what each was
+  verified as. §8.1, §8.2 and §5's Code Review AI flow updated to match; the former §8.3 and
+  §8.4 renumbered to §8.4 and §8.5.
+- 454 API tests, 359 web, 97 worker (was 66). Typecheck, lint and build clean.
+
+---
+
 ### 2026-09-25 — Judge0: the sandbox, built but not yet installed
 
 The runner was the last thing between a built exercise chain and a learner actually earning
@@ -263,6 +466,11 @@ for code that never ran. Judge0 is the next piece and it is a setup decision, no
   `SESSION_SECRET=<node -e "…">` passed validation and signed real cookies. Now refused,
   along with anything under 32 characters or containing `$(` or `YOUR_`. Open question 8 in
   AGENT.md, closed. 7 tests.
+
+  **This stops an existing `.env` from booting**, which is the point but was not called out
+  at the time. An API that started yesterday with a placeholder secret will now exit with a
+  message naming the variable and the command to generate one. Fix it by putting a real value
+  in `apps/api/.env`; nothing else is affected, and `WORKER_SECRET` stays optional.
 
 #### Changed
 

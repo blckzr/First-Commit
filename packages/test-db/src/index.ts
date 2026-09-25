@@ -95,6 +95,8 @@ const TABLES = [
   "assessment_attempts",
   "test_cases",
   "reference_solutions",
+  // Admin-only, and read when queueing code feedback for the model.
+  "rubrics",
   "code_submissions",
   // certificates.project_id points into the capstone chain, so the whole chain
   // has to exist even though nothing here reads it yet.
