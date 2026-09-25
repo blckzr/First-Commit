@@ -59,7 +59,10 @@ export function Exercise() {
   return <ExerciseView exercise={data} />;
 }
 
-type Tab = "instructions" | "results";
+type Tab = "instructions" | "results" | "feedback";
+
+/** The order they appear in, which is also the order arrow keys walk. */
+const TAB_ORDER: Tab[] = ["instructions", "results", "feedback"];
 
 function ExerciseView({ exercise }: { exercise: ExerciseData }) {
   /** The starter files, or their own last attempt — §5.11 reopens where they left it. */
@@ -83,6 +86,25 @@ function ExerciseView({ exercise }: { exercise: ExerciseData }) {
   const running = submission?.status === "queued" || submission?.status === "running";
 
   /**
+   * The AI feedback has a tab of its own.
+   *
+   * §5.11 draws two tabs and stacks the feedback under the results. In practice
+   * that made the panel very tall — the results, then a summary, then up to
+   * three issues, then a closing line — while the editor beside it sat short,
+   * so the page scrolled past a column of empty space. `design.md` §5.11 now
+   * records the third tab.
+   *
+   * **It does not weaken "results before feedback" (§7).** Results stay the
+   * landing tab after a submission; feedback is one deliberate click away, and
+   * the tab is marked when there is something new so it is not missed.
+   */
+  const feedback = submission?.feedback ?? null;
+  const feedbackPending =
+    submission?.feedbackStatus === "queued" || submission?.feedbackStatus === "running";
+  const feedbackFailed = submission?.feedbackStatus === "failed";
+  const hasFeedbackTab = Boolean(feedback) || feedbackPending || feedbackFailed;
+
+  /**
    * §5.11 puts results in front of the learner the moment there are any.
    *
    * **Derived, not synchronised.** An effect calling `setTab` when results
@@ -90,7 +112,27 @@ function ExerciseView({ exercise }: { exercise: ExerciseData }) {
    * deliberately gone back to the instructions. `picked` records that choice
    * and wins; everything else falls out of whether there is a finished run.
    */
-  const tab: Tab = picked ?? (submission && !running ? "results" : "instructions");
+  const wanted: Tab = picked ?? (submission && !running ? "results" : "instructions");
+  /** A tab that is not being offered cannot be the selected one. */
+  const tab: Tab = wanted === "feedback" && !hasFeedbackTab ? "results" : wanted;
+
+  const tabs = TAB_ORDER.filter((id) => id !== "feedback" || hasFeedbackTab);
+
+  /**
+   * §12: a tablist is walked with arrow keys, not by tabbing through every tab.
+   * With two tabs it was a nicety; with three it is the expected behaviour, and
+   * the roving `tabIndex` below is the other half of the pattern.
+   */
+  function onTabKey(event: React.KeyboardEvent) {
+    const delta = event.key === "ArrowRight" ? 1 : event.key === "ArrowLeft" ? -1 : 0;
+    if (delta === 0) return;
+    event.preventDefault();
+    const next = tabs[(tabs.indexOf(tab) + delta + tabs.length) % tabs.length];
+    setPicked(next);
+    // Follows the selection, which is the ARIA tabs pattern for an automatic
+    // tablist: arrow keys move the focus and the panel together.
+    document.getElementById(`tab-${next}`)?.focus();
+  }
 
   function send() {
     submit.mutate([{ path, content: code }], {
@@ -129,13 +171,38 @@ function ExerciseView({ exercise }: { exercise: ExerciseData }) {
 
         <Card surface="white" radius="panel" padding="lg" className={styles.sidePane}>
           <div className={styles.tabs} role="tablist" aria-label="Exercise panels">
-            <Tabbed id="instructions" tab={tab} onSelect={setPicked}>
+            <Tabbed id="instructions" tab={tab} onSelect={setPicked} onKey={onTabKey}>
               Instructions
             </Tabbed>
-            <Tabbed id="results" tab={tab} onSelect={setPicked}>
+            <Tabbed id="results" tab={tab} onSelect={setPicked} onKey={onTabKey}>
               Results
             </Tabbed>
+            {hasFeedbackTab && (
+              <Tabbed
+                id="feedback"
+                tab={tab}
+                onSelect={setPicked}
+                onKey={onTabKey}
+                /*
+                 * §8: never colour alone. The dot is decorative — the accessible
+                 * name carries "new" in words for anyone who cannot see it.
+                 */
+                marked={Boolean(feedback) && picked !== "feedback"}
+                markLabel="new"
+              >
+                AI feedback
+              </Tabbed>
+            )}
           </div>
+
+          {/*
+            §12: test results and AI feedback arrive in polite live regions. The
+            results have their own; this announces feedback landing in a tab the
+            learner may not be looking at.
+          */}
+          <p role="status" aria-live="polite" className={styles.hiddenText}>
+            {feedback && tab !== "feedback" ? "AI feedback is ready." : ""}
+          </p>
 
           {tab === "instructions" ? (
             <div id="panel-instructions" role="tabpanel" aria-labelledby="tab-instructions">
@@ -151,9 +218,13 @@ function ExerciseView({ exercise }: { exercise: ExerciseData }) {
                 </>
               )}
             </div>
-          ) : (
+          ) : tab === "results" ? (
             <div id="panel-results" role="tabpanel" aria-labelledby="tab-results">
               <Results submission={submission} running={running} />
+            </div>
+          ) : (
+            <div id="panel-feedback" role="tabpanel" aria-labelledby="tab-feedback">
+              <FeedbackPanel submission={submission!} />
             </div>
           )}
         </Card>
@@ -184,12 +255,19 @@ function Tabbed({
   id,
   tab,
   onSelect,
+  onKey,
   children,
+  marked,
+  markLabel,
 }: {
   id: Tab;
   tab: Tab;
   onSelect: (tab: Tab) => void;
+  onKey: (event: React.KeyboardEvent) => void;
   children: string;
+  /** Something arrived here that the learner has not looked at. */
+  marked?: boolean;
+  markLabel?: string;
 }) {
   const selected = tab === id;
   return (
@@ -199,10 +277,33 @@ function Tabbed({
       id={`tab-${id}`}
       aria-selected={selected}
       aria-controls={`panel-${id}`}
+      /**
+       * Roving tabIndex: one stop for the whole tablist, and arrow keys move
+       * within it. Tabbing through every tab is the wrong pattern and gets
+       * worse with each tab added.
+       */
+      tabIndex={selected ? 0 : -1}
       className={[styles.tab, selected ? styles.tabOn : ""].filter(Boolean).join(" ")}
       onClick={() => onSelect(id)}
+      /*
+       * On the tab, not on the tablist: only the tabs are focusable, so only
+       * they can receive a key. `jsx-a11y/interactive-supports-focus` refuses
+       * the container version, and it is right to.
+       */
+      onKeyDown={onKey}
     >
       {children}
+      {marked && (
+        <>
+          {/*
+            The words come first so the accessible name reads "AI feedback, new"
+            — with the dot between them the name picks up a stray space. The dot
+            is colour and shape; this is the same fact in words (§8).
+          */}
+          <span className={styles.hiddenText}>, {markLabel}</span>
+          <span className={styles.mark} aria-hidden />
+        </>
+      )}
     </button>
   );
 }
@@ -269,8 +370,6 @@ function Results({ submission, running }: { submission: Submission | null; runni
           <CaseRow key={c.testCaseId ?? `${c.name}-${i}`} result={c} />
         ))}
       </ul>
-
-      <FeedbackPanel submission={submission} />
     </div>
   );
 }
@@ -333,7 +432,12 @@ function FeedbackPanel({ submission }: { submission: Submission }) {
     );
   }
 
-  /** §5.11's two waiting messages, word for word. */
+  /**
+   * §5.11's waiting messages. "ready below" and "results are above" were true of
+   * the stacked layout and are not true of a tab, so they name the tab instead —
+   * §9: copy has to describe what is actually there. `design.md` §5.11 records
+   * both the tab and the wording.
+   */
   if (submission.feedbackStatus === "running") {
     return (
       <p role="status" aria-live="polite" className={styles.muted}>
@@ -344,7 +448,7 @@ function FeedbackPanel({ submission }: { submission: Submission }) {
   if (submission.feedbackStatus === "queued") {
     return (
       <p role="status" aria-live="polite" className={styles.muted}>
-        Feedback is queued. Your test results are ready below.
+        Feedback is queued. Your test results are ready in the Results tab.
       </p>
     );
   }
@@ -352,8 +456,8 @@ function FeedbackPanel({ submission }: { submission: Submission }) {
     /* §9's own sentence for this exact case. */
     return (
       <p role="status" aria-live="polite" className={styles.muted}>
-        Feedback isn&apos;t available right now. Your test results are above, and you can try
-        feedback again in a minute.
+        Feedback isn&apos;t available right now. Your test results are in the Results tab, and
+        you can try feedback again in a minute.
       </p>
     );
   }

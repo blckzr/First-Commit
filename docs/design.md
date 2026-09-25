@@ -874,7 +874,7 @@ The reading column is a `section`, not a second `main`: the learner shell alread
 ┌─────────────────────────────────────────────────────────────┐
 │  Exercise: Sum of even numbers                  [ Hint ]    │
 ├──────────────────────────────┬──────────────────────────────┤
-│  script.js                   │  Instructions │ Results      │
+│  script.js                   │ Instructions │Results│AI ●   │
 │ ┌──────────────────────────┐ │ ─────────────────────────────│
 │ │1 function sumEven(nums) {│ │  3 of 4 tests passed         │
 │ │2   let total = 0;        │ │                              │
@@ -900,9 +900,11 @@ The reading column is a `section`, not a second `main`: the learner shell alread
 **Actions:** Write code, use hints, run tests, read feedback, reset, submit, flag feedback.
 
 - React and Vue exercises show a file tabs row (e.g., `App.jsx`, `Counter.jsx`) and a live preview tab beside Results.
-- Test results appear before AI feedback, because they are the source of truth.
+- **AI feedback has its own tab**, appearing only once there is feedback or a job producing it. The sketch above stacked it under the results; in practice that made the panel very tall — results, summary, up to three issues, a closing line — while the editor beside it sat short, so the page scrolled past a column of empty space.
+- **Test results still come before AI feedback, because they are the source of truth.** Results are the tab a submission lands on; feedback is one deliberate click away. The feedback tab carries a dot when something new is in it, and the dot is paired with the word "new" in the tab's accessible name, because Section 8 refuses colour alone.
+- The tablist is walked with arrow keys and holds a single tab stop, which is the expected pattern once there are three tabs.
 - AI feedback gives a hint and a line reference, never the corrected code.
-- While feedback generates: "Writing feedback on your test results…". If queued: "Feedback is queued. Your test results are ready below."
+- While feedback generates: "Writing feedback on your test results…". If queued: "Feedback is queued. Your test results are ready in the Results tab."
 - When all tests pass: "All 4 tests passed. Module exercise complete." in `verified`.
 
 ## 5.12 My Roadmaps

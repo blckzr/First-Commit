@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import { http, HttpResponse } from "msw";
-import { screen, waitFor } from "@testing-library/react";
+import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { Route, Routes } from "react-router";
 import { render } from "../../test/render";
@@ -271,33 +271,103 @@ describe("§5.11 — AI feedback", () => {
     await open();
     await userEvent.click(screen.getByRole("button", { name: "Submit" }));
 
-    await waitFor(() => expect(screen.getByText("AI feedback")).toBeInTheDocument());
+    await userEvent.click(await screen.findByRole("tab", { name: /AI feedback/ }));
+
+    // "AI feedback" is both the tab and the panel's label, so scope to the panel.
+    const panel = document.getElementById("panel-feedback")!;
+    expect(within(panel).getByText("AI feedback")).toBeInTheDocument();
     expect(screen.getByText(/Your loop starts at index 1/)).toBeInTheDocument();
     expect(screen.getByText(/Line 3:/)).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Is this wrong?" })).toBeInTheDocument();
   });
 
-  /** §7: the results are the source of truth, so they come first. */
-  it("puts the results above the feedback", async () => {
+  /**
+   * §7: the results are the source of truth, so they come first. With feedback
+   * in its own tab that means **results are where a submission lands**, and
+   * feedback is a deliberate click away rather than scrolled past.
+   */
+  it("lands on the results, not the feedback", async () => {
     serve(exercise, withFeedback);
     await open();
     await userEvent.click(screen.getByRole("button", { name: "Submit" }));
 
-    await waitFor(() => expect(screen.getByText("AI feedback")).toBeInTheDocument());
-    const panel = document.getElementById("panel-results")!;
-    const order = panel.textContent ?? "";
-    expect(order.indexOf("1 of 2 tests passed")).toBeLessThan(order.indexOf("AI feedback"));
+    await waitFor(() => expect(screen.getByText("1 of 2 tests passed")).toBeInTheDocument());
+    expect(screen.getByRole("tab", { name: "Results" })).toHaveAttribute("aria-selected", "true");
+    expect(screen.getByRole("tab", { name: /AI feedback/ })).toHaveAttribute(
+      "aria-selected",
+      "false",
+    );
+    // And the feedback is genuinely not on screen until it is asked for.
+    expect(screen.queryByText(/Your loop starts at index 1/)).not.toBeInTheDocument();
   });
 
+  /**
+   * A tab the learner has not opened needs to say it has something in it, and
+   * §8 refuses colour alone — so the dot is paired with the word in the tab's
+   * accessible name.
+   */
+  it("marks the feedback tab as new, in words as well as a dot", async () => {
+    serve(exercise, withFeedback);
+    await open();
+    await userEvent.click(screen.getByRole("button", { name: "Submit" }));
+
+    const tab = await screen.findByRole("tab", { name: /AI feedback/ });
+    expect(tab).toHaveAccessibleName("AI feedback, new");
+
+    await userEvent.click(tab);
+    expect(screen.getByRole("tab", { name: /AI feedback/ })).toHaveAccessibleName("AI feedback");
+  });
+
+  /** Nothing to show, so no tab to click. */
+  it("offers no feedback tab before there is any", async () => {
+    await open();
+    expect(screen.queryByRole("tab", { name: /AI feedback/ })).not.toBeInTheDocument();
+  });
+
+  /** §12: a tablist holds one tab stop and is walked with arrow keys. */
+  it("moves between tabs with the arrow keys", async () => {
+    serve(exercise, withFeedback);
+    await open();
+    await userEvent.click(screen.getByRole("button", { name: "Submit" }));
+    await screen.findByRole("tab", { name: /AI feedback/ });
+
+    const results = screen.getByRole("tab", { name: "Results" });
+    results.focus();
+    await userEvent.keyboard("{ArrowRight}");
+
+    expect(screen.getByRole("tab", { name: /AI feedback/ })).toHaveAttribute(
+      "aria-selected",
+      "true",
+    );
+
+    await userEvent.keyboard("{ArrowLeft}");
+    expect(screen.getByRole("tab", { name: "Results" })).toHaveAttribute("aria-selected", "true");
+  });
+
+  it("keeps a single tab stop across the tablist", async () => {
+    serve(exercise, withFeedback);
+    await open();
+    await userEvent.click(screen.getByRole("button", { name: "Submit" }));
+    await screen.findByRole("tab", { name: /AI feedback/ });
+
+    const stops = screen.getAllByRole("tab").filter((t) => t.getAttribute("tabindex") !== "-1");
+    expect(stops).toHaveLength(1);
+  });
+
+  /**
+   * The wording names the tab, because "ready below" was true of the stacked
+   * layout and is not true of a tab (§9). `design.md` §5.11 records both.
+   */
   it.each([
-    ["queued", "Feedback is queued. Your test results are ready below."],
+    ["queued", "Feedback is queued. Your test results are ready in the Results tab."],
     ["running", "Writing feedback on your test results…"],
   ])("says %s while there is none yet", async (status, message) => {
     serve(exercise, { ...finished, feedbackStatus: status });
     await open();
     await userEvent.click(screen.getByRole("button", { name: "Submit" }));
 
-    await waitFor(() => expect(screen.getByText(message)).toBeInTheDocument());
+    await userEvent.click(await screen.findByRole("tab", { name: /AI feedback/ }));
+    expect(screen.getByText(message)).toBeInTheDocument();
   });
 
   /** §9's own sentence: no apology, and the results are still there. */
@@ -306,10 +376,11 @@ describe("§5.11 — AI feedback", () => {
     await open();
     await userEvent.click(screen.getByRole("button", { name: "Submit" }));
 
-    await waitFor(() => {
-      expect(screen.getByText(/Feedback isn't available right now/)).toBeInTheDocument();
-    });
-    expect(screen.getByText("1 of 2 tests passed")).toBeInTheDocument();
+    // The results are what a submission lands on, and they stay.
+    await waitFor(() => expect(screen.getByText("1 of 2 tests passed")).toBeInTheDocument());
+
+    await userEvent.click(screen.getByRole("tab", { name: /AI feedback/ }));
+    expect(screen.getByText(/Feedback isn't available right now/)).toBeInTheDocument();
   });
 
   it("shows no feedback panel when none was asked for", async () => {
@@ -318,6 +389,7 @@ describe("§5.11 — AI feedback", () => {
 
     await waitFor(() => expect(screen.getByText("1 of 2 tests passed")).toBeInTheDocument());
     expect(screen.queryByText("AI feedback")).not.toBeInTheDocument();
+    expect(screen.queryByRole("tab", { name: /AI feedback/ })).not.toBeInTheDocument();
   });
 });
 

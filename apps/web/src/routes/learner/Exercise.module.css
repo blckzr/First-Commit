@@ -69,6 +69,8 @@
 }
 
 .tab {
+  display: inline-flex;
+  align-items: center;
   border: 0;
   background: none;
   font: inherit;
@@ -94,6 +96,20 @@
   color: var(--text-strong);
   font-weight: var(--fw-bold);
   border-bottom-color: var(--accent);
+}
+
+/*
+ * "Something new is in this tab." Decorative: the tab's accessible name carries
+ * the same fact in words, because §8 refuses colour alone.
+ */
+.mark {
+  display: inline-block;
+  width: 7px;
+  height: 7px;
+  margin-left: var(--space-2);
+  border-radius: 50%;
+  background: var(--ai);
+  vertical-align: middle;
 }
 
 .instructions {

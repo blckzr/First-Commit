@@ -11,6 +11,45 @@ lives under `[Unreleased]` until there is something to version.
 
 ## [Unreleased]
 
+### 2026-09-26 — AI feedback gets its own tab
+
+§5.11's sketch stacks the AI feedback under the test results. With real feedback in it — a
+summary, up to three issues, and a closing line — the panel ran far past the editor beside it,
+so the page scrolled through a column of empty space to read a hint.
+
+#### Changed
+
+- **A third tab: Instructions │ Results │ AI feedback.** It appears only once there is feedback
+  or a job producing it, so an exercise nobody has submitted still shows two.
+
+  **This does not weaken §7's "results before feedback".** Results are the tab a submission
+  lands on, and the feedback is one deliberate click away rather than something scrolled past.
+  A test asserts the landing tab and that the feedback is genuinely not on screen until asked
+  for.
+
+- **The tab is marked when something new is in it** — a dot, paired with the word "new" in the
+  tab's accessible name, because §8 refuses colour alone. The mark clears once the tab is
+  opened. A polite live region also announces that feedback is ready, since it now lands in a
+  tab the learner may not be looking at.
+
+- **Arrow-key navigation and a single tab stop** across the tablist. With two tabs that was a
+  nicety; with three it is the expected pattern, and `jsx-a11y/interactive-supports-focus`
+  caught the first attempt, which hung the key handler on the tablist container instead of on
+  the tabs — only the tabs are focusable, so only they can receive a key.
+
+- **Two sentences changed, because they stopped being true.** "Your test results are ready
+  below" and "your test results are above" described the stacked layout; they now name the
+  Results tab. §9: copy has to describe what is actually there.
+
+- **`design.md` §5.11 records all of it** — the third tab, why it exists, that results still
+  come first, the dot-plus-word rule, and the arrow keys.
+
+#### Notes
+
+- 487 API tests, 382 web, 109 worker. Typecheck, lint and build clean.
+
+---
+
 ### 2026-09-26 — An empty roadmap explains itself
 
 A roadmap with no modules showed "0 of 0 modules passed" under an empty progress bar, which
