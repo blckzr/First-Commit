@@ -20,6 +20,8 @@ import { decisionRoutes } from "./decisions/routes.js";
 import { flagRoutes } from "./flags/routes.js";
 import { adminFlagRoutes } from "./admin/flags.js";
 import { certificateRoutes } from "./certificates/routes.js";
+import { resumeRoutes } from "./resume/routes.js";
+import { pdfRoutes } from "./pdf/routes.js";
 import { requireSameOrigin } from "./middleware/csrf.js";
 import { EventHub } from "./events/hub.js";
 import { eventRoutes, internalEventRoutes } from "./events/routes.js";
@@ -111,6 +113,8 @@ export function createApp(deps: AppDeps = {}) {
   app.use(flagRoutes(pool));
   app.use(adminFlagRoutes(pool));
   app.use(certificateRoutes(pool));
+  app.use(resumeRoutes(pool));
+  app.use(pdfRoutes(pool));
   app.use(eventRoutes(hub));
 
   /** The session the browser currently has. Drives useSession in the web app. */

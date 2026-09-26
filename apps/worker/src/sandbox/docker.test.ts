@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { containerArgs, DockerRunner } from "./docker.js";
+import { containerArgs, DockerRunner, isDaemonDown } from "./docker.js";
 
 /**
  * The local container sandbox.
@@ -152,6 +152,31 @@ describe("which runtimes it takes", () => {
     });
 
     expect(result.outcomes[0].hidden).toBe(true);
+  });
+});
+
+describe("when the daemon is down", () => {
+  /**
+   * **`docker` on PATH but Docker Desktop closed** — the real case, and not
+   * ENOENT. The CLI exits non-zero with its own message about a named pipe or a
+   * socket, which is operator language and says nothing about the learner's
+   * code. Both strings below came from actual runs.
+   */
+  it.each([
+    "Cannot connect to the Docker daemon at unix:///var/run/docker.sock. Is the docker daemon running?",
+    "failed to connect to the docker API at npipe:////./pipe/dockerDesktopLinuxEngine; check if the path is correct and if the daemon is running",
+    "error during connect: Get http://%2F%2F.%2Fpipe%2Fdocker_engine/v1.24/version: The system cannot find the file specified. Is the docker daemon running?",
+  ])("recognises %s", (stderr) => {
+    expect(isDaemonDown(stderr)).toBe(true);
+  });
+
+  /** A real failure in the learner's code must still read as theirs. */
+  it.each([
+    "SyntaxError: Unexpected token }",
+    "ReferenceError: sumEven is not defined",
+    "/work/main.js:3\n  throw new Error('nope');",
+  ])("does not mistake %s for a daemon problem", (stderr) => {
+    expect(isDaemonDown(stderr)).toBe(false);
   });
 });
 

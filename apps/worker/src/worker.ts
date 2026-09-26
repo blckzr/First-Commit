@@ -15,6 +15,8 @@ import { chatJson } from "./ollama.js";
 import { buildCodeFeedbackMessages, CodeFeedbackInput } from "./prompts/code-feedback.js";
 import { PROMPT_VERSION as ROADMAP_PROMPT_VERSION, SYSTEM as ROADMAP_SYSTEM } from "./prompts/roadmap.js";
 import { runRoadmapGeneration } from "./roadmap/index.js";
+import { runResumeGeneration } from "./resume/index.js";
+import { PROMPT_VERSION as RESUME_PROMPT_VERSION, SYSTEM as RESUME_SYSTEM } from "./prompts/resume.js";
 import { CodeFeedback, noSolutionLeak } from "./schemas.js";
 import { createRunner } from "./runner.js";
 import { queueFeedback, runSubmission, type Submission } from "./submissions.js";
@@ -81,8 +83,9 @@ const handlers: Record<string, Handler> = {
 
   roadmap_generation: (job) => runRoadmapGeneration(pool, job),
 
-  // Add milestone_review and resume_generation as you build them.
-  // Their output schemas are already in schemas.ts.
+  resume_generation: (job) => runResumeGeneration(pool, job),
+
+  // Add milestone_review as you build it. Its output schema is in schemas.ts.
 };
 
 /**
@@ -97,6 +100,7 @@ const handlers: Record<string, Handler> = {
 async function registerPrompts(): Promise<void> {
   const prompts = [
     { component: "roadmap_generation", version: ROADMAP_PROMPT_VERSION, content: ROADMAP_SYSTEM },
+    { component: "resume_generation", version: RESUME_PROMPT_VERSION, content: RESUME_SYSTEM },
   ];
 
   for (const prompt of prompts) {
@@ -219,8 +223,18 @@ async function processSubmission(): Promise<boolean> {
      * Read back rather than reused, so the model sees exactly what the learner
      * sees — the redacted results, with hidden cases carrying no values.
      */
-    const outcomes = TestOutcomes.safeParse(stored.rows[0]?.test_results);
-    if (outcomes.success) await queueFeedback(pool, submission, outcomes.data);
+    /**
+     * **Only when there are results to explain** (§7: "Tests and checks run
+     * *before* any model call"). A submission that errored has none, and asking
+     * the model anyway produced exactly what §1 forbids of the Code Review AI —
+     * encouraging text about code it had no evidence about. `safeParse` fails on
+     * the `{ error }` shape an errored run now stores, but the status check is
+     * what states the rule.
+     */
+    if (status !== "error") {
+      const outcomes = TestOutcomes.safeParse(stored.rows[0]?.test_results);
+      if (outcomes.success) await queueFeedback(pool, submission, outcomes.data);
+    }
 
     const took = ((Date.now() - started) / 1000).toFixed(1);
     console.log(

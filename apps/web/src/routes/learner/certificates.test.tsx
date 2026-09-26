@@ -95,19 +95,24 @@ describe("§5.15 — the learner's certificates", () => {
     expect(copied[0]).toContain(`/verify/${CODE}`);
   });
 
-  /**
-   * §5.15 offers "Download PDF". The PDF is generated to Supabase Storage and
-   * served through a signed URL, and none of that is built — so the control is
-   * absent rather than dead. Four of those were removed earlier in this project;
-   * this test stops a fifth appearing.
-   */
-  it("offers no download until the PDF exists", async () => {
+  /** §5.15's "Download PDF", generated on request rather than stored. */
+  it("offers a download", async () => {
     listing({ certificates: [certificate] });
     await openList();
 
     await screen.findByText("Certificate of Completion");
+    expect(screen.getByRole("button", { name: "Download PDF" })).toBeEnabled();
+  });
+
+  /** A revoked certificate is not a document to hand anybody. */
+  it("offers no download on a revoked certificate", async () => {
+    listing({
+      certificates: [{ ...certificate, status: "revoked", revokedAt: "2026-09-20T10:00:00Z" }],
+    });
+    await openList();
+
+    await screen.findByRole("heading", { name: "Revoked" });
     expect(screen.queryByRole("button", { name: /Download/i })).not.toBeInTheDocument();
-    expect(screen.queryByRole("link", { name: /Download/i })).not.toBeInTheDocument();
   });
 
   /** §8: status is icon + text + colour, never colour alone. */

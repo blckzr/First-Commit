@@ -7,6 +7,7 @@ import { Icon } from "../../components/core/Icon";
 import { LinkButton } from "../../components/core/LinkButton";
 import { ProgressBar } from "../../components/learning/ProgressBar";
 import { certificatesApi, type Certificate, type Progress } from "../../api/certificates";
+import { downloadPdf } from "../../api/download";
 import { ApiError } from "../../api/client";
 import styles from "./Certificates.module.css";
 
@@ -127,6 +128,7 @@ const MONTH_DAY_YEAR: Intl.DateTimeFormatOptions = {
 
 function CertificateCard({ certificate }: { certificate: Certificate }) {
   const [copied, setCopied] = useState(false);
+  const [downloadError, setDownloadError] = useState<string | null>(null);
   const revoked = certificate.status === "revoked";
   const url = `${window.location.origin}${certificate.verifyPath}`;
 
@@ -182,11 +184,28 @@ function CertificateCard({ certificate }: { certificate: Certificate }) {
             {copied ? "Link copied" : "Copy verification link"}
           </Button>
           {/*
-            §5.15 offers "Download PDF". The PDF is generated to Supabase Storage
-            and served through a signed URL, and none of that is built — so the
-            control is absent rather than dead. Recorded in docs/task-tracker.md.
+            §5.15's "Download PDF". Generated on request rather than stored, so
+            a file can never assert something the record no longer says — see
+            `apps/api/src/pdf/routes.ts`.
           */}
+          <Button
+            variant="ghost"
+            onClick={() =>
+              downloadPdf(
+                `/certificates/${certificate.publicCode}.pdf`,
+                `${certificate.publicCode}.pdf`,
+              ).catch((e: Error) => setDownloadError(e.message))
+            }
+          >
+            Download PDF
+          </Button>
         </div>
+      )}
+
+      {downloadError && (
+        <p role="alert" className={styles.error}>
+          {downloadError}
+        </p>
       )}
     </Card>
   );

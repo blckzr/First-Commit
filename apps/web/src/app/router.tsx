@@ -18,6 +18,7 @@ import { Home } from "../routes/learner/Home";
 import { Roadmap } from "../routes/learner/Roadmap";
 import { Roadmaps } from "../routes/learner/Roadmaps";
 import { Certificates } from "../routes/learner/Certificates";
+import { Resume } from "../routes/learner/Resume";
 import { Verify } from "../routes/public/Verify";
 import { RoadmapReview } from "../routes/learner/RoadmapReview";
 import { Module } from "../routes/learner/Module";
@@ -123,7 +124,7 @@ const learnerRoutes = [
   },
   { path: "capstone", title: "Capstone project", section: "section 5.14", purpose: "Choose a brief, connect a repository, and track milestones." },
   { path: "certificates", element: <Certificates /> },
-  { path: "resume", title: "Resume", section: "section 5.16", purpose: "Built only from verified skills, certificates, and completed projects." },
+  { path: "resume", element: <Resume /> },
   { path: "notifications", title: "Notifications", section: "section 5.17", purpose: "Module updates, roadmap changes, milestones, and certificates." },
   { path: "settings", title: "Settings", section: "section 5.18", purpose: "Profile, password, GitHub connection, and deleting your data." },
 ].map((route) =>

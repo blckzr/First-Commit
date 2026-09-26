@@ -123,7 +123,8 @@ changelog for 2026-09-22.
 - [x] `/app/roadmaps` — **applied**. §5.12: per-roadmap progress with the shared count, last studied, archive and restore behind a disclosure
   - [ ] "Create roadmap" is in §5.12 and absent here — it means running the survey and target steps outside the onboarding guard, which does not exist. Left out rather than shipped dead
 - [x] `/app/certificates` — **applied**. §5.15: earned certificates with View and Copy verification link, each unfinished roadmap with its reason, and the Project Certificate locked
-- [ ] `/app/explore` · `/app/capstone` · `/app/resume` · `/app/settings` — **designed**, not built. Each has a screen in the prototype
+- [x] `/app/resume` — **applied**. §5.16: the evidence panel, the ATS-friendly preview, generate, and inline editing of the AI summary
+- [ ] `/app/explore` · `/app/capstone` · `/app/settings` — **designed**, not built. Each has a screen in the prototype
 - [x] **Log out** — in the learner profile menu and the admin bar, one shared control. Ends the session server-side, clears the query cache (§13.6), then navigates; signs out anyway if the request fails
 - [x] `/app/exercise/:id` — **applied**. §5.11: CodeMirror 6, Instructions/Results tabs, the results panel, and the AI feedback panel under it
   - [ ] "Run tests" is in §5.11 and absent here — the in-browser run is Sandpack practice for React and Vue, and Sandpack is not installed. Submit (the server run) is the only path, which is the only one that writes evidence anyway
@@ -222,7 +223,10 @@ The main loop: sign up → roadmap → learn → pass.
   - [x] ~~"Is this wrong?" is disabled until `ai_feedback_flags` has an endpoint~~ — the endpoint exists and the shared `AiPanel` carries the control. **This panel still has none**, and for a different reason: nothing writes `recommendation_reason`, so there is no `ai_outputs` row to point a flag at. It arrives with `technology_recommendation` above
 - [ ] **Adaptive modules** — reinforcement after repeated low scores, challenge after high ones
 - [ ] **`milestone_review`** — diff-only, split by file, `AI_CONTEXT_LARGE`
-- [ ] **`resume_generation`** — evidence-only, cross-checked against verified skills
+- [x] **`resume_generation`** — the third and last AI component. Prompt, handler, and two grounding mechanisms: an unsupported skill is removed, a claim of experience is rejected and retried. 29 worker tests, 33 API tests, mutation-tested with six defects
+  - [x] `readEvidence()` is the one place that says what a learner proved — the same rows the certificate check reads, so the two can never disagree
+  - [x] **No endpoint accepts a skill.** The selection takes ids and checks each against the evidence; `POST /resume/generate` takes no body; `PATCH /resume` refuses `skills`
+  - [ ] **Run against the model.** The grounding is unit-tested; the prompt has not been measured on qwen3.5 yet, which is what §9's evaluation harness is for
 - [ ] **Prompt versioning** — `ai_prompts` rows, version recorded per job
 - [x] **Flagging** — `POST /ai-outputs/:id/flags` writes `ai_feedback_flags`. One endpoint for every AI panel, because a flag points at the output row rather than at the screen. The shared `AiPanel` component carries label, reason, and control together, so a screen cannot ship two of §7's three. 13 API tests (4 mutations), 9 component tests
   - [x] ~~`/admin/flags` is where these land. Nothing reviews them yet~~ — built. `GET /admin/flags`, `GET /admin/flags/:id`, `PATCH /admin/flags/:id`, and the screen. **The first admin route in the API**, so §6.1 step 5 and `admin_activity_log` have their first implementation and their first tests. 31 API tests (6 mutations), 19 screen tests
@@ -240,7 +244,7 @@ The main loop: sign up → roadmap → learn → pass.
   - [x] **No endpoint issues one** (§6 rule 1). `syncCertificates()` reads completions and decides; the check runs on read, because the worker writes completions from another process and cannot call it. Idempotent. 32 API tests, mutation-tested with five defects
   - [x] **Two false positives guarded**: a roadmap with zero items (vacuously "complete"), and an unanswered technology decision (§3 counts technology modules). Both found in the real database
   - [x] **`GET /verify/:code`** — the API's only public read of a learner's record. Valid, revoked and unknown all answer 200; no email, no ids, and a revoked certificate gives the date but never the reason
-  - [ ] **PDF to Supabase Storage** — §5.15's "Download PDF". The bucket is specified (private, signed URLs); nothing generates a PDF, so the control is absent rather than dead
+  - [x] **PDF built** — `pdfkit`, generated on request rather than stored, for certificates *and* resumes. A stored resume would be stale evidence with an official look; `database-schema.md` §8's own note allows generating on demand. A test decodes the text back out, because "ATS-friendly" is only real if the words are text. 14 tests
   - [ ] **Admin revocation has no screen** (§6.7). `revoked_reason` already enforces §6 rule 10 through a check constraint; revoking is SQL for now
 - [x] **`/verify/:code` designed and built** — from §5.15's content and §3's tokens, since the prototype does not cover it. Public, outside every shell, with all three states. A test asserts it offers nothing to sign into and no link into `/app`
   - [ ] No QR code yet. §5.15 mentions scanning one; generating it belongs with the PDF

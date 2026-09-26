@@ -94,6 +94,19 @@ export async function runSubmission(
    */
   const passed = !result.error && result.outcomes.every((o) => o.passed);
 
+  /**
+   * **A run that could not happen is not a run the learner failed.**
+   *
+   * This stored the per-case outcomes either way, and every one of them is
+   * `passed: false` when the sandbox errored — so §5.11's panel read "0 of 7
+   * tests passed" for correct code that never executed. A learner was shown
+   * their own work failing because Docker Desktop was closed.
+   *
+   * On an error the message is stored instead, in the `{ error }` shape the
+   * screen already renders and `fail()` already uses. The case list is dropped
+   * with it: naming seven checks that never ran only invites the same
+   * misreading.
+   */
   await pool.query(
     `update code_submissions
         set status = $2, test_results = $3, passed = $4, completed_at = now()
@@ -101,7 +114,7 @@ export async function runSubmission(
     [
       submission.id,
       result.error ? "error" : "completed",
-      JSON.stringify(redact(result.outcomes)),
+      JSON.stringify(result.error ? { error: result.error } : redact(result.outcomes)),
       result.error ? null : passed,
     ],
   );

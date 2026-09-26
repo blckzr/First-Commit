@@ -258,6 +258,47 @@ describe("runSubmission", () => {
     expect(db.rows("module_completions")).toHaveLength(0);
   });
 
+  /**
+   * **A run that could not happen is not a run the learner failed.**
+   *
+   * The per-case outcomes were stored on the error path too, and every one is
+   * `passed: false` when the sandbox errors — so §5.11's panel read "0 of 7
+   * tests passed" over *correct* code because Docker Desktop was closed. That
+   * happened on a real submission, which is how it was found.
+   */
+  it("stores the reason, not a list of failed tests, when the sandbox errors", async () => {
+    await runSubmission(
+      db.pool,
+      fake({
+        outcomes: [
+          outcome(ids.visible, "Sums the evens", false),
+          outcome(ids.hidden, "Works on a longer list", false, true),
+        ],
+        error: "The code runner isn't running right now.",
+      }),
+      submission,
+    );
+
+    const results = stored().test_results;
+    expect(Array.isArray(results), "an errored run stored a list of failures").toBe(false);
+    expect((results as { error: string }).error).toContain("isn't running");
+  });
+
+  it("still stores real per-case results when the run did happen", async () => {
+    await runSubmission(
+      db.pool,
+      fake({
+        outcomes: [
+          outcome(ids.visible, "Sums the evens", false),
+          outcome(ids.hidden, "Works on a longer list", true, true),
+        ],
+      }),
+      submission,
+    );
+
+    expect(Array.isArray(stored().test_results)).toBe(true);
+  });
+
   /** A learner who already passed keeps the completion they earned. */
   it("leaves an existing completion alone", async () => {
     await db.pool.query(

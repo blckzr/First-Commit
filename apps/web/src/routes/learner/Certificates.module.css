@@ -93,3 +93,5 @@
 }
 
 .loading { margin: 0; padding: var(--space-6) 0; font-size: var(--text-body-base); color: var(--text-muted); }
+
+.error { margin: 0; font-size: var(--text-body-sm); color: var(--error); }

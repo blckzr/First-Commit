@@ -276,6 +276,13 @@ const LEARNER_ROUTES: [method: "get" | "post" | "put" | "patch", path: string][]
   ["get", "/submissions/SUBMISSION"],
   ["post", "/ai-outputs/AI_OUTPUT/flags"],
   ["get", "/certificates"],
+  ["get", "/resume"],
+  ["put", "/resume/details"],
+  ["put", "/resume/selection"],
+  ["post", "/resume/generate"],
+  ["patch", "/resume"],
+  ["get", "/resume.pdf"],
+  ["get", "/certificates/CODE.pdf"],
 ];
 
 /**
@@ -328,7 +335,8 @@ const fill = (path: string, learner: Learner) =>
     .replace("ASSESSMENT", ids.assessment)
     .replace("EXERCISE", ids.exercise)
     .replace("SUBMISSION", learner.submissionId)
-    .replace("AI_OUTPUT", learner.aiOutputId);
+    .replace("AI_OUTPUT", learner.aiOutputId)
+    .replace("CODE", "FC-0000-0000");
 
 /** A body the owner's request would be allowed to send. */
 const choice = () => ({ technologyId: ids.technology });
@@ -396,7 +404,8 @@ describe("§9.2 — every learner endpoint resolves a session", () => {
           .replace("SUBMISSION", ":id")
           .replace("EXERCISE", ":id")
           .replace("ASSESSMENT", ":assessmentId")
-          .replace("AI_OUTPUT", ":id")}`,
+          .replace("AI_OUTPUT", ":id")
+          .replace("CODE.pdf", ":code.pdf")}`,
       ),
     );
     // The roadmap decision routes name their first param differently.

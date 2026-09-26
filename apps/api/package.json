@@ -20,6 +20,7 @@
     "cookie-parser": "^1.4.7",
     "cors": "^2.8.5",
     "express": "^5.1.0",
+    "pdfkit": "^0.20.2",
     "pg": "^8.16.0",
     "zod": "^4.6.5"
   },
@@ -29,6 +30,7 @@
     "@types/cors": "^2.8.17",
     "@types/express": "^5.0.0",
     "@types/node": "^22.20.3",
+    "@types/pdfkit": "^0.17.6",
     "@types/pg": "^8.15.0",
     "@types/supertest": "^6.0.2",
     "pg-mem": "^3.0.14",

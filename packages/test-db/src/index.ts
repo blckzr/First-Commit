@@ -104,6 +104,9 @@ const TABLES = [
   "capstone_brief_versions",
   "capstone_projects",
   "certificates",
+  // The resume reads verified evidence and stores rendered sections.
+  "resumes",
+  "resume_details",
 ];
 
 function readMigration(): string {

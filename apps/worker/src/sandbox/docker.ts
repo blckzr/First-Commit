@@ -61,6 +61,26 @@ export interface DockerOptions {
   overheadMs?: number;
 }
 
+/**
+ * What the Docker CLI says when it cannot reach the daemon. Matched on the
+ * shape of the message rather than an exit code, because the CLI uses the same
+ * codes for a failed run.
+ */
+const DAEMON_DOWN =
+  /cannot connect to the docker daemon|failed to connect to the docker api|docker daemon is not running|is the docker daemon running/i;
+
+/**
+ * Whether Docker answered but its daemon did not.
+ *
+ * Exported so the real messages can be pinned in a test: this is not ENOENT —
+ * `docker` is on PATH — and the CLI's own wording is operator language about a
+ * named pipe or a socket. A learner saw "0 of 7 tests passed" over correct code
+ * because Docker Desktop was closed, so the strings matter.
+ */
+export function isDaemonDown(stderr: string): boolean {
+  return DAEMON_DOWN.test(stderr);
+}
+
 const DEFAULT_IMAGES: Record<string, string> = {
   javascript: "node:20-alpine",
   python: "python:3.12-alpine",
@@ -232,6 +252,21 @@ export class DockerRunner implements Runner {
             `that never ends — check the condition that should stop it.`
           : `Your code used more memory than the exercise allows. That usually means something ` +
             `being added to a list on every pass of a loop that never stops.`,
+      };
+    }
+
+    /**
+     * **Docker answered, but the daemon is not there.** `docker` is on PATH so
+     * this is not ENOENT; the CLI exits non-zero with its own operator-facing
+     * message about a named pipe or a socket. A learner should not read that,
+     * and it is not their code that went wrong.
+     */
+    if (result.code !== 0 && isDaemonDown(result.stderr)) {
+      return {
+        outcomes: failAll(harness.cases),
+        error:
+          `The code runner isn't running right now, so your tests haven't run yet. ` +
+          `Your work is saved — try again in a minute.`,
       };
     }
 

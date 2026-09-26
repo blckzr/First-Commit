@@ -11,6 +11,139 @@ lives under `[Unreleased]` until there is something to version.
 
 ## [Unreleased]
 
+### 2026-09-26 — A closed Docker Desktop told a learner their correct code failed
+
+A real submission, with a correct solution, reported **"0 of 7 tests passed"**. The code was
+right; Docker Desktop was closed. Three defects in a row turned an operator's problem into an
+accusation against the learner, and none of them showed up in a test because every test ran
+the happy path or a fake runner.
+
+#### Fixed
+
+- **An errored run stored a list of failed tests.** `runSubmission` wrote `status = 'error'`
+  *and* the per-case outcomes — every one `passed: false`, because nothing ran. §5.11's panel
+  saw an array, drew a tally, and reported correct code as seven failures. The error message
+  was dropped entirely, so nothing on the screen could say otherwise.
+
+  It now stores `{ error }` — the shape the screen already renders and `fail()` already used —
+  and drops the case list with it. Naming seven checks that never ran only invites the same
+  misreading.
+
+- **The Code Review AI was asked to explain a run that never happened**, and did: encouraging
+  text about code it had no evidence about. That is exactly what §1 forbids of that component
+  — "states correctness the tests did not prove". Feedback is now queued only when the
+  submission completed. §7 already said it: "Tests and checks run *before* any model call."
+
+- **A dead daemon spoke to the learner in operator language.** `docker` is on PATH, so this is
+  not the ENOENT path; the CLI exits non-zero with its own message about a named pipe. A
+  learner would have read *"failed to connect to the docker API at npipe:////./pipe/…"*.
+  `isDaemonDown` recognises it and says the honest thing instead: the runner is not running,
+  the work is saved, try again in a minute.
+
+#### Notes
+
+- **Found by running it, not by reading it.** Every one of these is on a path the tests
+  exercised with a fake runner, where `result.error` was set by hand and the storage shape was
+  never asserted. The real failure needed a closed Docker Desktop.
+- Three mutations, all caught: storing the outcome list again, failing to recognise a daemon
+  message, and treating every stderr as a daemon problem. The daemon strings in the test came
+  from actual runs, and a matching pair asserts a real `SyntaxError` still reads as the
+  learner's.
+- The resume showing its empty state was correct and downstream of this: no completion was
+  written because nothing ran.
+- 541 API tests, 401 web, 146 worker.
+
+---
+
+### 2026-09-26 — The Resume AI, and PDFs for it and for certificates
+
+The third and last AI component. §1's table has named three since the proposal was written and
+two of them worked; the platform's central claim is now actually true.
+
+**The stakes are different here.** A roadmap that picks a wrong module wastes a week. A hint
+that leaks a solution spoils one exercise. A resume goes to an employer — an invented skill is
+a claim made on a real person's behalf to someone deciding whether to hire them. §7 states the
+rule twice for that reason, and so does the code.
+
+#### Added
+
+- **`resume_generation`**, the last stub filled. Prompt, handler, and two different grounding
+  mechanisms, because the two failures are not alike:
+
+  - **An unsupported skill is removed.** The resume without it is still correct, so a learner
+    should not wait on a retry for something the platform can simply not print.
+  - **A claim of experience is rejected and retried**, with the reason fed back — the same
+    mechanism `noSolutionLeak` uses. "Built production systems" cannot be repaired by deleting
+    a word; the whole answer is wrong about what the learner *is*.
+
+  `noInventedExperience` refuses years, employers, clients, seniority and job titles outright,
+  and refuses "built" or "developed" when no capstone is finished — §7: module completion is a
+  **skill**, never **experience**.
+
+  Matching is case-insensitive and tolerant of trailing punctuation, and **deliberately not
+  fuzzy**: "React Native" is not evidence of React. Removals are counted into the job result,
+  because a prompt that made hallucination impossible would also make it unmeasurable, and §9's
+  evaluation needs the number.
+
+- **`readEvidence()`** — one place that says what a learner has proved, from
+  `module_completions` and `certificates`. The same rows the certificate check reads, so a
+  resume and a certificate can never disagree about what someone knows. A skill proved only at
+  placement is verified and says so (§6 rule 7); a revoked certificate is not a credential.
+
+- **The resume endpoints.** `GET /resume`, `PUT /resume/details`, `PUT /resume/selection`,
+  `POST /resume/generate`, `PATCH /resume`.
+
+  **No endpoint accepts a skill.** §5.16: learners "choose which to include but cannot add
+  unverified skills", so the selection endpoint takes **ids only** and checks each against the
+  evidence. `POST /resume/generate` takes no body at all. `PATCH /resume` edits the model's
+  prose and refuses `skills`, because that list is evidence and the panel is the only way to
+  change it. Editing a field drops it from `ai_fields`, so the screen stops labelling as AI
+  something the learner wrote.
+
+- **§5.16's screen.** The evidence panel, the ATS-friendly preview, generate, and inline
+  editing of the summary. A test asserts there is **no text input anywhere** outside the
+  details form — no "add skill", no combobox — because the absence is the design.
+
+- **React Hook Form**, installed for the details form. `design.md` §13.1 has specified it all
+  along and AGENT.md held it back until something needed it; two repeating field groups is
+  that something. The same Zod schema shapes the fields and validates them, so the browser and
+  the API agree about what a link is.
+
+- **PDF downloads for both the resume and certificates**, with `pdfkit`.
+
+  **Generated on request, not stored.** `database-schema.md` §8 puts certificate PDFs in a
+  private bucket and its own hosting note already allows the alternative — "generate PDFs on
+  demand if space runs low". On demand is better here for a reason beyond space: a resume
+  changes whenever a learner passes a module or edits a line, and a stored file would be
+  **stale evidence with an official look**. The skills and certificates on the PDF are read
+  fresh every time; only the prose comes from what was generated.
+
+  **pdfkit rather than a headless browser.** Puppeteer would reuse the screen's CSS and would
+  also ship Chromium, which on Render's free plan is most of the memory.
+
+  A test **decodes the text back out of the finished PDF**, because §5.16's "ATS-friendly" is
+  only real if the words are text: pdfkit writes them as hex inside `TJ` operators, and glyphs
+  drawn as outlines or a page rendered as an image would come back empty. Standard Helvetica,
+  no embedded subset, no image objects.
+
+  The certificate PDF carries its code and verification URL — a certificate nobody can check
+  is decoration.
+
+#### Notes
+
+- **Both PDFs are owned reads.** A certificate is fetched by code **and** user id, even though
+  the same code is public at `/verify/:code`: that page shows a name and a title, while the PDF
+  is the artefact, and handing it to anyone holding a code would make forging an attachment a
+  matter of guessing one. A revoked certificate is a 404.
+- The filename comes from the learner's own name, so it is sanitised — a test plants
+  `Evil"\r\nX-Injected: yes` and asserts no header appears.
+- **Six mutations**, all caught: keeping an unverified skill, keeping an invented project,
+  letting experience claims through, letting "built X" through with no project, accepting an
+  unearned skill id in the selection, and dropping `.strict()` from the details body.
+- 541 API tests, 401 web, 138 worker, 152 Playwright. Typecheck, lint and build clean.
+
+---
+
 ### 2026-09-26 — AI feedback gets its own tab
 
 §5.11's sketch stacks the AI feedback under the test results. With real feedback in it — a
