@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Link, useParams, useSearchParams } from "react-router";
+import { useParams, useSearchParams } from "react-router";
 import { Badge } from "../../components/core/Badge";
 import { Button } from "../../components/core/Button";
 import { Card } from "../../components/core/Card";
@@ -133,11 +133,13 @@ function ModuleView({ module }: { module: ModulePage }) {
 
       <div className={styles.body}>
         <nav className={styles.rail} aria-label="Lessons in this module">
+          <h2 className={styles.railHeading}>Lessons</h2>
           <ul className={styles.railList}>
             {module.lessons.map((lesson, i) => (
               <li key={lesson.id}>
                 <LessonRow
-                  label={`${i + 1} ${lesson.title}`}
+                  index={i + 1}
+                  title={lesson.title}
                   state={lesson.completed ? "done" : "todo"}
                   current={lesson.id === selected?.id}
                   onClick={() => openLesson(lesson.id)}
@@ -145,29 +147,36 @@ function ModuleView({ module }: { module: ModulePage }) {
               </li>
             ))}
             {/*
-              §5.9: the quiz and the exercise are rows in this list too. A link
-              rather than a `LessonRow`, because it leaves the page — the
-              lesson rows only change what is beside them.
+              §5.9: the quiz and the exercise are rows in this list too, and the
+              count carries on through them as the prototype's does. They are
+              links, because they leave the page — the lesson rows only change
+              what is beside them.
             */}
             {quiz && (
               <li>
-                <Link to={`/app/quiz/${quiz.id}`} className={styles.railAssessment}>
-                  <span>Quiz</span>
-                  <span className={styles.railAssessmentMeta}>
-                    {quiz.questionCount} questions
-                    {quiz.bestScore !== null ? ` · best ${quiz.bestScore}%` : ""}
-                  </span>
-                </Link>
+                <LessonRow
+                  index={module.lessons.length + 1}
+                  title="Quiz"
+                  meta={
+                    quiz.bestScore !== null
+                      ? `best ${quiz.bestScore}%`
+                      : `${quiz.questionCount} questions`
+                  }
+                  state={quiz.passed ? "done" : "todo"}
+                  doneWord="Passed"
+                  to={`/app/quiz/${quiz.id}`}
+                />
               </li>
             )}
             {exercise && (
               <li>
-                <Link to={`/app/exercise/${exercise.id}`} className={styles.railAssessment}>
-                  <span>Exercise</span>
-                  <span className={styles.railAssessmentMeta}>
-                    {exercise.passed ? "Passed" : "Write code and submit"}
-                  </span>
-                </Link>
+                <LessonRow
+                  index={module.lessons.length + (quiz ? 2 : 1)}
+                  title="Exercise"
+                  state={exercise.passed ? "done" : "todo"}
+                  doneWord="Passed"
+                  to={`/app/exercise/${exercise.id}`}
+                />
               </li>
             )}
           </ul>

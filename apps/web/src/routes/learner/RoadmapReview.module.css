@@ -1,8 +1,25 @@
-.header { display: flex; flex-direction: column; align-items: flex-start; gap: var(--space-3); }
+/* Measurements from First Commit v2.dc.html's Roadmap review. */
+
+/* --- The hero panel ------------------------------------------------------ */
+.hero {
+  background: var(--surface-hero);
+  border-radius: var(--radius-panel);
+  padding: var(--space-7) var(--space-6);
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: var(--pad-section);
+  align-items: center;
+}
+
+@media (min-width: 640px) {
+  .hero { padding: var(--space-8); }
+}
+
+.heroText { display: flex; flex-direction: column; gap: var(--space-4); min-width: 0; }
 
 /* §3.2: ALL CAPS for micro eyebrows only, always with --ls-caps. */
 .eyebrow {
-  font-size: var(--text-micro);
+  font-size: var(--text-caption);
   font-weight: var(--fw-bold);
   letter-spacing: var(--ls-caps);
   text-transform: uppercase;
@@ -11,25 +28,61 @@
 
 .title {
   margin: 0;
-  font-size: var(--text-h1);
+  font-size: var(--text-display-3);
   font-weight: var(--fw-extrabold);
-  line-height: var(--lh-heading);
-  letter-spacing: var(--ls-heading);
+  line-height: var(--lh-display);
+  letter-spacing: var(--ls-display);
   color: var(--text-strong);
+  text-wrap: pretty;
 }
 
-.summary { margin: 0; font-size: var(--text-body-lg); color: var(--text-body); }
+/* §3.1: the accent phrase follows its surface — violet on this light wash. */
+.accent { color: var(--text-accent); }
+
+.summary {
+  margin: 0;
+  font-size: var(--text-body-lg);
+  line-height: var(--lh-body);
+  color: var(--text-body);
+}
 .lede { margin: 0; color: var(--text-body); max-width: 62ch; }
 
 .cleared {
   display: flex;
   align-items: center;
-  gap: var(--space-3);
+  gap: 10px;
   flex-wrap: wrap;
-  margin: var(--space-2) 0 0;
-  font-size: var(--text-body-sm);
-  color: var(--text-body);
+  margin: 0;
+  font-size: var(--text-body-base);
+  color: var(--ink-700);
 }
+
+/* --- The ink card inside the hero ---------------------------------------- */
+.firstUp {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  min-width: 0;
+}
+
+/* Lime as text, on ink, at 13.1:1 — the one surface §3.1 allows it on. */
+.firstUpLabel {
+  font-size: var(--text-caption);
+  font-weight: var(--fw-bold);
+  letter-spacing: var(--ls-caps);
+  text-transform: uppercase;
+  color: var(--text-accent-on-dark);
+}
+
+.firstUpTitle {
+  font-size: var(--text-h2);
+  font-weight: var(--fw-extrabold);
+  line-height: var(--lh-heading);
+  letter-spacing: var(--ls-heading);
+  color: var(--text-on-dark);
+}
+
+.firstUpMeta { font-size: var(--text-body-sm); color: var(--text-on-dark-muted); }
 
 /* §7's AI panel: labelled, with its reason, and flaggable. */
 .ai {
@@ -77,15 +130,21 @@
   border-radius: var(--radius-xs);
 }
 
-.chart { min-width: 0; }
-
+/* --- The action bar ------------------------------------------------------ */
 .actions {
   display: flex;
-  align-items: flex-start;
+  align-items: center;
   justify-content: space-between;
-  gap: var(--space-4);
+  gap: var(--space-3);
   flex-wrap: wrap;
+  padding: var(--pad-card);
 }
+
+@media (min-width: 640px) {
+  .actions { padding: var(--pad-card) var(--pad-section); }
+}
+
+.go { display: flex; gap: 10px; flex-wrap: wrap; }
 
 .hours { display: flex; flex-direction: column; gap: var(--space-3); min-width: 260px; }
 .hoursActions { display: flex; gap: var(--space-3); flex-wrap: wrap; }

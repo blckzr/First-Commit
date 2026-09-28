@@ -78,6 +78,14 @@ export async function runRoadmapGeneration(pool: Pool, job: RoadmapJob): Promise
     result: {
       attempts: response.attempts,
       durationMs: response.durationMs,
+      /**
+       * Why each rejected attempt was rejected. §9.1 counts prerequisite
+       * violations and core-coverage misses, and this is where they are
+       * visible — the plan that contained them is regenerated and never
+       * stored, so `attempts: 3` was otherwise the only trace that anything
+       * had gone wrong.
+       */
+      rejections: response.rejections,
       trackId: applied.trackId,
       moduleCount: applied.moduleCount,
       skipped: plan.skipModuleIds.length,

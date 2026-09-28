@@ -24,6 +24,37 @@ export interface ChatJsonResult<T> {
   mode: JsonMode;
   attempts: number;
   durationMs: number;
+  /**
+   * Why each rejected attempt was rejected, oldest first. Empty when the first
+   * answer was accepted, so `rejections.length === attempts - 1`.
+   *
+   * **This is the measurement §9 asks for.** Every rule the platform enforces
+   * on model output — `noSolutionLeak`, `noInventedExperience`, prerequisite
+   * order, core coverage — fires in here and was then thrown away, leaving
+   * `attempts: 3` as the only trace and no way to learn what the model did
+   * wrong. Solution leakage rate and prerequisite violations are counts of
+   * these strings, so discarding them made the metrics unmeasurable from a
+   * real run.
+   */
+  rejections: string[];
+}
+
+/**
+ * Thrown when every attempt was rejected, carrying **all** the reasons.
+ *
+ * Without this the run that failed hardest contributed least to §9's counts: a
+ * plain `Error` kept only the last message, so three prerequisite violations in
+ * a row were reported as none. The cases that exhaust their retries are exactly
+ * the ones whose reasons matter most.
+ */
+export class ChatJsonError extends Error {
+  constructor(
+    message: string,
+    readonly rejections: string[],
+  ) {
+    super(message);
+    this.name = "ChatJsonError";
+  }
 }
 
 interface OllamaChatResponse {
@@ -101,6 +132,7 @@ export async function chatJson<T extends z.ZodType>(opts: ChatJsonOptions<T>): P
 
   const started = Date.now();
   let lastError = "";
+  const rejections: string[] = [];
 
   for (let attempt = 1; attempt <= maxAttempts; attempt++) {
     const body: Record<string, unknown> = {
@@ -120,9 +152,17 @@ export async function chatJson<T extends z.ZodType>(opts: ChatJsonOptions<T>): P
       if (!parsed.success) throw new Error(z.prettifyError(parsed.error));
       const extra = opts.validate?.(parsed.data);
       if (extra) throw new Error(extra);
-      return { data: parsed.data, model, mode, attempts: attempt, durationMs: Date.now() - started };
+      return {
+        data: parsed.data,
+        model,
+        mode,
+        attempts: attempt,
+        durationMs: Date.now() - started,
+        rejections,
+      };
     } catch (err) {
       lastError = (err as Error).message;
+      rejections.push(lastError);
       // Give the model its previous answer and the problem, then ask again.
       messages.push(
         { role: "assistant", content: content || "(empty response)" },
@@ -131,7 +171,10 @@ export async function chatJson<T extends z.ZodType>(opts: ChatJsonOptions<T>): P
     }
   }
 
-  throw new Error(`Model output was invalid after ${maxAttempts} attempts: ${lastError}`);
+  throw new ChatJsonError(
+    `Model output was invalid after ${maxAttempts} attempts: ${lastError}`,
+    rejections,
+  );
 }
 
 /** Lists installed models, used by the setup check. */

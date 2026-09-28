@@ -2,10 +2,10 @@
 
 | | |
 |---|---|
-| **Source** | claude.ai design project `f4e40614-da82-42d9-ba7c-912150c70e95`, file `First Commit.dc.html` |
+| **Source** | claude.ai design project `f4e40614-da82-42d9-ba7c-912150c70e95`, file `First Commit v2.dc.html` (supersedes `First Commit.dc.html`) |
 | **Design system** | TechMatch Design System (`techmatch-design-system-ae95e92c`) |
 | **Related documents** | [design.md](design.md), [task-tracker.md](task-tracker.md) |
-| **Version** | 0.1 |
+| **Version** | 0.2 |
 
 This file records where the visual system came from, what in it is a substitution rather
 than a brand decision, and what was changed on the way into the codebase. It exists because
@@ -19,7 +19,8 @@ came from.
 A clickable prototype of the whole platform — **31 routes** across public, onboarding,
 learner, and admin — built on a 25-component design system with a full token set.
 
-**`First Commit.dc.html` is the authority on what a screen looks like.** The ASCII sketches
+**`First Commit v2.dc.html` is the authority on what a screen looks like.** It replaced
+`First Commit.dc.html` on 2026-09-29; §7 records what changed between them. The ASCII sketches
 in `design.md` §5 say what is *on* a screen; the prototype says how it is built, screen by
 screen, with real measurements.
 
@@ -150,8 +151,12 @@ Eighteen Lucide glyphs are in use: `arrow-left`, `arrow-right`, `award`, `bell`,
 
 ## 5. Route coverage
 
-The prototype covers 31 routes. Against `design.md` §4.3 it **does not cover five**, and
-these still need designing:
+> **Superseded by v2.** All five routes below are in `First Commit v2.dc.html`, which adds
+> seven in all — these five, My roadmaps, and Roadmap review — so none of §4.3's routes is
+> left undesigned. The table stays because the paragraph after it, on why the covered routes
+> went wrong, still holds. See §7.
+
+The first prototype covered 31 routes. Against `design.md` §4.3 it **did not cover five**:
 
 | Missing route | What it is |
 |---|---|
@@ -182,3 +187,46 @@ The substitutions are all isolated, so replacing them is small:
 - **Logo** — replace the `code-xml` glyph in `LearnerShell` and `Landing`.
 - **Colours** — if original design files exist, correct the token values against them; the
   contrast checks in §3.1 must be re-run afterwards.
+
+## 7. What v2 changed
+
+`First Commit v2.dc.html` is v1 with three kinds of change. Diffed with every `var(--…)`
+resolved to its value, so a token rename does not read as a change:
+
+**1. It adopted this repo's corrections.** Every hex that moved is one of §3's:
+`--verified` `#237045` for `#2F7F55`, `--error` `#C0392B` for `#B23B35`, the tints, the
+accent phrase in violet-700 instead of lime-600, and the dashed `#CFC8DE` edges replaced
+by solid `--border-control`. Nothing in `tokens.css` needed to change. The design system's
+own token files are unchanged too — it still ships `--text-accent: lime-600`, which is why
+§3.1 stands.
+
+**2. Lighter lines.** The landing page's roadmap nodes and the prototype chart's skill nodes
+went from a 2px ink border to 1px; its decision node lost its 3px double border.
+
+**A later revision** (read again the same day) added a notifications popover on the bell,
+and dropped the quiz's 780px cap. The quiz change is applied; the popover waits on the
+notifications endpoints.
+
+**3. Seven screens it did not have** — Forgot password, Reset password, Verify certificate,
+My roadmaps, Roadmap review, Notifications, and admin Certificates — plus the bell in the
+learner bar becoming a link to Notifications, and the module rail switching to the system's
+`LessonRow` (a numbered disc, the title, a caption).
+
+### 7.1 Where the code departs from v2, and why
+
+| v2 shows | The code does | Because |
+|---|---|---|
+| Reset request: "If an account uses that address, a reset link is on its way." | Shows the API's sentence verbatim, then v2's "It works once and expires in one hour." | AGENT.md §6.3 fixes the no-leak wording, and the screen must not paraphrase it |
+| No spam-folder line after a reset request | Keeps "If it does not arrive, check your spam folder." | Brevo's domainless sender often lands in spam (AGENT.md §4); a test holds this |
+| "Open the reset link" button after the request | Not built | It is prototype navigation — the screen cannot know the emailed link |
+| Verify page's Valid / Revoked / Not found tags | Not built | They switch the prototype's states; the real page gets its state from the code in the URL |
+| `LessonRow` with a play glyph on the current row | No glyph | Nothing on a reading lesson plays. Current is the violet tint, the violet disc, and `aria-current` |
+| Lesson durations ("1h 15m") in the rail | Lessons show none; the quiz shows its question count or best score | `lessons` has no duration column |
+| "Review plan" on only the first of two roadmaps | On every active roadmap | Every roadmap has a review, and the prototype gives no rule for which one hides it |
+| The review page with no chart | The same — the chart moved behind "See the chart" | Followed as drawn; the embedded chart it replaced was a second copy of the roadmap screen |
+| Notifications and admin Certificates, drawn | Still placeholders | Both need endpoints that do not exist yet — see `task-tracker.md` |
+| The prototype chart's row-based spine | **Built** — the same list, laid out by CSS | Followed, with one change: it branches when the *chart* is 600px wide, not at the `md` breakpoint, because at 768px the chart is only ~520px and v2's three columns do not fit |
+| Exercise: a **Hint** button in the header | The link back to the module sits in that slot | Exercises carry no hints; a button with nothing behind it would be worse than none |
+| Exercise: **Run tests** beside Submit | Submit only | The in-browser run is Sandpack, not installed; only the server's run is evidence (AGENT.md §6 rule 4) |
+| Exercise: two tabs, AI feedback under the results | Three tabs, AI feedback in its own | A deliberate change made before v2 (`design.md` §5.11): stacked, the panel ran far past the editor. v2 predates it or did not take it up — this one is yours to decide |
+| Bell opens a popover of recent notifications | The bell links to `/app/notifications` | The popover needs the notifications endpoints, which do not exist |

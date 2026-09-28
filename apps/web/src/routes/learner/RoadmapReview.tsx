@@ -7,15 +7,12 @@ import { Card } from "../../components/core/Card";
 import { Input } from "../../components/forms/Input";
 import { LinkButton } from "../../components/core/LinkButton";
 import { AiPanel } from "../../components/learning/AiPanel";
-import { RoadmapChart } from "../../components/roadmap/RoadmapChart";
-import { RoadmapStacked } from "../../components/roadmap/RoadmapStacked";
-import { useBreakpoint } from "../../hooks/useBreakpoint";
 import { useRoadmap, roadmapKey } from "../../features/roadmap/useRoadmap";
-import { useRoadmapNav } from "../../features/roadmap/useRoadmapNav";
 import { roadmapsApi } from "../../api/roadmaps";
 import { ApiError } from "../../api/client";
 import { sessionKey } from "../../features/auth/useSession";
-import type { Roadmap } from "../../features/roadmap/types";
+import { isDone } from "../../features/roadmap/types";
+import type { Roadmap, RoadmapModuleNode } from "../../features/roadmap/types";
 import styles from "./RoadmapReview.module.css";
 
 /**
@@ -29,6 +26,12 @@ import styles from "./RoadmapReview.module.css";
  * been written to `roadmaps.ai_rationale` on every generation since the worker
  * was built and nothing has ever shown it. §7: it is labelled as AI, carries
  * its reason, and is flaggable.
+ *
+ * **Drawn from First Commit v2.dc.html**: a violet hero naming the plan, with
+ * the ink "First up" card inside it — the same composition as Home — then the
+ * AI panel, then one bar of actions. The chart is not on this page; "See the
+ * chart" opens it, which is the prototype's answer to a review that used to be
+ * a second copy of the roadmap screen.
  */
 export function RoadmapReview() {
   const { id } = useParams();
@@ -65,8 +68,6 @@ export function RoadmapReview() {
 function ReviewView({ roadmap }: { roadmap: Roadmap }) {
   const navigate = useNavigate();
   const client = useQueryClient();
-  const nav = useRoadmapNav(roadmap);
-  const breakpoint = useBreakpoint();
 
   const [hours, setHours] = useState(String(roadmap.weeklyHours ?? ""));
   const [editing, setEditing] = useState(false);
@@ -81,6 +82,7 @@ function ReviewView({ roadmap }: { roadmap: Roadmap }) {
   });
 
   const remaining = roadmap.totalCount - roadmap.passedCount;
+  const firstUp = firstUpModule(roadmap);
   const saveError = save.error instanceof ApiError ? save.error : null;
 
   function submitHours() {
@@ -105,38 +107,59 @@ function ReviewView({ roadmap }: { roadmap: Roadmap }) {
 
   return (
     <>
-      <Card as="header" surface="white" radius="panel" padding="lg" className={styles.header}>
-        <span className={styles.eyebrow}>Your roadmap</span>
-        <h1 className={styles.title}>
-          {roadmap.careerPathTitle}
-          {roadmap.trackTitle ? `, ${roadmap.trackTitle}` : ""}
-        </h1>
+      <section className={styles.hero} aria-labelledby="review-heading">
+        <div className={styles.heroText}>
+          <span className={styles.eyebrow}>Your roadmap</span>
+          <h1 id="review-heading" className={styles.title}>
+            {roadmap.trackTitle ? (
+              <>
+                {roadmap.careerPathTitle},<br />
+                {/* §3.1: on this light wash the accent phrase is violet. */}
+                <span className={styles.accent}>{roadmap.trackTitle}</span>
+              </>
+            ) : (
+              roadmap.careerPathTitle
+            )}
+          </h1>
 
-        {/* §5.5: "16 modules, about 14 weeks at 6 hours a week". */}
-        <p className={styles.summary}>
-          {roadmap.totalCount} module{roadmap.totalCount === 1 ? "" : "s"}
-          {roadmap.estimatedWeeks !== null && roadmap.weeklyHours !== null && (
-            <>
-              , about {roadmap.estimatedWeeks} week{roadmap.estimatedWeeks === 1 ? "" : "s"} at{" "}
-              {roadmap.weeklyHours} hour{roadmap.weeklyHours === 1 ? "" : "s"} a week
-            </>
-          )}
-        </p>
-
-        {/* What placement bought, said plainly. */}
-        {roadmap.testedOutCount > 0 && (
-          <p className={styles.cleared}>
-            <Badge tone="verified" icon="check">
-              {roadmap.testedOutCount} tested out
-            </Badge>
-            <span>
-              You proved {roadmap.testedOutCount} module
-              {roadmap.testedOutCount === 1 ? "" : "s"} at placement, so {remaining} remain
-              {remaining === 1 ? "s" : ""}.
-            </span>
+          {/* §5.5: "16 modules, about 14 weeks at 6 hours a week". */}
+          <p className={styles.summary}>
+            {roadmap.totalCount} module{roadmap.totalCount === 1 ? "" : "s"}
+            {roadmap.estimatedWeeks !== null && roadmap.weeklyHours !== null && (
+              <>
+                , about {roadmap.estimatedWeeks} week{roadmap.estimatedWeeks === 1 ? "" : "s"} at{" "}
+                {roadmap.weeklyHours} hour{roadmap.weeklyHours === 1 ? "" : "s"} a week
+              </>
+            )}
           </p>
+
+          {/* What placement bought, said plainly. */}
+          {roadmap.testedOutCount > 0 && (
+            <p className={styles.cleared}>
+              <Badge tone="lime" icon="check">
+                {roadmap.testedOutCount} tested out
+              </Badge>
+              <span>
+                You proved {roadmap.testedOutCount} module
+                {roadmap.testedOutCount === 1 ? "" : "s"} at placement, so {remaining} remain
+                {remaining === 1 ? "s" : ""}.
+              </span>
+            </p>
+          )}
+        </div>
+
+        {/* The one ink surface on the page goes to the thing to be worked on. */}
+        {firstUp && (
+          <Card surface="dark" padding="md" className={styles.firstUp}>
+            <span className={styles.firstUpLabel}>First up</span>
+            <span className={styles.firstUpTitle}>{firstUp.module.title}</span>
+            <span className={styles.firstUpMeta}>
+              {firstUp.skillTitle} · about {firstUp.module.estimatedHours} hour
+              {firstUp.module.estimatedHours === 1 ? "" : "s"}
+            </span>
+          </Card>
         )}
-      </Card>
+      </section>
 
       {/* §7: AI output is labelled as AI, carries a reason, and is flaggable. */}
       {roadmap.aiRationale && (
@@ -149,15 +172,7 @@ function ReviewView({ roadmap }: { roadmap: Roadmap }) {
         </AiPanel>
       )}
 
-      <section className={styles.chart} aria-label="Your roadmap">
-        {breakpoint === "sm" ? (
-          <RoadmapStacked roadmap={roadmap} nav={nav} />
-        ) : (
-          <RoadmapChart roadmap={roadmap} nav={nav} />
-        )}
-      </section>
-
-      <Card surface="white" radius="panel" padding="lg" className={styles.actions}>
+      <Card surface="white" radius="panel" padding="none" className={styles.actions}>
         {editing ? (
           <form
             className={styles.hours}
@@ -189,10 +204,34 @@ function ReviewView({ roadmap }: { roadmap: Roadmap }) {
           </Button>
         )}
 
-        <Button variant="primary" icon="arrow-right" onClick={() => void startLearning()}>
-          Start learning
-        </Button>
+        <div className={styles.go}>
+          <LinkButton variant="ghost" to={`/app/roadmap/${roadmap.id}`}>
+            See the chart
+          </LinkButton>
+          <Button variant="primary" icon="arrow-right" onClick={() => void startLearning()}>
+            Start learning
+          </Button>
+        </div>
       </Card>
     </>
+  );
+}
+
+/**
+ * The module the learner will open first: the one they are on, else the first
+ * they can start. Placement may already have cleared the opening modules, which
+ * is exactly why this is worth showing — "First up" is often not the first row.
+ */
+function firstUpModule(
+  roadmap: Roadmap,
+): { module: RoadmapModuleNode; skillTitle: string } | null {
+  const candidates = roadmap.steps.flatMap((step) =>
+    step.type === "skill" ? step.modules.map((module) => ({ module, skillTitle: step.title })) : [],
+  );
+  return (
+    candidates.find((c) => c.module.status === "current") ??
+    candidates.find((c) => c.module.status === "available") ??
+    candidates.find((c) => !isDone(c.module.status) && c.module.status !== "archived") ??
+    null
   );
 }

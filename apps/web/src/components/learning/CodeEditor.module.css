@@ -1,47 +1,87 @@
+/*
+ * The design system's ink code block (CodeBlock.module.css), made editable —
+ * First Commit v2.dc.html draws the exercise editor this way.
+ */
 .editor {
   display: flex;
   flex-direction: column;
-  gap: var(--space-2);
   min-width: 0;
+  height: 100%;
+  background: var(--surface-card-dark);
+  border-radius: var(--radius-md);
+  overflow: hidden;
 }
 
-.host {
-  border: 1px solid var(--border-control);
-  border-radius: var(--radius-tile);
-  overflow: hidden;
-  background: var(--surface-inset);
+.head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  padding: 10px 16px;
+  border-bottom: 1px solid var(--border-on-dark);
+  font-family: var(--font-mono);
+  font-size: var(--text-micro);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-on-dark-muted);
 }
+
+.host { flex: 1; min-height: 240px; }
 
 .host :global(.cm-editor) {
+  height: 100%;
+  max-height: 60vh;
+  background: transparent;
+  color: var(--code-plain);
   font-family: var(--font-mono);
   font-size: var(--text-body-sm);
-  line-height: var(--lh-code);
-  max-height: 60vh;
 }
 
-/* §12: a visible 2px focus outline everywhere, including inside the editor. */
+.host :global(.cm-scroller) {
+  font-family: var(--font-mono);
+  line-height: 1.7;
+}
+
+.host :global(.cm-content) {
+  padding: var(--space-4) 0;
+  caret-color: var(--text-on-dark);
+}
+
+.host :global(.cm-cursor) { border-left-color: var(--text-on-dark); }
+
+/* §12: a visible 2px focus outline. The violet ring is 3.20:1 on ink. */
 .host :global(.cm-editor.cm-focused) {
   outline: 2px solid var(--focus-ring);
   outline-offset: -2px;
 }
 
 .host :global(.cm-gutters) {
-  background: var(--surface-inset);
-  border-right: 1px solid var(--border-subtle);
+  background: transparent;
+  border-right: 1px solid var(--border-on-dark);
   color: var(--text-faint);
 }
 
-.host :global(.cm-activeLine) {
-  background: var(--surface-card-soft);
+.host :global(.cm-activeLine),
+.host :global(.cm-activeLineGutter) {
+  background: var(--surface-on-dark-hover);
 }
 
-.host :global(.cm-content) {
-  caret-color: var(--text-strong);
-  color: var(--text-body);
+.host :global(.cm-selectionBackground),
+.host :global(.cm-focused .cm-selectionBackground),
+.host :global(.cm-content ::selection) {
+  background: var(--violet-700);
 }
+
+/* Syntax tones — the same four CodeBlock uses. All sit on ink. */
+.key { color: var(--violet-300); }
+.str { color: var(--lime-400); }
+.com { color: var(--gray-500); }
+.tag { color: var(--violet-400); }
 
 .hint {
   margin: 0;
+  padding: 10px 16px;
+  border-top: 1px solid var(--border-on-dark);
   font-size: var(--text-caption);
-  color: var(--text-muted);
+  color: var(--text-on-dark-muted);
 }

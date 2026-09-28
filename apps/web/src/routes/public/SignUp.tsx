@@ -3,12 +3,12 @@ import { Link, useNavigate } from "react-router";
 import { useMutation } from "@tanstack/react-query";
 import { Button } from "../../components/core/Button";
 import { Checkbox } from "../../components/forms/Checkbox";
-import { Icon } from "../../components/core/Icon";
 import { Input } from "../../components/forms/Input";
 import { authApi } from "../../api/auth";
 import { ApiError } from "../../api/client";
 import { useSessionActions } from "../../features/auth/useSession";
-import styles from "./SignUp.module.css";
+import { AuthFrame } from "./AuthFrame";
+import styles from "./Auth.module.css";
 
 /**
  * design.md §5.2 — sign up creates an account and does nothing else. No
@@ -61,74 +61,67 @@ export function SignUp() {
   const emailTaken = apiError?.status === 409;
 
   return (
-    <div className={styles.page}>
-      <div className={styles.card}>
-        <span className={styles.wordmark}>
-          <span className={styles.mark}><Icon name="code-xml" size={15} /></span>
-          First Commit
-        </span>
+    <AuthFrame>
+      <h1 className={styles.title}>Create your account</h1>
 
-        <h1 className={styles.title}>Create your account</h1>
+      <form className={styles.form} onSubmit={onSubmit} noValidate>
+        <Input
+          label="Full name"
+          name="fullName"
+          autoComplete="name"
+          hint="Use the name you want on your certificates."
+          error={fieldErrors.fullName}
+        />
+        <Input
+          label="Email"
+          name="email"
+          type="email"
+          autoComplete="email"
+          error={fieldErrors.email ?? (emailTaken ? apiError.message : undefined)}
+        />
+        <Input
+          label="Password"
+          name="password"
+          type="password"
+          autoComplete="new-password"
+          hint="At least 8 characters."
+          error={fieldErrors.password}
+        />
 
-        <form className={styles.form} onSubmit={onSubmit} noValidate>
-          <Input
-            label="Full name"
-            name="fullName"
-            autoComplete="name"
-            hint="Use the name you want on your certificates."
-            error={fieldErrors.fullName}
-          />
-          <Input
-            label="Email"
-            name="email"
-            type="email"
-            autoComplete="email"
-            error={fieldErrors.email ?? (emailTaken ? apiError.message : undefined)}
-          />
-          <Input
-            label="Password"
-            name="password"
-            type="password"
-            autoComplete="new-password"
-            hint="At least 8 characters."
-            error={fieldErrors.password}
-          />
+        <Checkbox
+          name="consent"
+          checked={agreed}
+          onChange={(e) => setAgreed(e.currentTarget.checked)}
+          className={styles.consent}
+          label={
+            <>
+              I agree to the <Link to="/privacy">Privacy Notice</Link> and{" "}
+              <Link to="/terms">Terms of Use</Link>
+            </>
+          }
+        />
 
-          <Checkbox
-            name="consent"
-            checked={agreed}
-            onChange={(e) => setAgreed(e.currentTarget.checked)}
-            className={styles.consent}
-            label={
-              <>
-                I agree to the <Link to="/privacy">Privacy Notice</Link> and{" "}
-                <Link to="/terms">Terms of Use</Link>
-              </>
-            }
-          />
+        {apiError && !emailTaken && (
+          <p role="alert" className={styles.formError}>
+            {apiError.message}
+          </p>
+        )}
 
-          {apiError && !emailTaken && (
-            <p role="alert" className={styles.formError}>
-              {apiError.message}
-            </p>
-          )}
+        <Button
+          type="submit"
+          variant="primary"
+          fullWidth
+          disabled={!agreed}
+          loading={signUp.isPending}
+          loadingLabel="Creating your account…"
+        >
+          Create account
+        </Button>
+      </form>
 
-          <Button
-            type="submit"
-            variant="primary"
-            fullWidth
-            disabled={!agreed}
-            loading={signUp.isPending}
-            loadingLabel="Creating your account…"
-          >
-            Create account
-          </Button>
-        </form>
-
-        <p className={styles.footer}>
-          Already have an account? <Link to="/login">Log in</Link>
-        </p>
-      </div>
-    </div>
+      <p className={styles.footer}>
+        Already have an account? <Link to="/login">Log in</Link>
+      </p>
+    </AuthFrame>
   );
 }

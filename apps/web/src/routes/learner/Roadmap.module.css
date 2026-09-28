@@ -45,12 +45,18 @@
    is taken out of the flow by RoadmapPanel's own media query. */
 .body { display: flex; flex-direction: column; gap: var(--gutter-card); }
 
-/* No panel styling here: RoadmapChart's own region is the white panel, and
-   wrapping it in a second one would nest 28px inside 28px. */
-.canvasArea { min-width: 0; flex: 1 1 520px; }
+/* The chart's white panel (v2: 28px by 20px). Nothing here scrolls sideways
+   at any width: the spine's side columns shrink and their nodes wrap. */
+.chartArea {
+  min-width: 0;
+  flex: 1 1 520px;
+  padding: var(--pad-section) var(--space-5);
+  border-radius: var(--radius-panel);
+  background: var(--surface-card);
+}
 
 @media (min-width: 640px) {
-  /* §5.7: canvas beside a side panel. They wrap on their own rather than by
+  /* §5.7: the chart beside a side panel. They wrap on their own rather than by
      a fixed column count, so a narrow window stacks them instead of
      squeezing the chart. */
   .body { flex-direction: row; align-items: flex-start; flex-wrap: wrap; }

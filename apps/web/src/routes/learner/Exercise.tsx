@@ -24,6 +24,10 @@ import styles from "./Exercise.module.css";
  *
  * §5.11's ordering is deliberate and kept: **test results appear before AI
  * feedback, because they are the source of truth** (§7).
+ *
+ * **Drawn from First Commit v2.dc.html**: a one-row header, the ink code block
+ * beside a white panel of pill tabs, and one bar of actions. Where it departs —
+ * no Hint button, no "Run tests", the third tab — design-source.md §7.1 says why.
  */
 export function Exercise() {
   const { id } = useParams();
@@ -145,7 +149,12 @@ function ExerciseView({ exercise }: { exercise: ExerciseData }) {
 
   return (
     <div className={styles.page}>
-      <Card surface="white" radius="panel" padding="lg" className={styles.header}>
+      <Card surface="white" radius="panel" padding="none" className={styles.header}>
+        <h1 className={styles.title}>Exercise: {exercise.title}</h1>
+        {/*
+          v2 puts a Hint button here. Exercises carry no hints yet, so the slot
+          holds the way back to the module instead of a button that does nothing.
+        */}
         <LinkButton
           variant="ghost"
           size="sm"
@@ -155,21 +164,20 @@ function ExerciseView({ exercise }: { exercise: ExerciseData }) {
         >
           Back to {exercise.moduleTitle}
         </LinkButton>
-        <h1 className={styles.title}>Exercise: {exercise.title}</h1>
       </Card>
 
       <div className={styles.split}>
-        <Card surface="white" radius="panel" padding="lg" className={styles.editorPane}>
-          <h2 className={styles.fileName}>{path}</h2>
+        <div className={styles.editorPane}>
           <CodeEditor
             value={code}
             onChange={setCode}
             runtime={exercise.runtime}
+            filename={path}
             label={`${path}, code editor`}
           />
-        </Card>
+        </div>
 
-        <Card surface="white" radius="panel" padding="lg" className={styles.sidePane}>
+        <Card surface="white" radius="panel" padding="md" className={styles.sidePane}>
           <div className={styles.tabs} role="tablist" aria-label="Exercise panels">
             <Tabbed id="instructions" tab={tab} onSelect={setPicked} onKey={onTabKey}>
               Instructions
@@ -209,7 +217,7 @@ function ExerciseView({ exercise }: { exercise: ExerciseData }) {
               <p className={styles.instructions}>{exercise.instructions}</p>
               {exercise.visibleTests.length > 0 && (
                 <>
-                  <h3 className={styles.subhead}>What is checked</h3>
+                  <h2 className={styles.subhead}>What is checked</h2>
                   <ul className={styles.checkList}>
                     {exercise.visibleTests.map((t) => (
                       <li key={t.id}>{t.name}</li>
@@ -230,7 +238,7 @@ function ExerciseView({ exercise }: { exercise: ExerciseData }) {
         </Card>
       </div>
 
-      <Card surface="white" radius="panel" padding="lg" className={styles.actions}>
+      <Card surface="white" radius="panel" padding="none" className={styles.actions}>
         <Button variant="ghost" onClick={() => setCode(exercise.starterFiles[0]?.content ?? "")}>
           Reset code
         </Button>
@@ -242,7 +250,7 @@ function ExerciseView({ exercise }: { exercise: ExerciseData }) {
                 : "That didn't send. Check your connection and try again."}
             </p>
           )}
-          <Button onClick={send} disabled={submit.isPending || running}>
+          <Button variant="primary" onClick={send} disabled={submit.isPending || running}>
             {submit.isPending ? "Submitting…" : running ? "Running…" : "Submit"}
           </Button>
         </div>

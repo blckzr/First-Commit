@@ -2,7 +2,7 @@ import { NavLink, Outlet, useLocation } from "react-router";
 import { Icon } from "../components/core/Icon";
 import { LogOutButton } from "../features/auth/LogOutButton";
 import type { IconName } from "../components/core/Icon";
-import { IconButton } from "../components/core/IconButton";
+import { IconLink } from "../components/core/IconButton";
 import { useSession } from "../features/auth/useSession";
 import styles from "./LearnerShell.module.css";
 
@@ -169,7 +169,14 @@ export function LearnerShell() {
         </nav>
 
         <div className={styles.topbarEnd}>
-          <IconButton icon="bell" label="Notifications" variant="bare" size="sm" />
+          <IconLink
+            to="/app/notifications"
+            icon="bell"
+            label="Notifications"
+            variant="bare"
+            size="sm"
+            className={styles.bell}
+          />
           {/*
             §4.2's profile menu. A native disclosure, so it opens with the
             keyboard and needs no JavaScript.

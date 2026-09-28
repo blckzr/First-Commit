@@ -2,12 +2,13 @@ import { expect, test } from "@playwright/test";
 import { signedIn, stubRoadmap } from "./session";
 
 /**
- * The roadmap where jsdom cannot go: real layout, a real canvas, and a real
- * resize between breakpoints.
+ * The roadmap where jsdom cannot go: real layout and a real resize between
+ * breakpoints.
  *
- * design.md §11.3 — chart on `md`/`lg`, a single stacked column on `sm`;
- * §12 — the canvas pans inside its own region and the page never scrolls
- * sideways; §13.5 — state survives a breakpoint change.
+ * design.md §11.3 — the spine with its branches on `md`/`lg`, a single
+ * stacked column on `sm`, both one list laid out by CSS (First Commit
+ * v2.dc.html); §12 — the page never scrolls sideways; §13.5 — state survives a
+ * breakpoint change.
  */
 
 const ROADMAP = "/app/roadmap/10000000-0000-0000-0000-000000000001";
@@ -22,8 +23,8 @@ test.beforeEach(async ({ page }) => {
 test("shows the roadmap once, whatever the width", async ({ page }) => {
   await page.goto(ROADMAP);
 
-  // One accessible roadmap. On md and lg the canvas is aria-hidden, so the
-  // chart must not add a second copy to the accessibility tree.
+  // One accessible roadmap: the chart is the list, so there is no second copy
+  // for the accessibility tree to pick up.
   const list = page.getByRole("list", { name: /Junior Web Developer roadmap/i });
   await expect(list).toHaveCount(1);
   await expect(list.getByRole("button", { name: /^Arrays and objects/ })).toHaveCount(1);
@@ -37,7 +38,7 @@ test("offers no view switcher", async ({ page }) => {
   ).toHaveCount(0);
 });
 
-/** §12: "the roadmap canvas pans within its own region on md and lg". */
+/** §12: layouts reflow without horizontal page scrolling. */
 test("does not scroll the page sideways", async ({ page }) => {
   await page.goto(ROADMAP);
   await expect(page.getByRole("list", { name: /roadmap/i })).toBeAttached();
@@ -51,8 +52,7 @@ test("does not scroll the page sideways", async ({ page }) => {
 test.describe("keyboard", () => {
   /**
    * §12: arrow keys move between nodes, Enter opens the panel, focus moves in
-   * and returns on close. On `md` and `lg` the list is clipped, so this also
-   * proves a keyboard user can drive a chart they cannot see the DOM of.
+   * and returns on close.
    */
   test("walks the roadmap and opens a node with the keyboard", async ({ page }) => {
     await page.goto(ROADMAP);
@@ -72,11 +72,7 @@ test.describe("keyboard", () => {
     await expect(page.getByRole("button", { name: /^HTML basics/ })).toBeFocused();
   });
 
-  /**
-   * The chart's own nodes must stay out of the tab order: they have no
-   * accessible name and sit inside an aria-hidden canvas, so a tab stop there
-   * would be a control a screen reader cannot announce.
-   */
+  /** Roving tabindex: Tab leaves the roadmap instead of walking every node. */
   test("puts one tab stop on the roadmap, not one per node", async ({ page }) => {
     await page.goto(ROADMAP);
     await expect(page.getByRole("list", { name: /roadmap/i })).toBeAttached();
@@ -92,10 +88,7 @@ test.describe("keyboard", () => {
 test.describe("state across a resize", () => {
   test("keeps the open node when the layout changes", async ({ page }) => {
     await page.goto(ROADMAP);
-    // Opened with the keyboard, because that works at every width: on md and lg
-    // the list is clipped and a mouse user clicks the chart node instead.
-    await page.getByRole("button", { name: /^Git basics/ }).focus();
-    await page.keyboard.press("Enter");
+    await page.getByRole("button", { name: /^Git basics/ }).click();
     await expect(page.getByRole("heading", { name: "Git basics" })).toBeVisible();
 
     await page.setViewportSize({ width: 360, height: 780 });
@@ -115,19 +108,36 @@ test.describe("state across a resize", () => {
   });
 });
 
-/** §11.3: on sm the chart becomes one column; on md and lg it is the canvas. */
-test("uses the stacked column on sm and the canvas above it", async ({ page }, testInfo) => {
+/**
+ * §11.3: in a narrow chart the modules stack beneath their skill; once the
+ * chart itself is 600px wide they branch left and right of it, as v2 draws it.
+ * It is the chart's width that decides (a container query), so that is what
+ * this measures, not the project's viewport.
+ */
+test("branches modules either side of the spine when there is room, and stacks them when not", async ({
+  page,
+}) => {
   await page.goto(ROADMAP);
-  await expect(page.getByRole("list", { name: /roadmap/i })).toBeAttached();
 
-  const canvas = page.locator(".react-flow");
-  if (testInfo.project.name.startsWith("360")) {
-    await expect(canvas).toHaveCount(0);
-    // The list itself is what the learner reads.
-    await expect(page.getByRole("button", { name: /^HTML basics/ })).toBeVisible();
+  const box = async (name: RegExp) => {
+    const b = await page.getByRole("button", { name }).boundingBox();
+    if (!b) throw new Error(`no box for ${name}`);
+    return b;
+  };
+  const skill = await box(/^HTML, skill/);
+  const first = await box(/^HTML basics/);
+  const second = await box(/^Forms and semantics/);
+
+  const chart = await page.getByRole("list", { name: /Junior Web Developer roadmap/i }).boundingBox();
+  if (!chart) throw new Error("no chart");
+
+  if (chart.width < 600) {
+    expect(first.y, "a module sits below its skill").toBeGreaterThan(skill.y + skill.height - 1);
+    expect(second.y).toBeGreaterThan(first.y);
   } else {
-    await expect(canvas).toHaveCount(1);
-    // Clipped, not hidden: a hidden element cannot be focused (§12).
-    await expect(page.getByRole("button", { name: /^HTML basics/ })).toBeAttached();
+    expect(first.x + first.width, "the first module is left of the spine").toBeLessThanOrEqual(skill.x);
+    expect(second.x, "the second module is right of the spine").toBeGreaterThanOrEqual(
+      skill.x + skill.width,
+    );
   }
 });

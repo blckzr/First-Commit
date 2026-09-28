@@ -102,6 +102,11 @@
   gap: var(--space-3);
 }
 
+/* The bell sits on ink, so the bare icon button's --text-body (about 2:1 here)
+   gives way to the on-dark pair the prototype uses. `a.` outranks .bare whichever sheet loads last. */
+a.bell { color: var(--text-on-dark-muted); }
+a.bell:hover { background: var(--surface-on-dark-hover); color: var(--text-on-dark); }
+
 .profile { position: relative; }
 
 .profileButton {

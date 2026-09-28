@@ -1,7 +1,7 @@
 import {
   ArrowLeft, ArrowRight, Award, Bell, Check, ChevronDown, Circle, CircleDot,
   CodeXml, Copy, ExternalLink, FileText, Flag, Info, Layers, Lock, LogOut, Map,
-  Plus, Search, Settings, User, Wrench, X,
+  Mail, Plus, Search, Settings, User, Wrench, X,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 
@@ -34,6 +34,7 @@ const ICONS = {
   layers: Layers,
   lock: Lock,
   "log-out": LogOut,
+  mail: Mail,
   map: Map,
   plus: Plus,
   search: Search,

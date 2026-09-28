@@ -11,6 +11,246 @@ lives under `[Unreleased]` until there is something to version.
 
 ## [Unreleased]
 
+### 2026-09-29 — The §9 evaluation harness, and the first measurement of two AI components
+
+`npm run evaluate`. The last open item in Phase 3, and the one that was blocked until all
+three AI components existed. `project-proposal.md` §9.1 names five metric tables; three can
+be run honestly today, and the harness prints the other two as **not measured** rather than
+leaving them out, so the gaps are part of the result.
+
+It contradicted a recorded claim and found a grounding gap on its first run. That is the
+point of it.
+
+#### Added
+
+- **`npm run evaluate`** (`apps/worker/src/evaluation/`), optionally narrowed to one
+  component: `npm run evaluate -- code`, `roadmap` or `resume`. The model is **not** a flag —
+  `OLLAMA_MAX_LOADED_MODELS=1` on 8GB means comparing 4B with 9B (`model-setup-guide.md` §13)
+  is two runs with `AI_MODEL` changed between them, not one run swapping models on a card that
+  would be thrashing.
+- **It drives the real handlers, not a copy of them.** `runRoadmapGeneration` and
+  `runResumeGeneration` as the worker calls them; for code feedback, every fixture goes through
+  the **real Docker sandbox** against the **real seeded test cases**, and the outcomes that come
+  back are what the model is given — redacted exactly as `submissions.ts` redacts them, so a
+  hidden case reaches the prompt as a name and an outcome and nothing else (§6 rule 2). §7 says
+  tests run before any model call; an evaluation that typed its own test results would be
+  measuring a pipeline learners do not use.
+- **The real curriculum, in pg-mem.** `evaluation/db.ts` loads `supabase/seed/` — all 19
+  modules, 57 lessons, 26 assessments, 17 prerequisite edges — into the in-memory database
+  built from the real migrations. Against a hand-written five-module catalogue, "used existing
+  module ids" and "covered every core module" are nearly free, and the score would describe the
+  fixture rather than the model. `scripts/seed.mjs` is not refactored to make this work: `pg`'s
+  default export is one live object and the script constructs `pg.Client` at call time, so
+  swapping the class before importing it redirects all 1009 statements.
+- **Fixtures.** 21 code submissions (17 documented bugs, 4 correct) across the three seeded
+  exercises; 6 learner profiles varying experience, goal, hours and prior completions; 6 resume
+  evidence levels. Three submissions fail **only a hidden case** — the hardest feedback to write
+  and the case that exercises redaction.
+- **A scoring sheet** for everything §9.1 marks evaluator-rated, laid out with the known bug
+  beside the model's feedback and blank columns to fill in. Deliberately not keyword-scored:
+  "off-by-one" and "starts counting from the second item" are the same finding, and a matcher
+  would score vocabulary while looking like a measurement.
+- **Results are written as each case finishes**, one JSON object per line. A full run is 40-odd
+  model calls over tens of minutes; a harness that wrote only at the end would lose the
+  measurement to a crash and invite reporting it from memory. It earned that within the hour —
+  stdout was buffered and the run was followed from `cases.jsonl` instead.
+- **`metrics.test.ts`** pins the two classifiers to the validators they read. The counts are
+  derived from other modules' rejection wording, and that coupling fails silently: reword
+  `noSolutionLeak` and the leakage rate reads 0%, which looks like a perfect score rather than
+  a broken counter. The tests feed the **real** validators bad input and assert the classifiers
+  recognise what comes back. Both mutations were confirmed to fail the suite.
+
+#### Changed
+
+- **`chatJson` returns `rejections`**, and throws a `ChatJsonError` carrying them. Every rule
+  the platform enforces on model output fires in that retry loop and was then discarded,
+  leaving `attempts: 3` as the only trace. Solution leakage, prerequisite violations and
+  core-coverage misses are counts of those strings. Worse, a plain `Error` kept only the last
+  one, so the runs that failed hardest contributed *least* to the totals. The roadmap and
+  resume handlers pass them through to `ai_jobs.result`, which also means an operator can
+  finally see why a job took three tries.
+- **`code_feedback`'s prompt is versioned and registered.** It was the one component with
+  neither: `ai_prompts` held rows for `roadmap_generation` and `resume_generation` only, so the
+  component learners see most often was the one a score could not be traced back to. AGENT.md §7
+  requires it; the harness is what made the omission matter.
+- **The resume handler records `removedSkills`**, not only how many. The count gives the
+  fabrication rate; the names distinguish a near-miss from an invention.
+- AGENT.md §2 pointed at `model-setup-guide.md` **§12** for the harness. §12 is The Code Sandbox;
+  the guidance is §13. Corrected the pointer.
+- AGENT.md §7's job table said `roadmap_generation` "runs on qwen3.5:4b in one attempt, ~8s".
+  That came from three runs on one profile. Six profiles disagree, so the row now carries the
+  measurement and a summary of the run sits under the table.
+
+#### Found
+
+- **The Roadmap AI is much weaker on qwen3.5:4b than three runs suggested.** 3 of 6 profiles
+  produced a roadmap. Two exhausted their retries on a **mangled module id** — the identical
+  splice of two UUIDs both times, `48b67ec1-…-16ac7f50-a97e-…` — and one **timed out at 120s**.
+  Mean 53s against a best of 8.2s. The catalogue asks a 4B model to copy 36-character UUIDs a
+  dozen-plus times an answer; the modules already have short slugs. Worth trying 9B and slugs
+  before concluding the prompt is wrong.
+- **All three successes recommended Frontend**, including the profile written specifically to
+  see whether the backend track is ever chosen. One run is not a monoculture, but it is the
+  thing to watch on the next one.
+- **The Resume AI invents skills, and the grounding removes them.** 6 of 6 produced a resume on
+  the first attempt, mean 13.4s. Given a learner with *nothing* verified and the target "Junior
+  Front-End Developer", qwen3.5:4b claimed HTML, CSS and JavaScript; `groundSkills` deleted all
+  three and the resume printed no skills. **This is the number the design was built to expose** —
+  reporting only the stored resume would have put fabrication at 0% and proved nothing.
+- **But the summary sentence is not filtered**, and that is a real gap (open question 11). The
+  same resume opens *"Aspiring front-end developer with foundational knowledge of web
+  technologies… Ready to apply core programming concepts to build responsive user interfaces"* —
+  for a learner who has verified nothing. `groundSkills` cleans the skills array;
+  `noInventedExperience` rejects claims of employment and of having built something. **Neither
+  reads the summary for a claim of knowledge.** §9.1 counts that as fabrication, so by the
+  project's own metric it reached the learner. Recorded rather than patched, because the fix is
+  a decision: ground the prose as the skills array is grounded, or say in §7 that it is not and
+  why.
+
+#### Not yet run
+
+- **Code Review AI** — it needs Docker Desktop, which was closed when the run reached it. The
+  fixtures and the sandbox path are built and typechecked; the run is one command.
+- **qwen3.5:9b** — the comparison §13 exists for. One `AI_MODEL` change and a second run.
+
+### 2026-09-29 — The roadmap is v2's spine, not a zoomable canvas
+
+The roadmap chart was a React Flow canvas: pan, zoom, fit, a dotted background, and nodes
+positioned by `features/roadmap/layout.ts`. `First Commit v2.dc.html` draws something
+simpler — a spine of steps down the middle, each skill's modules either side of it on short
+rules, the milestones in ink at the foot — and the tracker had carried the difference as an
+open item since the prototype was first applied.
+
+#### Changed
+
+- **The chart is the list.** The canvas was `aria-hidden` decoration over a clipped copy of
+  the nested list §12 requires, so one roadmap had two renderings to keep in step. Now
+  `RoadmapNav` renders that list once and CSS lays it out: the spine in the middle of a
+  `1fr · 180–220px · 1fr` grid, modules alternating left and right on a subgrid, the main
+  path a 2px ink rule behind the spine nodes. What a mouse user clicks is what a keyboard user
+  focuses and what a screen reader reads. Arrow keys, the single tab stop, the side panel and
+  `?node=` in the address are unchanged, and so is every unit test that drives them.
+- **Nodes as v2 draws them.** Modules are filled by status — verified tint, the here tint for
+  the current one, inset for locked, violet for an AI-added module until it is done — with the
+  status icon, the title, and the status in words underneath. Skills are white with a 1px ink
+  border; the decision takes the notice tint; milestones are ink. Every caption was measured
+  on its fill; on violet-100 `--text-muted` is 4.44:1, so there it is `--text-body`.
+- **It branches by the chart's width, not the viewport's.** At 768px the chart shares the row
+  with the sidebar and is about 520px wide, where v2's three columns squeezed the modules into
+  110px strips and one ran past the panel. A container query switches to the branching grid
+  once the chart is 600px wide and keeps the single column below that — every phone, and a
+  tablet. Nothing scrolls sideways at any width.
+- `useBreakpoint` is no longer used anywhere; it stays for the next structural case.
+  `design.md` §2.1, §5.7, §7, §11, §12, §13.1 and §13.5 and `AGENT.md` §4 and §8 now describe
+  the chart as built.
+
+#### Removed
+
+- `RoadmapChart`, `ChartNodes`, `chartNodeTypes`, `RoadmapStacked`, and
+  `features/roadmap/layout.ts` with its 8 tests — the canvas, its nodes, the separate phone
+  view, and the positions only the canvas needed.
+- The Playwright check that the canvas existed on md and lg. In its place, a test that
+  measures the chart: modules sit left and right of their skill when it is 600px wide or
+  more, and below it when it is not. The four project widths cover both.
+
+#### Not done
+
+- **`@xyflow/react` is still installed**, and nothing imports it. The admin editor's free-form
+  prerequisite graph may want it; removing it is one command if not.
+- v2 always shows a side panel, opening on the current module. Here it still opens when a node
+  is chosen: opening it on load would move focus into it before the learner has done anything.
+
+Web: typecheck, lint, 393 unit tests and 152 Playwright tests passing; production build clean.
+
+### 2026-09-29 — The exercise page follows `First Commit v2.dc.html`
+
+v2 was read again: since the entry below it had gained a notifications popover on the bell
+and lost the quiz's 780px cap. Its exercise screen was unchanged, and the page here had never
+been matched to it.
+
+#### Changed
+
+- **The editor is the ink code block.** `CodeEditor` now draws the design system's
+  `CodeBlock` chrome — a bar naming the file and the language, line numbers, and the
+  keyboard hint as a footer — and colours the code with `CodeBlock`'s four tones. The tones
+  are CSS classes handed to CodeMirror's `HighlightStyle`, so every colour is still a token.
+  `@codemirror/language` and `@lezer/highlight` are now declared in `apps/web`; both were
+  already installed as dependencies of `@codemirror/lang-javascript`, so nothing was
+  downloaded and the lockfile gained two lines.
+- **A one-row header** with the title at 26px. v2 puts a Hint button on the right; exercises
+  have no hints, so the link back to the module sits there instead.
+- **Pill tabs** — the selected one filled — in place of an underline. Still 44px targets,
+  still arrow keys and one tab stop. The third tab, AI feedback, stays (see below).
+- **Results as v2 draws them**: a 17px tally, passing names in ink with a green tick, and a
+  failing case on the error tint with "Expected 2, got 0" in `--error` (4.57:1 on the tint).
+- **The panels sit side by side from 380px + 340px** and wrap below that — v2's flex basis,
+  not the old 1024px breakpoint. At 390px the three tabs fit on one row; at 320px they wrap.
+- The quiz is no longer capped at 780px, as in v2's latest revision.
+
+#### Not done
+
+- **No Run tests button** — Sandpack is not installed, and only the server's run counts.
+- **The bell popover** needs the notifications endpoints.
+- **v2 still stacks AI feedback under the results**; the code keeps its own tab, a decision
+  made before v2 and recorded in `design.md` §5.11. Left for you to settle.
+
+Web: typecheck, lint, 401 unit tests and 152 Playwright tests passing.
+
+### 2026-09-29 — The screens follow `First Commit v2.dc.html`
+
+The design project gained a second prototype, `First Commit v2.dc.html`. Diffed against v1
+with every `var(--…)` resolved to its value, it turns out to be three things: v1 with this
+repo's contrast corrections adopted, lighter 1px lines, and seven screens v1 never had.
+`design-source.md` §7 records the diff; this entry is what the code did about it. The token
+files did not change, on either side.
+
+#### Changed
+
+- **The four auth screens share one frame.** Sign up, log in, forgot and reset password each
+  carried a copy of the same stylesheet, and all four had drifted the same way: the wordmark,
+  with a lime icon, sat *inside* the card. v2 draws it centred above a 460px panel, set in
+  type with a violet "Commit". `AuthFrame` and `Auth.module.css` replace the three old
+  stylesheets.
+- **Forgot password** reads as v2 does: "Reset your password", then "Check your email" behind a
+  violet mail tile, with focus moved onto the new heading because the form it replaced is
+  gone. The confirmation still quotes the API's no-leak sentence verbatim and keeps the
+  spam-folder line — §7.1 of `design-source.md` explains both departures.
+- **Reset password** says "This signs you out everywhere else." and its button is now
+  **Save password**, which is v2's wording.
+- **Verify certificate** takes v2's measurements: a 32px heading instead of a muted caption,
+  the name at 26px, and the issue date and ID in a ruled two-column grid.
+- **My roadmaps** follows v2: an h1 header, a lime **Active** badge, a ruled card footer,
+  **Review plan** beside **Open roadmap**, and the archive collapsed into an inset tile.
+- **Roadmap review** is v2's hero: the plan's name with the track as the accent phrase, and
+  the ink **First up** card naming the module the learner will open — the first one placement
+  did not clear. The chart embedded below it is gone; **See the chart** opens the real one.
+- **The module rail uses the design system's `LessonRow` again**: a numbered disc, the title,
+  and a caption, with the quiz and exercise continuing the count. The contrast corrections
+  already recorded in `design-source.md` §3.5 are kept, and so are the separate read and
+  current props. The play glyph is left out; nothing on a reading lesson plays.
+- The landing page's roadmap nodes have a 1px border, down from 2px.
+
+#### Fixed
+
+- **The bell in the learner bar did nothing and could barely be seen.** It was a bare icon
+  button in `--text-body` on the ink bar, about 2:1. It is now a link to
+  `/app/notifications`, in `--text-on-dark-muted`, as v2 draws it. `IconLink` is the icon-only
+  counterpart to `LinkButton`.
+- **My roadmaps sized two headings with tokens that do not exist.** `--text-h5` and
+  `--text-h6` are not in `tokens.css`, so they fell back to the inherited size. The screen
+  now uses v2's `--text-h3`. **A scan found seven undefined tokens still in use** —
+  `--text-h5`/`--text-h6` in `Flags`, `Certificates` and `Resume`, plus `--radius-tile`,
+  `--radius-input`, `--lh-code`, `--shadow-panel` and `--topbar-height` — left for their own
+  pass, since each needs a value decided rather than guessed.
+
+#### Not done
+
+- **Notifications** and **admin Certificates** are drawn in v2 and still render placeholders.
+  Both need endpoints first — the second changes learners' outcomes, so it needs §6.1 step 5's
+  logging and a reason on every action. Recorded in `task-tracker.md`.
+
+Web: typecheck, lint, 401 unit tests and 152 Playwright tests passing.
+
 ### 2026-09-26 — A closed Docker Desktop told a learner their correct code failed
 
 A real submission, with a correct solution, reported **"0 of 7 tests passed"**. The code was

@@ -1,43 +1,81 @@
+/* The design system's LessonRow, measured from First Commit v2.dc.html. */
 .row {
   display: flex;
   align-items: center;
-  justify-content: space-between;
   gap: var(--space-3);
   width: 100%;
   /* §12: a 44px touch target. */
   min-height: 44px;
-  padding: var(--space-2) var(--space-3);
-  border: 1px solid transparent;
+  padding: 11px 14px;
+  border: 0;
   border-radius: var(--radius-sm);
   background: transparent;
   font-family: inherit;
-  font-size: var(--text-body-sm);
-  font-weight: var(--fw-semibold);
   text-align: left;
   color: var(--text-strong);
+  text-decoration: none;
   transition: background-color var(--dur-base) var(--ease-out);
 }
 
-button.row { cursor: pointer; }
-button.row:hover { background: var(--surface-inset); }
+button.row,
+a.row { cursor: pointer; }
 
-.label { min-width: 0; }
+button.row:hover,
+a.row:hover { background: var(--surface-inset); text-decoration: none; }
 
-.status { flex: 0 0 auto; display: inline-flex; align-items: center; }
+.disc {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  font-family: var(--font-mono);
+  font-size: var(--text-micro);
+  font-weight: var(--fw-bold);
+  background: var(--surface-inset);
+  /* --text-faint here is 2.65:1; --text-muted is 4.88:1. */
+  color: var(--text-muted);
+}
 
-/* The status colours are the prototype's, mapped onto the tokens that pass
-   §12. `--text-faint` on white is 2.85:1, but it is never the only cue here —
-   the row also carries the word (§8). */
-.todo .status { color: var(--text-muted); }
-.done .status { color: var(--verified); }
-.locked .status { color: var(--text-faint); }
-.locked .label { color: var(--text-muted); }
+.title {
+  flex: 1;
+  min-width: 0;
+  font-size: var(--text-body-base);
+  font-weight: var(--fw-regular);
+  color: var(--text-strong);
+}
+
+.meta {
+  flex: 0 0 auto;
+  font-family: var(--font-mono);
+  font-size: var(--text-caption);
+  color: var(--text-muted);
+}
+
+/* Read: the lime disc with an ink tick. A lime fill carries its edge (§3.1). */
+.done .disc {
+  background: var(--accent);
+  box-shadow: inset 0 0 0 1px var(--border-accent);
+  color: var(--text-on-lime);
+}
+.done .title { color: var(--text-muted); }
+
+.locked .title { color: var(--text-muted); }
 
 /* The row being read. */
 .current,
 button.current:hover {
   background: var(--surface-card-soft);
-  color: var(--text-strong);
+}
+.current .title { font-weight: var(--fw-semibold); }
+/* --text-muted is 4.44:1 on this tint, so a row both read and open stays strong. */
+.current.done .title,
+.current .meta { color: var(--text-strong); }
+.current:not(.done) .disc {
+  background: var(--violet-600);
+  color: var(--text-on-dark);
 }
 
 .srOnly {

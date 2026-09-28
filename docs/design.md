@@ -54,7 +54,7 @@ The chart reflects First Commit's layered career paths (see the proposal, Sectio
 - **Concept and technology skill nodes** continue the main path after the decision. Technology module nodes carry a small technology badge.
 - **Reinforcement and challenge modules** appear as smaller branch nodes when the Roadmap AI adds them.
 - **Milestone nodes** at the end show the Certificate of Completion, then the capstone project and Project Certificate.
-- **Solid connectors** link nodes on the main path. **Dashed connectors** link branches.
+- **A 2px ink rule** links nodes on the main path. **A short 1px rule** links each branch to its skill. (Dashed branches in the sketch below are the first draft; First Commit v2.dc.html made them solid, and that is what is built.)
 - **Selecting any node** opens a side panel with details and actions.
 
 ```
@@ -702,9 +702,9 @@ stateDiagram-v2
 │  Legend: ✓ Passed  ◉ Current  ○ Available  🔒 Locked         │
 ├───────────────────────────────────────┬─────────────────────┤
 │                                       │ Arrays and objects  │
-│        [Roadmap chart canvas]         │ ◉ In progress       │
-│                                       │ Lesson 2 of 4       │
-│   Zoom: [ − ] [ Fit ] [ + ]           │                     │
+│   [Roadmap chart: the spine, with     │ ◉ In progress       │
+│    modules branching left and right]  │ Lesson 2 of 4       │
+│                                       │                     │
 │                                       │ Store and work with │
 │                                       │ lists and grouped   │
 │                                       │ data.               │
@@ -1450,13 +1450,13 @@ Components marked **built** exist in `apps/web/src/components`; the rest are spe
 | **LessonBody** *(built)* | paragraph, heading, list, code, callout | Renders `LessonContent` (§13.3) with an exhaustive `switch`, so a new block type is a compile error. Every string is a text node — nothing a lesson author writes can reach the DOM as markup. |
 | **LessonRow** *(built)* | Not started, read, locked · current | A row in a module's lesson rail: the label on the left, the status icon on the right, a violet tint on the row being read. **Read and current are separate props, not one state** — a First Commit lesson stays open after "Mark as read", so it is routinely both, and folding them into one value drops the tick from the row the learner is on. |
 | **StepIndicator** *(built)* | — | Used only for true sequences |
-| **Roadmap canvas** *(built, learner)* | Learner (read-only), admin (editable) | Pan, zoom, fit. The canvas is `aria-hidden`; the nested list §12 requires is the real structure, and both read the same `Roadmap` object. Admin editing is not built. |
-| **Skill node** *(built)* | Core, concept, complete, in progress, locked | Ink surface with the skill's progress ("2 of 3") |
-| **Module node** *(built)* | Passed, tested out, current, available, locked, update available, archived | Icon and status text inside the node; a coloured left edge reinforces but never carries the status alone |
-| **Adaptive node** *(built)* | Reinforcement, challenge | Labelled "Extra practice" or "Challenge", with the AI's reason in the side panel |
-| **Decision node** *(built)* | Unchosen, chosen | Heavier control-grade border; shows the options, or the chosen technology |
-| **Milestone node** *(built)* | Certificate of Completion, capstone, Project Certificate | Wide node at the end of the main path. Status comes from `certificates`; issuance itself is Phase 4. |
-| **Connector** *(built)* | Main path (solid 2px), branch (dashed 1px) | Positions come from `features/roadmap/layout.ts`, not a layout library |
+| **Roadmap chart** *(built, learner)* | Learner (read-only) | First Commit v2.dc.html's spine: the main path down the middle of a `1fr · 180–220px · 1fr` grid, modules alternating left and right. **No pan or zoom.** The chart *is* the nested list §12 requires — laid out by CSS — so there is one rendering, not a canvas over a hidden copy. Admin editing is not built, and may still want a canvas (§13.1). |
+| **Skill node** *(built)* | Core, concept | White with a 1px ink border, title only; a concept skill says "Concept" under it. Progress is in its accessible name and the side panel |
+| **Module node** *(built)* | Passed, tested out, current, available, locked, update available, archived | Status icon and title, the status in words beneath; the fill (verified, here, inset) reinforces it and never carries it alone |
+| **Adaptive node** *(built)* | Reinforcement, challenge | Violet fill until done, labelled "Extra practice" or "Challenge", with the AI's reason in the side panel |
+| **Decision node** *(built)* | Unchosen, chosen | Notice-tint fill with a 1px ink border; shows the options, or the chosen technology |
+| **Milestone node** *(built)* | Certificate of Completion, capstone, Project Certificate | Ink node at the end of the main path. Shows its status only once it is not locked, and the capstone's milestone count. Status comes from `certificates`. |
+| **Connector** *(built)* | Main path (2px ink), branch (28px, 1px `--border-control`) | Drawn in CSS by `RoadmapNav.module.css`; nothing computes positions |
 | **Node side panel** *(built)* | One per node type (Section 5.7) | Slides in from the right on wide screens, up from the bottom on narrow. Focus moves to its heading and returns to the node on close. Reinforcement "Remove" and challenge "Skip" are disabled — both change the roadmap and need an endpoint. |
 | **Technology badge** *(built)* | One per technology option | Small label with the technology name; never colour alone |
 | **Option card** *(built, technology)* | Technology option, project brief | Comparison details, an optional "Recommended" label in words, and a primary choose action. Project briefs are Phase 4. |
@@ -1561,21 +1561,21 @@ No entrance animations on page sections, and no hover animations on list rows. W
 
 First Commit uses **one responsive layout** that adapts automatically to the screen width. There are **no desktop/mobile toggle buttons, no "switch to mobile view" links, and no separate mobile pages**. Resizing a browser window or rotating a device reflows the same screen immediately.
 
-This is achieved with CSS media queries and container queries on shared components. Where a component must render a different structure at a breakpoint (such as the roadmap chart becoming a stacked list), the change happens automatically based on the viewport width, not on a user setting (Section 13.5).
+This is achieved with CSS media queries and container queries on shared components. Where a component must change shape — the roadmap chart becoming a single column — the change happens automatically from the space available (a container query on the chart), never from a user setting (Section 13.5).
 
 ## 11.2 Breakpoints
 
 | Name | Width | Layout |
 |---|---|---|
 | `sm` | < 640px | Bottom navigation; single column; stacked roadmap; side panels become bottom sheets |
-| `md` | 640–1023px | Collapsed icon sidebar; roadmap chart with narrower branches; exercise editor stacked above results |
+| `md` | 640–1023px | Collapsed icon sidebar; roadmap chart branching once the chart is 600px wide, one column below that; exercise editor stacked above results |
 | `lg` | ≥ 1024px | Full sidebar; full roadmap chart with side panel; split exercise view |
 
 ## 11.3 How Key Screens Adapt
 
 ### Roadmap
 
-On `lg` and `md`, the chart shows the main path with modules branching left and right (Section 2.1). On `sm`, the same data reflows into a single column: skill nodes stay on the main path, and each skill's modules stack beneath it as indented nodes. The chart structure, colors, and statuses stay the same, so the roadmap is recognizable at every width.
+Once the chart itself is at least 600px wide, it shows the main path with modules branching left and right (Section 2.1). Narrower than that — every phone, and a tablet where the chart shares the row with the sidebar — the same list reflows into a single column. It is a **container query on the chart**, not a viewport breakpoint, because at 768px the chart is only about 520px wide and the branches would not fit. In the single column, skill nodes stay on the main path, and each skill's modules stack beneath it as indented nodes. The chart structure, colors, and statuses stay the same, so the roadmap is recognizable at every width.
 
 ```
 ┌─────────────────────────┐
@@ -1678,7 +1678,7 @@ Target: **WCAG 2.2 Level AA**.
 - **Focus:** visible 2px focus outline on every interactive element; focus moves into side panels and dialogs and returns to the triggering node when closed.
 - **Live regions:** test results and AI feedback are announced when they arrive.
 - **Code editor:** supports screen readers and provides a documented way to leave the editor with the keyboard.
-- **Zoom:** layouts work at 200% browser zoom and reflow at 320px width without horizontal page scrolling (the roadmap canvas pans within its own region on `md` and `lg`).
+- **Zoom:** layouts work at 200% browser zoom and reflow at 320px width without horizontal page scrolling (the roadmap chart included: its side columns shrink and its nodes wrap).
 - **Motion:** respects `prefers-reduced-motion`.
 - **Touch targets:** at least 44 × 44px on touch screens.
 - **Forms:** visible labels, errors linked to their fields, and no time limits on placement or quizzes.
@@ -1697,8 +1697,7 @@ Target: **WCAG 2.2 Level AA**.
 | Routing | React Router | Separate route trees for learner and admin |
 | Server state | TanStack Query | Caching, loading and error states for API calls |
 | Forms and validation | React Hook Form with Zod | Zod schemas also validate API responses, including AI output |
-| Roadmap chart | React Flow (`@xyflow/react`) | Custom node components; pan and zoom; editable mode for admins |
-| Chart layout | Written, not a library | The roadmap is a fixed spine with a known number of children per step, not a general graph, so `features/roadmap/layout.ts` computes it directly — synchronously, so no frame has every node at the origin, and purely, so the positions are testable without a DOM. elkjs or dagre would still suit the admin editor's free-form prerequisite graph. |
+| Roadmap chart | HTML and CSS grid | First Commit v2.dc.html draws the roadmap as a fixed spine with branches, not a canvas, so it is a nested list laid out by CSS: one DOM for the eye, the keyboard and the screen reader. It replaced a React Flow canvas that panned and zoomed over an `aria-hidden` copy. React Flow (`@xyflow/react`) is still installed and may suit the admin editor's free-form prerequisite graph |
 | Code editor | CodeMirror 6 | Works better than Monaco on touch devices and small screens |
 | React and Vue exercises | Sandpack (or similar in-browser bundler) | Runs framework exercises, tests, and live previews in the browser |
 | QR codes | A QR code library (e.g., qrcode.react) | Certificate verification links |
@@ -1932,7 +1931,7 @@ One `Roadmap` object drives both the chart layout (`lg`, `md`) and the stacked l
 ## 13.5 Responsive Implementation Rules
 
 - **Layout changes use CSS first.** Grids, sidebars, stacked panels, and typography sizes change through media queries and container queries, not JavaScript.
-- **Structural changes switch automatically.** The roadmap chart and stacked roadmap are different components. A `useBreakpoint` hook based on `window.matchMedia` selects between them from the viewport width and updates on resize. It is never tied to a user toggle, stored preference, or user-agent detection.
+- **Structural changes switch automatically.** Where a component must render a different structure at a breakpoint, a `useBreakpoint` hook based on `window.matchMedia` selects it from the viewport width and updates on resize — never a user toggle, stored preference, or user-agent detection. **Nothing needs it today:** the roadmap chart and its single column are now one list and a container query. The hook stays for the next case.
 - **No view switchers.** Do not build "Desktop view" or "Mobile view" buttons, separate `/mobile` routes, or duplicate mobile-only pages.
 - **State survives breakpoint changes.** Selected node, editor content, and active tab live in shared state or the URL, so resizing does not reset them.
 - **Mobile-first CSS.** Base styles target `sm`; `min-width` queries add `md` and `lg` layouts.
@@ -1965,13 +1964,12 @@ export function useBreakpoint(): Breakpoint {
 }
 ```
 
-```tsx
-// features/roadmap/RoadmapView.tsx
-export function RoadmapView({ roadmap }: { roadmap: Roadmap }) {
-  const breakpoint = useBreakpoint();
-  return breakpoint === "sm"
-    ? <RoadmapStacked roadmap={roadmap} />
-    : <RoadmapChart roadmap={roadmap} />;
+```css
+/* components/roadmap/RoadmapNav.module.css — one list, two arrangements */
+.chart { container-type: inline-size; }
+
+@container (min-width: 600px) {
+  .step { display: grid; grid-template-columns: minmax(0, 1fr) minmax(180px, 220px) minmax(0, 1fr); }
 }
 ```
 

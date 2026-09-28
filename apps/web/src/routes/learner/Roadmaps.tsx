@@ -51,7 +51,7 @@ export function Roadmaps() {
 
   return (
     <div className={styles.page}>
-      <Card surface="white" radius="panel" padding="lg" className={styles.header}>
+      <Card surface="white" radius="panel" padding="none" className={styles.header}>
         <h1 className={styles.title}>My roadmaps</h1>
         <p className={styles.lede}>
           Everything you pass counts on every roadmap that contains it.
@@ -119,11 +119,11 @@ function RoadmapCard({ roadmap }: { roadmap: RoadmapSummary }) {
     (roadmap.sharedCount > 0 ? ` (${roadmap.sharedCount} shared)` : "");
 
   return (
-    <Card surface="white" radius="card" padding="lg" className={styles.card}>
+    <Card surface="white" radius="card" padding="md" className={styles.card}>
       <div className={styles.cardHead}>
-        <h3 className={styles.cardTitle}>{name}</h3>
+        <h2 className={styles.cardTitle}>{name}</h2>
         {/* §8: status is icon + text + colour, never colour alone. */}
-        <Badge tone={archived ? "neutral" : "verified"} icon={archived ? "circle" : "check"}>
+        <Badge tone={archived ? "neutral" : "lime"} icon={archived ? "circle" : "check"}>
           {archived ? "Archived" : "Active"}
         </Badge>
       </div>
@@ -166,7 +166,12 @@ function RoadmapCard({ roadmap }: { roadmap: RoadmapSummary }) {
               >
                 Archive
               </Button>
-              <LinkButton to={`/app/roadmap/${roadmap.id}`}>Open roadmap</LinkButton>
+              <LinkButton variant="outline" to={`/app/roadmap/${roadmap.id}/review`}>
+                Review plan
+              </LinkButton>
+              <LinkButton to={`/app/roadmap/${roadmap.id}`} icon="arrow-right">
+                Open roadmap
+              </LinkButton>
             </>
           )}
         </div>

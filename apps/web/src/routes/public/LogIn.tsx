@@ -2,12 +2,12 @@ import { useState } from "react";
 import { Link, useLocation, useNavigate } from "react-router";
 import { useMutation } from "@tanstack/react-query";
 import { Button } from "../../components/core/Button";
-import { Icon } from "../../components/core/Icon";
 import { Input } from "../../components/forms/Input";
 import { authApi } from "../../api/auth";
 import { ApiError } from "../../api/client";
 import { useSessionActions } from "../../features/auth/useSession";
-import styles from "./LogIn.module.css";
+import { AuthFrame } from "./AuthFrame";
+import styles from "./Auth.module.css";
 
 /**
  * design.md §5.3 — log in.
@@ -58,60 +58,53 @@ export function LogIn() {
   const error = logIn.error instanceof ApiError ? logIn.error : null;
 
   return (
-    <div className={styles.page}>
-      <div className={styles.card}>
-        <span className={styles.wordmark}>
-          <span className={styles.mark}><Icon name="code-xml" size={15} /></span>
-          First Commit
-        </span>
+    <AuthFrame>
+      <h1 className={styles.title}>Log in</h1>
 
-        <h1 className={styles.title}>Log in</h1>
+      <form className={styles.form} onSubmit={onSubmit} noValidate>
+        <Input
+          label="Email"
+          name="email"
+          type="email"
+          autoComplete="email"
+          error={fieldErrors.email}
+        />
+        <Input
+          label="Password"
+          name="password"
+          type="password"
+          autoComplete="current-password"
+          error={fieldErrors.password}
+        />
 
-        <form className={styles.form} onSubmit={onSubmit} noValidate>
-          <Input
-            label="Email"
-            name="email"
-            type="email"
-            autoComplete="email"
-            error={fieldErrors.email}
-          />
-          <Input
-            label="Password"
-            name="password"
-            type="password"
-            autoComplete="current-password"
-            error={fieldErrors.password}
-          />
+        <Link className={styles.forgot} to="/forgot-password">
+          Forgot password
+        </Link>
 
-          <Link className={styles.forgot} to="/forgot-password">
-            Forgot password
-          </Link>
+        {/*
+          One message, above the button, never under a field: saying which of
+          the two was wrong is exactly what §6.3 refuses to reveal.
+        */}
+        {error && (
+          <p role="alert" className={styles.formError}>
+            {error.message}
+          </p>
+        )}
 
-          {/*
-            One message, above the button, never under a field: saying which of
-            the two was wrong is exactly what §6.3 refuses to reveal.
-          */}
-          {error && (
-            <p role="alert" className={styles.formError}>
-              {error.message}
-            </p>
-          )}
+        <Button
+          type="submit"
+          variant="primary"
+          fullWidth
+          loading={logIn.isPending}
+          loadingLabel="Logging in…"
+        >
+          Log in
+        </Button>
+      </form>
 
-          <Button
-            type="submit"
-            variant="primary"
-            fullWidth
-            loading={logIn.isPending}
-            loadingLabel="Logging in…"
-          >
-            Log in
-          </Button>
-        </form>
-
-        <p className={styles.footer}>
-          New here? <Link to="/signup">Create an account</Link>
-        </p>
-      </div>
-    </div>
+      <p className={styles.footer}>
+        New here? <Link to="/signup">Create an account</Link>
+      </p>
+    </AuthFrame>
   );
 }

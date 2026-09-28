@@ -1,22 +1,31 @@
-import { useEffect, useRef } from "react";
-import { Badge } from "../core/Badge";
+import { useEffect, useRef, type CSSProperties } from "react";
 import { Icon } from "../core/Icon";
-import { nodeLabel, skillProgress } from "../../features/roadmap/labels";
+import { nodeLabel } from "../../features/roadmap/labels";
 import { milestoneStatus, moduleStatus, KIND_LABEL } from "../../features/roadmap/status";
-import { assertNever, type Roadmap, type RoadmapStep } from "../../features/roadmap/types";
+import {
+  assertNever,
+  isDone,
+  type Roadmap,
+  type RoadmapModuleNode,
+  type RoadmapStep,
+} from "../../features/roadmap/types";
 import type { RoadmapNav as Nav } from "../../features/roadmap/useRoadmapNav";
 import styles from "./RoadmapNav.module.css";
 
 /**
- * **The roadmap's real structure**: a nested list of skills containing modules
- * (design.md §12), with arrow-key movement and Enter to open the side panel.
+ * **The roadmap chart**, as First Commit v2.dc.html draws it: a spine of steps
+ * down the middle, each skill's modules branching left and right of it, joined
+ * by short rules, with the milestones in ink at the foot.
  *
- * It is rendered in both views, which is the point. On `sm` it *is* the view —
- * `RoadmapStacked`. On `md` and `lg` it sits inside the chart region, clipped
- * to a pixel rather than hidden, and the chart node matching `focusedId` draws
- * the focus ring. So a keyboard user and a mouse user move through one
- * structure, and there is no second DOM that can fall out of step with the
- * first.
+ * It replaced a React Flow canvas that panned and zoomed. That canvas was
+ * `aria-hidden` decoration over a clipped copy of this list, so there were two
+ * renderings of one roadmap to keep in step. Now the list *is* the chart: a
+ * nested list of skills containing modules (design.md §12), laid out by CSS.
+ * What a mouse user clicks is what a keyboard user focuses and what a screen
+ * reader reads.
+ *
+ * On `sm` the same list reflows into one column — the spine, and each skill's
+ * modules indented beneath it (§11.3) — with a media query, not a second view.
  *
  * Only one node is in the tab order at a time (roving tabindex), so Tab leaves
  * the roadmap instead of walking 25 nodes.
@@ -24,17 +33,14 @@ import styles from "./RoadmapNav.module.css";
 export interface RoadmapNavProps {
   roadmap: Roadmap;
   nav: Nav;
-  /** `stacked` is the visible sm view; `assistive` is clipped beside the chart. */
-  variant: "stacked" | "assistive";
 }
 
-export function RoadmapNav({ roadmap, nav, variant }: RoadmapNavProps) {
+export function RoadmapNav({ roadmap, nav }: RoadmapNavProps) {
   const refs = useRef(new Map<string, HTMLButtonElement>());
 
   /**
    * The hook decides where focus should go — arrow keys, or the panel handing
-   * it back on close — and this moves it. Only the rendered view reacts, so on
-   * `md` the assistive list moves and the stacked list is not even mounted.
+   * it back on close — and this moves it.
    */
   const request = nav.focusRequest;
   useEffect(() => {
@@ -58,101 +64,114 @@ export function RoadmapNav({ roadmap, nav, variant }: RoadmapNavProps) {
 
   return (
     <ul
-      className={variant === "stacked" ? styles.stacked : styles.assistive}
+      className={styles.chart}
       aria-label={`${roadmap.careerPathTitle} roadmap, ${roadmap.passedCount} of ${roadmap.totalCount} modules passed`}
     >
-      {roadmap.steps.map((step) => (
-        <li key={step.id} className={styles.stepItem}>
-          <button
-            {...nodeProps(step.id)}
-            className={[styles.node, styles.spine, stepClass(step, styles)]
-              .filter(Boolean)
-              .join(" ")}
-            aria-label={nodeLabel({ kind: "step", step })}
-          >
-            <StepFace step={step} />
-          </button>
+      {roadmap.steps.map((step) => {
+        const modules = step.type === "skill" ? step.modules : [];
+        /*
+         * Modules alternate left and right of the spine, so a skill with n of
+         * them takes ceil(n / 2) rows, and the spine node spans all of them.
+         * A count, not a colour, so it can be an inline custom property.
+         */
+        const rows = { "--rows": Math.max(1, Math.ceil(modules.length / 2)) } as CSSProperties;
 
-          {step.type === "skill" && step.modules.length > 0 && (
-            <ul className={styles.moduleList} aria-label={`Modules in ${step.title}`}>
-              {step.modules.map((module) => {
-                const status = moduleStatus(module);
-                const kind = KIND_LABEL[module.kind];
-                return (
+        return (
+          <li key={step.id} className={styles.step} style={rows}>
+            <button
+              {...nodeProps(step.id)}
+              className={[styles.spine, spineClass(step, styles)].join(" ")}
+              aria-label={nodeLabel({ kind: "step", step })}
+            >
+              <SpineFace step={step} />
+            </button>
+
+            {step.type === "skill" && modules.length > 0 && (
+              <ul className={styles.modules} aria-label={`Modules in ${step.title}`}>
+                {modules.map((module) => (
                   <li key={module.id} className={styles.moduleItem}>
                     <button
                       {...nodeProps(module.id)}
-                      className={[styles.node, styles.branch, styles[module.status]].join(" ")}
+                      className={[styles.module, moduleClass(module, styles)].join(" ")}
                       aria-label={nodeLabel({ kind: "module", module, skill: step })}
                     >
-                      <span className={styles.title}>{module.title}</span>
-                      <span className={styles.meta} aria-hidden="true">
-                        <Badge tone={status.tone} icon={status.icon}>
-                          {status.text}
-                        </Badge>
-                        {kind && <Badge tone="ai">{kind}</Badge>}
-                        {module.hasUpdate && <Badge tone="notice" icon="info">Updated</Badge>}
-                      </span>
+                      <ModuleFace module={module} />
                     </button>
                   </li>
-                );
-              })}
-            </ul>
-          )}
-        </li>
-      ))}
+                ))}
+              </ul>
+            )}
+          </li>
+        );
+      })}
     </ul>
   );
 }
 
-/** The visible face of a main-path node. The label above carries the words. */
-function StepFace({ step }: { step: RoadmapStep }) {
+/**
+ * A branch node: the status icon and the title, then the status in words.
+ * The button's label above carries all of it for a screen reader, so the
+ * visible face is `aria-hidden` rather than read twice.
+ */
+function ModuleFace({ module }: { module: RoadmapModuleNode }) {
+  const status = moduleStatus(module);
+  const notes = [
+    status.text,
+    KIND_LABEL[module.kind],
+    module.hasUpdate ? "Updated" : null,
+    module.sharedWithPaths.length > 0 ? "Also in another path" : null,
+  ].filter(Boolean);
+
+  return (
+    <span className={styles.face} aria-hidden="true">
+      <span className={styles.moduleTitle}>
+        <Icon name={status.icon} size={15} className={styles.statusIcon} />
+        {module.title}
+      </span>
+      {/* §8: icon + text + colour. */}
+      <span className={styles.moduleMeta}>{notes.join(" · ")}</span>
+    </span>
+  );
+}
+
+/** A main-path node: the title, and a line under it only where v2 draws one. */
+function SpineFace({ step }: { step: RoadmapStep }) {
+  let sub: string | null;
   switch (step.type) {
-    case "skill": {
-      const { done, total } = skillProgress(step);
-      return (
-        <>
-          <span className={styles.title}>{step.title}</span>
-          <span className={styles.meta} aria-hidden="true">
-            {done} of {total}
-          </span>
-        </>
-      );
+    case "skill":
+      sub = step.layer === "concept" ? "Concept" : null;
+      break;
+    case "decision": {
+      const chosen = step.options.find((o) => o.id === step.chosenOptionId);
+      sub = chosen ? `You chose ${chosen.name}` : step.options.map((o) => o.name).join(" or ");
+      break;
     }
-    case "decision":
-      return (
-        <>
-          <span className={styles.title}>{step.title}</span>
-          <span className={styles.meta} aria-hidden="true">
-            {step.options.map((o) => o.name).join(" or ")}
-          </span>
-        </>
-      );
     case "certificate":
     case "capstone":
     case "project_certificate": {
-      const status = milestoneStatus(step);
-      return (
-        <>
-          <span className={styles.title}>
-            <Icon name={step.type === "capstone" ? "wrench" : "award"} size={16} />
-            {step.title}
-          </span>
-          <span className={styles.meta} aria-hidden="true">
-            {status.text}
-            {step.type === "capstone" && step.totalMilestones
-              ? `, ${step.completedMilestones ?? 0} of ${step.totalMilestones} milestones`
-              : ""}
-          </span>
-        </>
-      );
+      const milestones =
+        step.type === "capstone" && step.totalMilestones
+          ? `${step.completedMilestones ?? 0} of ${step.totalMilestones} milestones`
+          : null;
+      // Locked is the default a learner expects at the foot of the roadmap;
+      // saying anything else is news, so only that is shown.
+      const status = step.status === "locked" ? null : milestoneStatus(step).text;
+      sub = [status, milestones].filter(Boolean).join(" · ") || null;
+      break;
     }
     default:
       return assertNever(step);
   }
+
+  return (
+    <span className={styles.face} aria-hidden="true">
+      <span className={styles.spineTitle}>{step.title}</span>
+      {sub && <span className={styles.spineSub}>{sub}</span>}
+    </span>
+  );
 }
 
-function stepClass(step: RoadmapStep, css: Record<string, string>): string {
+function spineClass(step: RoadmapStep, css: Record<string, string>): string {
   switch (step.type) {
     case "skill":
       return css.skill;
@@ -165,4 +184,14 @@ function stepClass(step: RoadmapStep, css: Record<string, string>): string {
     default:
       return assertNever(step);
   }
+}
+
+/**
+ * v2 fills a node by its status. An AI-added module (reinforcement, challenge)
+ * takes the violet fill v2 gives "Practice" until it is done — then it is a
+ * pass like any other.
+ */
+function moduleClass(module: RoadmapModuleNode, css: Record<string, string>): string {
+  const added = KIND_LABEL[module.kind] !== null && !isDone(module.status);
+  return [css[module.status], added ? css.added : ""].filter(Boolean).join(" ");
 }

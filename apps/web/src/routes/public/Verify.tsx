@@ -19,8 +19,8 @@ import styles from "./Verify.module.css";
  * union means reading a field off the wrong state is a compile error rather than
  * `undefined` on somebody's credential.
  *
- * The prototype does not cover this screen, so it is designed from §5.15's
- * content and §3's tokens — the same way Forgot and Reset password were.
+ * Drawn from First Commit v2.dc.html, which added this screen; the three
+ * verdicts are its three states.
  */
 export function Verify() {
   const { code } = useParams();
@@ -37,15 +37,19 @@ export function Verify() {
     <main className={styles.page}>
       <header className={styles.header}>
         <span className={styles.wordmark}>
-          <span className={styles.mark}>
-            <Icon name="code-xml" size={14} />
-          </span>
           First <span className={styles.wordmarkAccent}>Commit</span>
         </span>
         <h1 className={styles.heading}>Certificate verification</h1>
       </header>
 
-      <Card surface="white" radius="panel" padding="lg" className={styles.panel}>
+      <Card
+        surface="white"
+        radius="panel"
+        padding="lg"
+        className={[styles.panel, data?.status === "valid" ? styles.panelValid : ""]
+          .filter(Boolean)
+          .join(" ")}
+      >
         {isPending && (
           <p role="status" aria-live="polite" className={styles.muted}>
             Checking this certificate…
@@ -66,13 +70,14 @@ export function Verify() {
               Valid certificate
             </p>
 
-            <p className={styles.recipient}>{data.recipientName}</p>
-            <p className={styles.kind}>
-              {data.type === "completion" ? "Certificate of Completion" : "Project Certificate"}
-            </p>
-            <p className={styles.subject}>{data.title}</p>
-
-            {data.projectTitle && <p className={styles.detail}>Project: {data.projectTitle}</p>}
+            <div className={styles.who}>
+              <p className={styles.recipient}>{data.recipientName}</p>
+              <p className={styles.kind}>
+                {data.type === "completion" ? "Certificate of Completion" : "Project Certificate"}
+              </p>
+              <p className={styles.subject}>{data.title}</p>
+              {data.projectTitle && <p className={styles.subject}>Project: {data.projectTitle}</p>}
+            </div>
 
             <dl className={styles.facts}>
               <div>
@@ -118,7 +123,7 @@ export function Verify() {
               No reason, by design. §5.15 shows the date and nothing more — why a
               certificate was revoked is between the learner and the platform.
             */}
-            <p className={styles.muted}>Certificate ID {data.code}</p>
+            <p className={styles.revokedCode}>Certificate ID {data.code}</p>
           </>
         )}
 
@@ -129,7 +134,7 @@ export function Verify() {
               <Icon name="info" size={20} aria-hidden />
               No certificate found with ID {data.code || "(none given)"}.
             </p>
-            <p className={styles.muted}>Check the ID and try again.</p>
+            <p className={styles.detailBody}>Check the ID and try again.</p>
           </>
         )}
       </Card>

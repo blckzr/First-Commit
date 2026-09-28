@@ -1,19 +1,22 @@
+/* Measurements from First Commit v2.dc.html's My roadmaps. */
 .page {
   display: flex;
   flex-direction: column;
-  gap: var(--space-5);
+  gap: var(--gutter-card);
 }
 
 .header {
   display: flex;
   flex-direction: column;
-  gap: var(--space-2);
+  gap: 6px;
+  padding: var(--pad-section);
 }
 
 .title {
   margin: 0;
-  font-size: var(--text-h2);
+  font-size: var(--text-h1);
   font-weight: var(--fw-extrabold);
+  line-height: var(--lh-heading);
   letter-spacing: var(--ls-heading);
   color: var(--text-strong);
 }
@@ -22,7 +25,7 @@
   margin: 0;
   font-size: var(--text-body-base);
   line-height: var(--lh-body);
-  color: var(--text-muted);
+  color: var(--text-body);
   max-width: 62ch;
 }
 
@@ -32,7 +35,7 @@
   padding: 0;
   display: flex;
   flex-direction: column;
-  gap: var(--space-4);
+  gap: var(--gutter-card);
 }
 
 .card {
@@ -43,7 +46,7 @@
 
 .cardHead {
   display: flex;
-  align-items: flex-start;
+  align-items: center;
   justify-content: space-between;
   gap: var(--space-3);
   flex-wrap: wrap;
@@ -51,8 +54,9 @@
 
 .cardTitle {
   margin: 0;
-  font-size: var(--text-h5);
+  font-size: var(--text-h3);
   font-weight: var(--fw-bold);
+  line-height: var(--lh-heading);
   letter-spacing: var(--ls-heading);
   color: var(--text-strong);
 }
@@ -63,6 +67,8 @@
   justify-content: space-between;
   gap: var(--space-3);
   flex-wrap: wrap;
+  padding-top: 14px;
+  border-top: 1px solid var(--border-subtle);
 }
 
 .studied {
@@ -80,21 +86,27 @@
 .archived {
   display: flex;
   flex-direction: column;
-  gap: var(--space-3);
+  gap: var(--gutter-card);
 }
 
+/* The collapsed archive: an inset tile, not a white card, so it reads as
+   put away rather than as another roadmap. */
 .archivedHead {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: var(--space-3);
+  flex-wrap: wrap;
+  padding: 18px var(--pad-card);
+  border-radius: var(--radius-card);
+  background: var(--surface-inset);
 }
 
 .archivedTitle {
   margin: 0;
-  font-size: var(--text-h6);
+  font-size: var(--text-body-base);
   font-weight: var(--fw-bold);
-  color: var(--text-body);
+  color: var(--text-strong);
 }
 
 .empty {
@@ -106,7 +118,7 @@
 
 .emptyTitle {
   margin: 0;
-  font-size: var(--text-h5);
+  font-size: var(--text-h3);
   font-weight: var(--fw-bold);
   color: var(--text-strong);
 }

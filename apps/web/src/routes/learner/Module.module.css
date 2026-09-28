@@ -60,25 +60,16 @@
   gap: var(--space-1);
 }
 
-/* The quiz row. Same shape as a lesson row, but it leaves the page. */
-.railAssessment {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--space-3);
-  min-height: 44px;
-  margin-top: var(--space-2);
-  padding: var(--space-2) var(--space-3);
-  border-top: 1px solid var(--border-subtle);
-  border-radius: 0 0 var(--radius-sm) var(--radius-sm);
-  font-size: var(--text-body-sm);
-  font-weight: var(--fw-semibold);
-  color: var(--text-strong);
-  text-decoration: none;
+/* §3.2: ALL CAPS for micro eyebrows only, always with --ls-caps. */
+.railHeading {
+  margin: 0;
+  padding: 0 10px 6px;
+  font-size: var(--text-micro);
+  font-weight: var(--fw-bold);
+  letter-spacing: var(--ls-caps);
+  text-transform: uppercase;
+  color: var(--text-muted);
 }
-
-.railAssessment:hover { background: var(--surface-inset); text-decoration: none; }
-.railAssessmentMeta { font-size: var(--text-caption); font-weight: var(--fw-regular); color: var(--text-muted); }
 
 /* --- The reading panel ---------------------------------------------------- */
 .reading {

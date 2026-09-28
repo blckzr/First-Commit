@@ -1,9 +1,10 @@
-/* §5.10 is a reading-width screen: one question at a time, nothing beside it. */
+/* §5.10: one question at a time, nothing beside it. First Commit v2.dc.html
+   dropped the 780px cap, so the panel spans the content column like its
+   neighbours. */
 .page {
   display: flex;
   flex-direction: column;
   gap: var(--gutter-card);
-  max-width: 780px;
 }
 
 .form { display: flex; flex-direction: column; gap: var(--space-6); }

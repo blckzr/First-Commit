@@ -85,7 +85,8 @@
 
 .node {
   background: var(--surface-card);
-  border: 2px solid var(--ink-900);
+  /* 1px in First Commit v2.dc.html, down from 2px. */
+  border: 1px solid var(--ink-900);
   border-radius: var(--radius-sm);
   padding: var(--space-3) var(--space-5);
   font-family: var(--font-display);

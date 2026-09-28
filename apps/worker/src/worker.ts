@@ -12,7 +12,12 @@ import { Pool } from "pg";
 import { z } from "zod";
 import { dbConfig, config } from "./config.js";
 import { chatJson } from "./ollama.js";
-import { buildCodeFeedbackMessages, CodeFeedbackInput } from "./prompts/code-feedback.js";
+import {
+  buildCodeFeedbackMessages,
+  CodeFeedbackInput,
+  PROMPT_VERSION as FEEDBACK_PROMPT_VERSION,
+  SYSTEM as FEEDBACK_SYSTEM,
+} from "./prompts/code-feedback.js";
 import { PROMPT_VERSION as ROADMAP_PROMPT_VERSION, SYSTEM as ROADMAP_SYSTEM } from "./prompts/roadmap.js";
 import { runRoadmapGeneration } from "./roadmap/index.js";
 import { runResumeGeneration } from "./resume/index.js";
@@ -78,7 +83,11 @@ const handlers: Record<string, Handler> = {
       messages: buildCodeFeedbackMessages(input),
       validate: noSolutionLeak,
     });
-    return { result: { attempts: r.attempts, durationMs: r.durationMs }, output: r.data };
+    return {
+      result: { attempts: r.attempts, durationMs: r.durationMs },
+      output: r.data,
+      promptVersion: FEEDBACK_PROMPT_VERSION,
+    };
   },
 
   roadmap_generation: (job) => runRoadmapGeneration(pool, job),
@@ -99,6 +108,7 @@ const handlers: Record<string, Handler> = {
  */
 async function registerPrompts(): Promise<void> {
   const prompts = [
+    { component: "code_feedback", version: FEEDBACK_PROMPT_VERSION, content: FEEDBACK_SYSTEM },
     { component: "roadmap_generation", version: ROADMAP_PROMPT_VERSION, content: ROADMAP_SYSTEM },
     { component: "resume_generation", version: RESUME_PROMPT_VERSION, content: RESUME_SYSTEM },
   ];

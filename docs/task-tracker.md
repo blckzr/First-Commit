@@ -91,7 +91,8 @@ saying "not in the prototype" — so the 26 routes it *did* cover were tracked a
 and never as design ones. Four learner screens were built from §5's behaviour alone and
 never given the system's vocabulary. See [design-source.md](design-source.md) §5.
 
-**"Applied" means built from `First Commit.dc.html`**, not from the design system's generic
+**"Applied" means built from `First Commit v2.dc.html`** (which superseded `First Commit.dc.html` on
+2026-09-29 — see design-source.md §7), not from the design system's generic
 `ui_kits/app/`. The first attempt at this used the kit and had to be redone; see the
 changelog for 2026-09-22.
 
@@ -104,32 +105,34 @@ changelog for 2026-09-22.
 
 ### Public and onboarding
 
-- [x] `/` · `/signup` · `/login` — **applied** (Phase 1.5 reference screens, straight from the prototype)
-- [x] `/forgot-password` · `/reset-password` — **applied**; designed against §5.3 rather than the prototype, which does not cover them
+- [x] `/` · `/signup` · `/login` — **applied** (Phase 1.5 reference screens). Re-checked against v2: the wordmark had drifted inside the card; the four auth screens now share `AuthFrame`, the wordmark above a 460px panel
+- [x] `/forgot-password` · `/reset-password` — **applied from v2**, which now draws them. Deliberate departures (the no-leak sentence, the spam-folder line) are in design-source.md §7.1
 - [x] `/onboarding/about` · `/target` · `/placement` · `/generating` — **applied**, through `OnboardingLayout`
-- [x] `/verify/:code` — **applied**. Designed against §5.15 rather than the prototype, which does not cover it
+- [x] `/verify/:code` — **applied from v2**, which now draws it
 
 ### Learner
 
 - [x] **The learner frame** — ink pill, tabs, white sidebar panel, profile menu
 - [x] `/app` — **applied**. Violet hero with the ink current-module card inside it
 - [x] `/app/roadmap/:id` — **applied** (header, legend, floating side panel)
-  - [ ] The chart itself is our React Flow canvas, not the prototype's row-based spine. Both draw §2.1; reconciling them is its own piece of work
+  - [x] ~~The chart itself is our React Flow canvas, not the prototype's row-based spine~~ — **reconciled**: the chart is v2's spine, a nested list laid out by CSS, with no pan or zoom. It branches once the chart is 600px wide and stacks below that
   - [ ] "Roadmap menu" is in the prototype and absent here — §5.7's actions (weekly hours, track, regenerate, archive) have no endpoint
+- [x] `/app/roadmap/:id/review` — **applied from v2**: the violet hero with the ink "First up" card, the AI panel, and one action bar. The embedded chart is gone; "See the chart" opens it
 - [x] `/app/roadmap/:id/technology/:decisionId` — **applied**. Primary on the recommended option, secondary on the rest
   - [ ] "Try taster lesson" is in the prototype; taster lessons still have nowhere to live (AGENT.md §11)
-- [x] `/app/module/:id` — **applied**. Header panel, notice tile, rail with the quiz as a row, reading panel, test-out strip
+- [x] `/app/module/:id` — **applied**. The rail uses v2's `LessonRow` — numbered disc, title, caption — with the quiz and exercise continuing the count. Header panel, notice tile, rail with the quiz as a row, reading panel, test-out strip
 - [x] `/app/quiz/:id` — **applied**. Green tick and a sentence on a pass, the same panel either way
-- [x] `/app/roadmaps` — **applied**. §5.12: per-roadmap progress with the shared count, last studied, archive and restore behind a disclosure
+- [x] `/app/roadmaps` — **applied from v2** (h1 header, lime Active badge, ruled footer with Review plan, the inset Archived tile). §5.12: per-roadmap progress with the shared count, last studied, archive and restore behind a disclosure
   - [ ] "Create roadmap" is in §5.12 and absent here — it means running the survey and target steps outside the onboarding guard, which does not exist. Left out rather than shipped dead
 - [x] `/app/certificates` — **applied**. §5.15: earned certificates with View and Copy verification link, each unfinished roadmap with its reason, and the Project Certificate locked
 - [x] `/app/resume` — **applied**. §5.16: the evidence panel, the ATS-friendly preview, generate, and inline editing of the AI summary
 - [ ] `/app/explore` · `/app/capstone` · `/app/settings` — **designed**, not built. Each has a screen in the prototype
 - [x] **Log out** — in the learner profile menu and the admin bar, one shared control. Ends the session server-side, clears the query cache (§13.6), then navigates; signs out anyway if the request fails
-- [x] `/app/exercise/:id` — **applied**. §5.11: CodeMirror 6, Instructions/Results tabs, the results panel, and the AI feedback panel under it
+- [x] `/app/exercise/:id` — **applied from v2**: one-row header, the editor as the ink code block with syntax tones, pill tabs, tinted failing cases. No Hint button (no hint data) — design-source.md §7.1. §5.11: CodeMirror 6, Instructions/Results tabs, the results panel, and the AI feedback panel under it
   - [ ] "Run tests" is in §5.11 and absent here — the in-browser run is Sandpack practice for React and Vue, and Sandpack is not installed. Submit (the server run) is the only path, which is the only one that writes evidence anyway
   - [ ] The screen shows one file. §5.11's file-tabs row and live preview arrive with Sandpack and the React/Vue exercises
-- [ ] `/app/notifications` — **to design**
+- [x] The bell in the learner bar links to `/app/notifications` (v2); it was a button that did nothing, drawn in `--text-body` on ink at about 2:1
+- [ ] `/app/notifications` — **designed** in v2, not built. Needs `GET /notifications` and a mark-as-read endpoint, and nothing writes a `notifications` row yet
 - [ ] Reconcile `/app/profile` against §4.3, which folds profile into Settings
 
 ### Admin
@@ -138,7 +141,7 @@ changelog for 2026-09-22.
   - [ ] Its "flagged AI feedback" count is now real data behind `GET /admin/flags`; the panel still reads a hard-coded array
 - [x] `/admin/flags` — **applied**. §6.8: the learner's reason beside the full output, source and status filters, and a logged ruling. The first admin screen on real data
 - [ ] `/admin/paths` · `/modules` · `/briefs` · `/reviews` · `/analytics` · `/users` · `/settings` · `/log` — **designed**, not built
-- [ ] `/admin/certificates` — **to design**
+- [ ] `/admin/certificates` — **designed** in v2, not built. Needs admin lookup, revoke and reissue endpoints — each changes a learner's outcome, so each is logged (§6.1 step 5) and takes a reason
 
 ---
 
@@ -161,7 +164,7 @@ The main loop: sign up → roadmap → learn → pass.
   - [ ] Move the generating screen from polling to SSE — the worker already posts to `/internal/events`, so this is a subscription, not new plumbing
   - [x] ~~**§5.5 Roadmap Review does not exist**~~ — built at `/app/roadmap/:id/review`. The plan, the counts, "about 14 weeks at 6 hours a week", what placement cleared, and **the Roadmap AI's explanation, which no learner had ever seen**. `GET /auth/me` now returns `next`, so the server decides where a learner belongs and the guards follow
     - [ ] **"Track [ Frontend ▾ ]" is not built.** Changing the track changes which modules are on the roadmap, so it is a regeneration, not an update — it needs a forced track in the job payload, the prompt and the catalogue
-- [x] **Roadmap chart** — React Flow, custom nodes, side panel, the `sm` stacked layout, keyboard navigation and nested-list DOM equivalent. Built on the `Roadmap` type from `design.md` §13.3 against mock data
+- [x] **Roadmap chart** — ~~React Flow, custom nodes~~ now v2's CSS spine (2026-09-29), side panel, the `sm` stacked layout, keyboard navigation and nested-list DOM equivalent. Built on the `Roadmap` type from `design.md` §13.3 against mock data
   - [x] **Fetch a real roadmap** — `GET /roadmaps/:id` builds the §13.3 object from the database; the screen no longer holds mock data
   - [x] ~~§4.3 has no address for the technology choice or the quiz~~ — both are in the route map now, with the reason each is shaped that way
   - [ ] **`pathColor` has no column.** §13.3 has it, `career_paths` does not, so the API derives it from the path id. Either §13.3 drops it or the schema gains it
@@ -197,7 +200,7 @@ The main loop: sign up → roadmap → learn → pass.
   - [ ] §5.6's Updates panel offers "[Remove]" on an AI-added module. That changes the roadmap, so it needs the same endpoint the roadmap panel's Remove is waiting on
 - [x] **My roadmaps (§5.12)** — `GET /roadmaps` now carries per-roadmap progress, the shared count, and last studied; `PATCH` archives and restores. 15 API tests (4 mutations), 17 screen tests
 - [ ] Explore modules, Settings
-- [ ] **Design + build `/app/notifications`** — not in the prototype (see *Screen design coverage*)
+- [ ] **Build `/app/notifications`** — v2 draws it (see *Screen design coverage*); needs its endpoints first
 - [ ] Reconcile `/app/profile` vs `design.md` §4.3, which folds profile into Settings
 
 ## Phase 3 — AI components
@@ -208,10 +211,12 @@ The main loop: sign up → roadmap → learn → pass.
   - [x] **Lesson format settled** — a block list, written into `design.md` §13.3 as `LessonContent`. Five block types, and `text` is plain except for backticks marking inline code, so nothing in a lesson can inject markup. 9 lessons seeded for the three modules with quizzes
   - [ ] This replaces an admin content editor, which is still unbuilt
 - [x] **`roadmap_generation`** — handler, prompt, validation against real module IDs, prerequisite order, full core coverage; reject and regenerate on invalid. 24 tests on the validator
-  - [x] **Run against the model.** Three runs on qwen3.5:4b: **one attempt each**, 7.5–8s warm, all chose Frontend with an explanation tied to the learner's stated goal. The prompt measures ~2,400 tokens of the 8,192 context, so there is room for the answer and retries
+  - [~] **Run against the model — and it is weaker than the sanity check showed.** Three early runs on one profile gave one attempt each at 7.5–8s. `npm run evaluate` across **six** profiles gave **3 of 6 roadmaps**: two exhausted their retries on a mangled module id (the same splice of two UUIDs both times), one timed out at 120s, mean 53s. All three successes chose Frontend, including the profile written to test whether backend is ever recommended
+    - [ ] **Try slugs instead of UUIDs in the catalogue.** A 4B model copying 36-character ids a dozen-plus times an answer miscopies them; the modules already have short slugs
+    - [ ] **Run the same set on qwen3.5:9b** — the comparison `model-setup-guide.md` §13 exists for
   - [x] **`apps/worker` now has a database test harness.** `apps/api/src/test/db.ts` moved to `packages/test-db` as `@first-commit/test-db`, so both suites build pg-mem from the same real migrations. The submission pipeline is the first worker code tested against a database (12 tests); `catalogue.ts` and `apply.ts` are still by hand
   - [x] **`AI_JSON_MODE` measured on this machine** — all three modes 5/5 valid, 5/5 first try on qwen3.5:4b. `think_off_schema` 1.1s, `prompt_only` 1.0s, `think_on_schema` 12.5s. Schema mode is reliable here, so `think_off_schema` stands
-  - [ ] Evaluation harness (`project-proposal.md` §9, `model-setup-guide.md` §12) — three runs is a sanity check, not a measurement
+  - [x] **Evaluation harness built** — `npm run evaluate` (`project-proposal.md` §9, `model-setup-guide.md` §13; AGENT.md pointed at §12, which is the sandbox section). Drives the **real handlers** against pg-mem loaded with the **real** seeded curriculum, and records both sides of the grounding — what the model produced and what survived. 21 code submissions, 6 learner profiles, 6 evidence levels
   - [~] `apps/worker/.env` exists. Its `DATABASE_URL` points at `db.<project-ref>.supabase.co`, which is **IPv6-only** and unreachable here — use the **session pooler** instead: the API's string with 6543 changed to 5432
   - [x] ~~§5.4 reads as though placement removes modules~~ — it now states the two rules the validator enforces, and that only testing out really skips a module
   - [ ] `weeklySchedule` was removed from `RoadmapPlan` — nothing stored it, and §5.5's "about 14 weeks" is arithmetic the platform does
@@ -226,8 +231,9 @@ The main loop: sign up → roadmap → learn → pass.
 - [x] **`resume_generation`** — the third and last AI component. Prompt, handler, and two grounding mechanisms: an unsupported skill is removed, a claim of experience is rejected and retried. 29 worker tests, 33 API tests, mutation-tested with six defects
   - [x] `readEvidence()` is the one place that says what a learner proved — the same rows the certificate check reads, so the two can never disagree
   - [x] **No endpoint accepts a skill.** The selection takes ids and checks each against the evidence; `POST /resume/generate` takes no body; `PATCH /resume` refuses `skills`
-  - [ ] **Run against the model.** The grounding is unit-tested; the prompt has not been measured on qwen3.5 yet, which is what §9's evaluation harness is for
-- [ ] **Prompt versioning** — `ai_prompts` rows, version recorded per job
+  - [x] **Run against the model.** 6 of 6 profiles, first attempt, mean 13.4s on qwen3.5:4b. Given a learner with **nothing** verified, the model claimed HTML, CSS and JavaScript and `groundSkills` removed all three — the number that shows the grounding earns its place, and one that reporting only the stored resume would have hidden
+    - [ ] **The summary sentence is not grounded** (AGENT.md open question 11). That same resume opens "foundational knowledge of web technologies" for a learner who has verified nothing. §9.1 counts it as fabrication. Decide: ground the prose, or say in §7 that it is not grounded and why
+- [x] **Prompt versioning** — `ai_prompts` rows, version recorded per job. `code_feedback` was the one component with neither: the harness cannot trace a score to a prompt that has no row, so `PROMPT_VERSION` and `SYSTEM` are now exported and registered like the other two
 - [x] **Flagging** — `POST /ai-outputs/:id/flags` writes `ai_feedback_flags`. One endpoint for every AI panel, because a flag points at the output row rather than at the screen. The shared `AiPanel` component carries label, reason, and control together, so a screen cannot ship two of §7's three. 13 API tests (4 mutations), 9 component tests
   - [x] ~~`/admin/flags` is where these land. Nothing reviews them yet~~ — built. `GET /admin/flags`, `GET /admin/flags/:id`, `PATCH /admin/flags/:id`, and the screen. **The first admin route in the API**, so §6.1 step 5 and `admin_activity_log` have their first implementation and their first tests. 31 API tests (6 mutations), 19 screen tests
 

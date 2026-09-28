@@ -158,6 +158,13 @@ export async function runResumeGeneration(
     result: {
       attempts: response.attempts,
       durationMs: response.durationMs,
+      /**
+       * Why each rejected attempt was rejected — here, every entry is
+       * `noInventedExperience` firing. §9.1's "experience misrepresentation"
+       * is a count of these, and it is only countable because the rejected
+       * drafts leave a trace.
+       */
+      rejections: response.rejections,
       skillsKept: skills.kept.length,
       /**
        * Recorded because §9's evaluation needs the number. A prompt that made
@@ -165,6 +172,13 @@ export async function runResumeGeneration(
        * is asked for skills and the removals are counted.
        */
       skillsRemoved: skills.removed.length,
+      /**
+       * *What* was removed, not only how many. The count gives §9.1 its
+       * fabrication rate; the names are what lets a person tell a near-miss
+       * ("React Native" against verified React) from an invention with no
+       * relation to anything the learner did.
+       */
+      removedSkills: skills.removed,
       projectsRemoved: projects.removed.length,
     },
     output: content,

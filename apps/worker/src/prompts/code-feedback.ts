@@ -44,7 +44,23 @@ export const CodeFeedbackInput = z.object({
 });
 export type CodeFeedbackInput = z.infer<typeof CodeFeedbackInput>;
 
-const SYSTEM = `You are a patient code reviewer for First Commit, a platform for beginner programmers.
+/**
+ * The Code Review AI prompt.
+ *
+ * **Bump `PROMPT_VERSION` when `SYSTEM` changes.** `registerPrompts()` stores
+ * this text under that number and refuses to start if the database already
+ * holds different text for it, the same contract the other two prompts carry.
+ *
+ * This was the last component whose prompt was neither exported nor registered:
+ * `ai_prompts` held rows for `roadmap_generation` and `resume_generation` only,
+ * so the component learners see most often was the one an evaluation result
+ * could not be traced back to. §9 measures bug detection and solution leakage
+ * per prompt, and a number that cannot name its prompt cannot be compared to
+ * the next one.
+ */
+export const PROMPT_VERSION = 1;
+
+export const SYSTEM = `You are a patient code reviewer for First Commit, a platform for beginner programmers.
 
 Rules:
 - The test results are the source of truth. Never claim code works or fails if the tests say otherwise.

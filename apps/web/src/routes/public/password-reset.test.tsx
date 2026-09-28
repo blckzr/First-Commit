@@ -76,7 +76,7 @@ describe("Reset password", () => {
 
     await userEvent.type(screen.getByLabelText("New password"), "a-brand-new-password");
     await userEvent.type(screen.getByLabelText("Confirm new password"), "a-brand-new-password");
-    await userEvent.click(screen.getByRole("button", { name: "Set new password" }));
+    await userEvent.click(screen.getByRole("button", { name: "Save password" }));
 
     await waitFor(() => expect(navigate).toHaveBeenCalledWith("/login", { replace: true }));
   });
@@ -92,7 +92,7 @@ describe("Reset password", () => {
 
     await userEvent.type(screen.getByLabelText("New password"), "a-brand-new-password");
     await userEvent.type(screen.getByLabelText("Confirm new password"), "a-brand-new-passwrod");
-    await userEvent.click(screen.getByRole("button", { name: "Set new password" }));
+    await userEvent.click(screen.getByRole("button", { name: "Save password" }));
 
     expect(screen.getByLabelText("Confirm new password")).toHaveAccessibleDescription(
       /doesn't match/i,
@@ -105,7 +105,7 @@ describe("Reset password", () => {
 
     await userEvent.type(screen.getByLabelText("New password"), "short");
     await userEvent.type(screen.getByLabelText("Confirm new password"), "short");
-    await userEvent.click(screen.getByRole("button", { name: "Set new password" }));
+    await userEvent.click(screen.getByRole("button", { name: "Save password" }));
 
     expect(screen.getByLabelText("New password")).toHaveAccessibleDescription(/8 characters/i);
   });
@@ -116,7 +116,7 @@ describe("Reset password", () => {
 
     await userEvent.type(screen.getByLabelText("New password"), "a-brand-new-password");
     await userEvent.type(screen.getByLabelText("Confirm new password"), "a-brand-new-password");
-    await userEvent.click(screen.getByRole("button", { name: "Set new password" }));
+    await userEvent.click(screen.getByRole("button", { name: "Save password" }));
 
     const alert = await screen.findByRole("alert");
     expect(alert).toHaveTextContent(/expired or has already been used/i);

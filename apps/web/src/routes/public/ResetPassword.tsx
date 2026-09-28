@@ -2,14 +2,14 @@ import { useState } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router";
 import { useMutation } from "@tanstack/react-query";
 import { Button } from "../../components/core/Button";
-import { Icon } from "../../components/core/Icon";
 import { Input } from "../../components/forms/Input";
 import { authApi } from "../../api/auth";
 import { ApiError } from "../../api/client";
-import styles from "./PasswordReset.module.css";
+import { AuthFrame } from "./AuthFrame";
+import styles from "./Auth.module.css";
 
 /**
- * design.md §5.3 — set a new password.
+ * design.md §5.3 — set a new password. Drawn from First Commit v2.dc.html.
  *
  * Opened from the emailed link, which carries the token in the query string.
  * The token is single use and expires in an hour
@@ -57,86 +57,71 @@ export function ResetPassword() {
   /** A link with no token at all never had a chance; say so without a round trip. */
   if (!token) {
     return (
-      <div className={styles.page}>
-        <div className={styles.card}>
-          <span className={styles.wordmark}>
-            <span className={styles.mark}><Icon name="code-xml" size={15} /></span>
-            First Commit
-          </span>
+      <AuthFrame>
+        <div className={styles.heading}>
           <h1 className={styles.title}>That link is incomplete</h1>
-          <p className={styles.notice}>
-            <Icon name="info" size={18} className={styles.noticeIcon} />
-            <span>
-              The address is missing its code, which usually means the link was cut short
-              by a mail client. Ask for a new one and open it in full.
-            </span>
-          </p>
-          <p className={styles.footer}>
-            <Link to="/forgot-password">Send a new link</Link>
+          <p className={styles.lede}>
+            The address is missing its code, which usually means the link was cut short by a
+            mail client. Ask for a new one and open it in full.
           </p>
         </div>
-      </div>
+        <p className={styles.footer}>
+          <Link to="/forgot-password">Send a new link</Link>
+        </p>
+      </AuthFrame>
     );
   }
 
   return (
-    <div className={styles.page}>
-      <div className={styles.card}>
-        <span className={styles.wordmark}>
-          <span className={styles.mark}><Icon name="code-xml" size={15} /></span>
-          First Commit
-        </span>
-
+    <AuthFrame>
+      <div className={styles.heading}>
         <h1 className={styles.title}>Set a new password</h1>
-        <p className={styles.lede}>
-          This signs you out everywhere else, so anyone else holding your old session loses
-          it.
-        </p>
-
-        <form className={styles.form} onSubmit={onSubmit} noValidate>
-          <Input
-            label="New password"
-            name="password"
-            type="password"
-            autoComplete="new-password"
-            hint="At least 8 characters."
-            error={fieldErrors.password}
-          />
-          <Input
-            label="Confirm new password"
-            name="confirm"
-            type="password"
-            autoComplete="new-password"
-            error={fieldErrors.confirm}
-          />
-
-          {error && (
-            <p role="alert" className={styles.formError}>
-              {error.message}
-              {error.status === 400 && (
-                <>
-                  {" "}
-                  <Link to="/forgot-password">Send a new link</Link>.
-                </>
-              )}
-            </p>
-          )}
-
-          <Button
-            type="submit"
-            variant="primary"
-            fullWidth
-            loading={reset.isPending}
-            loadingLabel="Saving your password…"
-          >
-            Set new password
-          </Button>
-        </form>
-
-        <p className={styles.footer}>
-          <Link to="/login">Back to log in</Link>
-        </p>
+        <p className={styles.lede}>This signs you out everywhere else.</p>
       </div>
-    </div>
+
+      <form className={styles.form} onSubmit={onSubmit} noValidate>
+        <Input
+          label="New password"
+          name="password"
+          type="password"
+          autoComplete="new-password"
+          hint="At least 8 characters"
+          error={fieldErrors.password}
+        />
+        <Input
+          label="Confirm new password"
+          name="confirm"
+          type="password"
+          autoComplete="new-password"
+          error={fieldErrors.confirm}
+        />
+
+        {error && (
+          <p role="alert" className={styles.formError}>
+            {error.message}
+            {error.status === 400 && (
+              <>
+                {" "}
+                <Link to="/forgot-password">Send a new link</Link>.
+              </>
+            )}
+          </p>
+        )}
+
+        <Button
+          type="submit"
+          variant="primary"
+          fullWidth
+          loading={reset.isPending}
+          loadingLabel="Saving your password…"
+        >
+          Save password
+        </Button>
+      </form>
+
+      <p className={styles.footer}>
+        <Link to="/login">Back to log in</Link>
+      </p>
+    </AuthFrame>
   );
 }

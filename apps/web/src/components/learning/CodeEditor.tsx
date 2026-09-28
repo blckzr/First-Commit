@@ -4,6 +4,8 @@ import { EditorView, keymap, lineNumbers, highlightActiveLine } from "@codemirro
 import { defaultKeymap, history, historyKeymap, indentWithTab } from "@codemirror/commands";
 import { javascript } from "@codemirror/lang-javascript";
 import { python } from "@codemirror/lang-python";
+import { HighlightStyle, syntaxHighlighting } from "@codemirror/language";
+import { tags } from "@lezer/highlight";
 import styles from "./CodeEditor.module.css";
 
 /**
@@ -18,6 +20,10 @@ import styles from "./CodeEditor.module.css";
  * then Tab leaves the editor, and the hint below the editor says so — an
  * editor nobody can tab out of is a keyboard trap, which is a WCAG failure,
  * not a preference.
+ *
+ * **Drawn as First Commit v2.dc.html draws it**: the design system's ink code
+ * block — a bar naming the file and the language, line numbers, and the same
+ * syntax tones as `CodeBlock` — made editable.
  */
 
 export interface CodeEditorProps {
@@ -28,7 +34,28 @@ export interface CodeEditorProps {
   /** Names the editor for assistive technology: "script.js, JavaScript editor". */
   label: string;
   readOnly?: boolean;
+  /** Shown in the bar above the code: "script.js". */
+  filename?: string;
 }
+
+/** The bar's language name, from the runtime. */
+const LANGUAGE: Record<string, string> = {
+  javascript: "JavaScript",
+  python: "Python",
+  react: "React",
+  vue: "Vue",
+};
+
+/**
+ * CodeBlock's tones, as classes rather than colours, so every colour stays a
+ * token in CSS (AGENT.md §8) and the two surfaces cannot drift apart.
+ */
+const tones = HighlightStyle.define([
+  { tag: [tags.keyword, tags.controlKeyword, tags.definitionKeyword, tags.moduleKeyword], class: styles.key },
+  { tag: [tags.string, tags.special(tags.string), tags.number, tags.bool], class: styles.str },
+  { tag: [tags.comment, tags.lineComment, tags.blockComment], class: styles.com },
+  { tag: [tags.tagName, tags.typeName, tags.className], class: styles.tag },
+]);
 
 function languageFor(runtime: string | null | undefined): Extension[] {
   switch (runtime) {
@@ -44,7 +71,14 @@ function languageFor(runtime: string | null | undefined): Extension[] {
   }
 }
 
-export function CodeEditor({ value, onChange, runtime, label, readOnly }: CodeEditorProps) {
+export function CodeEditor({
+  value,
+  onChange,
+  runtime,
+  label,
+  readOnly,
+  filename,
+}: CodeEditorProps) {
   const host = useRef<HTMLDivElement>(null);
   const view = useRef<EditorView | null>(null);
   const latest = useRef(onChange);
@@ -76,6 +110,7 @@ export function CodeEditor({ value, onChange, runtime, label, readOnly }: CodeEd
         history(),
         keymap.of([...defaultKeymap, ...historyKeymap, indentWithTab]),
         ...languageFor(runtime),
+        syntaxHighlighting(tones),
         EditorView.lineWrapping,
         EditorState.readOnly.of(Boolean(readOnly)),
         EditorView.updateListener.of((update) => {
@@ -108,6 +143,12 @@ export function CodeEditor({ value, onChange, runtime, label, readOnly }: CodeEd
 
   return (
     <div className={styles.editor}>
+      {(filename || (runtime && LANGUAGE[runtime])) && (
+        <div className={styles.head}>
+          <span>{filename}</span>
+          <span>{runtime ? LANGUAGE[runtime] : ""}</span>
+        </div>
+      )}
       <div ref={host} className={styles.host} />
       <p id={hintId} className={styles.hint}>
         Tab indents inside the editor. Press Escape, then Tab, to move on.

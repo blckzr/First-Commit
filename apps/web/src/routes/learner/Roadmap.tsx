@@ -3,10 +3,8 @@ import { Card } from "../../components/core/Card";
 import { Icon } from "../../components/core/Icon";
 import { LinkButton } from "../../components/core/LinkButton";
 import { ProgressBar } from "../../components/learning/ProgressBar";
-import { RoadmapChart } from "../../components/roadmap/RoadmapChart";
+import { RoadmapNav } from "../../components/roadmap/RoadmapNav";
 import { RoadmapPanel } from "../../components/roadmap/RoadmapPanel";
-import { RoadmapStacked } from "../../components/roadmap/RoadmapStacked";
-import { useBreakpoint } from "../../hooks/useBreakpoint";
 import { useRoadmap } from "../../features/roadmap/useRoadmap";
 import { useRoadmapNav } from "../../features/roadmap/useRoadmapNav";
 import { ApiError } from "../../api/client";
@@ -14,11 +12,12 @@ import type { Roadmap as RoadmapData } from "../../features/roadmap/types";
 import styles from "./Roadmap.module.css";
 
 /**
- * design.md §5.7 — the roadmap chart.
+ * design.md §5.7 — the roadmap chart, drawn as First Commit v2.dc.html draws
+ * it: the spine with its branches in a white panel, the side panel beside it.
  *
- * `useBreakpoint` appears here and nowhere else on this screen: the chart and
- * the stacked list are different *structures*, which §13.5 names as the one
- * case a media query cannot cover. Everything else about the layout is CSS.
+ * There is no zoomable canvas and no `useBreakpoint` here any more. The chart
+ * is one nested list that CSS lays out as the spine on `md` and up and as one
+ * column on `sm`, so both widths render the same DOM (§13.5).
  */
 export function Roadmap() {
   const { id } = useParams();
@@ -62,7 +61,6 @@ export function Roadmap() {
  */
 function RoadmapView({ roadmap }: { roadmap: RoadmapData }) {
   const nav = useRoadmapNav(roadmap);
-  const breakpoint = useBreakpoint();
 
   const percent =
     roadmap.totalCount === 0 ? 0 : (roadmap.passedCount / roadmap.totalCount) * 100;
@@ -92,12 +90,8 @@ function RoadmapView({ roadmap }: { roadmap: RoadmapData }) {
       </Card>
 
       <div className={styles.body}>
-        <section className={styles.canvasArea} aria-label="Roadmap">
-          {breakpoint === "sm" ? (
-            <RoadmapStacked roadmap={roadmap} nav={nav} />
-          ) : (
-            <RoadmapChart roadmap={roadmap} nav={nav} />
-          )}
+        <section className={styles.chartArea} aria-label="Roadmap">
+          <RoadmapNav roadmap={roadmap} nav={nav} />
         </section>
 
         {nav.selection && (
