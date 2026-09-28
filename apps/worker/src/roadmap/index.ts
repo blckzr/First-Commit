@@ -1,9 +1,10 @@
 import type { Pool } from "pg";
 import { chatJson } from "../ollama.js";
-import { RoadmapPlan } from "../schemas.js";
+import { RoadmapPlanDraft } from "../schemas.js";
 import { buildRoadmapMessages, PROMPT_VERSION } from "../prompts/roadmap.js";
 import { eligibleModules, loadCatalogue, type CatalogueModule } from "./catalogue.js";
 import { estimateWeeks, validateRoadmapPlan } from "./validate.js";
+import { resolvePlan } from "./resolve.js";
 import { applyRoadmapPlan } from "./apply.js";
 
 /**
@@ -44,20 +45,37 @@ export async function runRoadmapGeneration(pool: Pool, job: RoadmapJob): Promise
   );
 
   const response = await chatJson({
-    schema: RoadmapPlan,
+    schema: RoadmapPlanDraft,
     messages: buildRoadmapMessages({ catalogue, eligibleByTrack }),
     // The catalogue is long. Lower temperature than code feedback, because
     // there is a right answer here and creativity only costs retries.
     temperature: 0.1,
-    validate: (plan) => {
+    validate: (draft) => {
+      /**
+       * **Resolve first, then check.** The model answers in slugs and titles
+       * (`resolve.ts` says why); an unresolved name is reported here so
+       * `chatJson` feeds it back and asks again, exactly as it does for every
+       * other kind of invalid output.
+       */
+      const resolved = resolvePlan(draft, catalogue);
+      if ("error" in resolved) return resolved.error;
+
       // The track has to be real before "what may this track contain" means
       // anything, so an unknown track reports itself rather than crashing.
-      const eligible = eligibleByTrack.get(plan.recommendedTrackId) ?? [];
-      return validateRoadmapPlan(plan, { catalogue, eligible });
+      const eligible = eligibleByTrack.get(resolved.plan.recommendedTrackId) ?? [];
+      return validateRoadmapPlan(resolved.plan, { catalogue, eligible });
     },
   });
 
-  const plan = response.data;
+  /**
+   * Resolved a second time, on the answer that passed. Deterministic and cheap,
+   * and it keeps `validate` to its one job of returning a message — the
+   * alternative was threading the resolved plan out of a callback whose
+   * contract is `string | null`.
+   */
+  const resolved = resolvePlan(response.data, catalogue);
+  if ("error" in resolved) throw new Error(resolved.error);
+  const plan = resolved.plan;
   const estimatedWeeks = estimateWeeks(
     plan.orderedModuleIds,
     catalogue,

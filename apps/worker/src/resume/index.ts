@@ -4,6 +4,7 @@ import { chatJson } from "../ollama.js";
 import {
   buildResumeMessages,
   noInventedExperience,
+  noUngroundedSummary,
   PROMPT_VERSION,
   ResumeDraft,
 } from "../prompts/resume.js";
@@ -118,6 +119,19 @@ export async function runResumeGeneration(
   const input = ResumeJobInput.parse(job.payload);
   const hasProjects = input.projects.length > 0;
 
+  /**
+   * Every skill and technology the platform teaches, for the summary check.
+   *
+   * The published catalogue rather than a hand-written list: "an admin defined
+   * it" is what makes a name worth checking, and a list written here would
+   * drift from the content the moment a module was added.
+   */
+  const vocabulary = await pool.query<{ name: string }>(
+    `select name from skills
+      union
+     select name from technologies`,
+  );
+
   const response = await chatJson({
     schema: ResumeDraft,
     messages: buildResumeMessages(input),
@@ -125,8 +139,15 @@ export async function runResumeGeneration(
      * Rejected and retried, with the reason fed back — the same mechanism
      * `noSolutionLeak` uses, for the same kind of failure: output that parses
      * but breaks the rule the component exists to keep.
+     *
+     * Two rules now. `noInventedExperience` catches a claim of employment;
+     * `noUngroundedSummary` catches a claim of *knowledge*, which nothing read
+     * until the evaluation found the same ungrounded sentence in five runs
+     * across both model sizes.
      */
-    validate: (draft) => noInventedExperience(draft, hasProjects),
+    validate: (draft) =>
+      noInventedExperience(draft, hasProjects) ??
+      noUngroundedSummary(draft, input.skills, vocabulary.rows.map((r) => r.name)),
   });
 
   const skills = groundSkills(response.data.skills, input.skills);

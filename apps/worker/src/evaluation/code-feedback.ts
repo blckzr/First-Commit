@@ -4,7 +4,7 @@ import {
   CodeFeedbackInput,
   PROMPT_VERSION,
 } from "../prompts/code-feedback.js";
-import { CodeFeedback, noSolutionLeak } from "../schemas.js";
+import { CodeFeedback, givesCode, noSolutionLeak } from "../schemas.js";
 import { createRunner } from "../runner.js";
 import type { TestOutcome } from "../sandbox/types.js";
 import { submissions, type SubmissionFixture } from "./fixtures/submissions.js";
@@ -60,9 +60,14 @@ export async function evaluateCodeFeedback(recorder: Recorder): Promise<void> {
     recorder.add(record);
 
     const mark = record.ok ? "✓" : "✗";
-    const note = record.ok
-      ? `${record.attempts} attempt${record.attempts === 1 ? "" : "s"}, ${((record.durationMs ?? 0) / 1000).toFixed(1)}s`
-      : record.error;
+    // A correct submission has no attempts and no duration: `queueFeedback`
+    // returns early on a full pass, so the model is never asked. Saying so beats
+    // printing "undefined attempts, 0.0s".
+    const note = !record.ok
+      ? record.error
+      : record.metrics?.sentToModel === false
+        ? "passed every test — no feedback needed"
+        : `${record.attempts} attempt${record.attempts === 1 ? "" : "s"}, ${((record.durationMs ?? 0) / 1000).toFixed(1)}s`;
     console.log(`  ${mark} ${fixture.id.padEnd(28)} ${note}`);
   }
 }
@@ -156,6 +161,12 @@ async function evaluateOne(
         hiddenFailures: failed.filter((f) => f.hidden).length,
         /** The guard firing is the measurement, not a failure (§9.1). */
         leakedThenRetried: response.rejections.filter(isLeak).length,
+        /**
+         * Hints that hand over a fragment of the fix in the **accepted** answer
+         * — what the guard let through. This is the number §9.1's leakage rate
+         * actually asks for.
+         */
+        hintsGivingCode: response.data.issues.filter((i) => hintGivesCode(i.hint)).length,
       },
       scoring: {
         knownBug: fixture.bug,
@@ -179,6 +190,23 @@ export function isLeak(reason: string): boolean {
   return reason.includes("A hint contains code");
 }
 
+/**
+ * A hint that hands over a fragment of the fix, **whether or not the guard
+ * caught it**.
+ *
+ * §9.1 asks for the solution leakage *rate*, which is a fact about the model.
+ * Counting only `noSolutionLeak`'s rejections measures the guard instead, and
+ * reported 0% for a run whose hints included "change the comparison operator
+ * from `>` to `>=`".
+ *
+ * Now that the guard applies this same rule, an accepted answer should never
+ * match — so this has become a regression check on the tightened guard rather
+ * than a separate measurement. It is deliberately still computed and still
+ * reported: a row that is 0 because something was verified is worth more than a
+ * row that is absent.
+ */
+export const hintGivesCode = givesCode;
+
 /** Exactly what `submissions.ts` does before a hidden case reaches a prompt. */
 function redact(outcomes: TestOutcome[]): TestOutcome[] {
   return outcomes.map((o) =>
@@ -192,6 +220,8 @@ export function summariseCodeFeedback(recorder: Recorder): string {
   const ok = asked.filter((c) => c.ok);
   const firstTry = ok.filter((c) => c.attempts === 1);
   const leaked = ok.filter((c) => Number(c.metrics?.leakedThenRetried ?? 0) > 0);
+  const gaveCode = ok.filter((c) => Number(c.metrics?.hintsGivingCode ?? 0) > 0);
+  const hintTotal = ok.reduce((s, c) => s + Number(c.metrics?.hintsGivingCode ?? 0), 0);
   const broken = all.filter((c) => !c.ok);
 
   const lines = [
@@ -203,14 +233,23 @@ export function summariseCodeFeedback(recorder: Recorder): string {
     "|---|---|",
     `| Valid output rate (first attempt) | ${rate(firstTry.length, asked.length)} |`,
     `| Needed a retry | ${rate(ok.length - firstTry.length, ok.length)} |`,
-    `| Solution leakage, caught and retried | ${rate(leaked.length, ok.length)} |`,
-    `| Solution leakage reaching the learner | ${rate(0, ok.length)} — the guard rejects, so this is 0 by construction |`,
+    `| Solution leakage the guard caught and retried | ${rate(leaked.length, ok.length)} |`,
+    `| **Runs whose accepted hints still contain code** | ${rate(gaveCode.length, ok.length)} |`,
+    `| Such hints in total | ${hintTotal} |`,
     `| Response time, mean | ${ms(ok.map((c) => c.durationMs ?? 0))} |`,
     `| Failed outright | ${rate(broken.length, all.length)} |`,
     "",
     "**Bug detection rate, false alarm rate and explanation clarity are in",
     "`scoring-sheet.md`** — §9.1 rates them by evaluator, and matching the model's",
     "wording against an expected phrase would measure vocabulary, not understanding.",
+    "",
+    "> **The two leakage rows differ, and the second is the one §9.1 asks for.**",
+    "> `noSolutionLeak` rejects a hint only when it holds a fenced block or *more than",
+    "> one* line of code punctuation, so a single-line fix — change `>` to `>=` —",
+    "> passes. The first row measures the guard; the second measures the model, and",
+    "> counts hints in answers that were **accepted and shown to a learner**. Each is",
+    "> marked in the sheet for a person to confirm, since a hint naming `>=` as the",
+    "> answer and one asking whether `>=` is wanted differ by intent, not characters.",
   ];
 
   if (broken.length > 0) {

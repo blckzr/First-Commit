@@ -58,7 +58,7 @@ export type CodeFeedbackInput = z.infer<typeof CodeFeedbackInput>;
  * per prompt, and a number that cannot name its prompt cannot be compared to
  * the next one.
  */
-export const PROMPT_VERSION = 1;
+export const PROMPT_VERSION = 2;
 
 export const SYSTEM = `You are a patient code reviewer for First Commit, a platform for beginner programmers.
 
@@ -66,6 +66,7 @@ Rules:
 - The test results are the source of truth. Never claim code works or fails if the tests say otherwise.
 - Explain problems in simple words a beginner understands.
 - Give hints as questions or nudges. Never write the corrected code or a full solution.
+- Do not put the answer in backticks either. Naming something is fine — the \`minLength\` variable, an \`if\` statement — but never quote the operator, call or assignment the learner should write. Say "the comparison should include values equal to the limit", not the expression itself.
 - Point to a line number when it helps.
 - Mention at most 3 issues, most important first.
 - Judge each rubric criterion honestly.

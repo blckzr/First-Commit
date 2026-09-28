@@ -563,6 +563,52 @@ Don't decide by feel. Use a small test set, as planned in the proposal's evaluat
 
 Keep prompts versioned in the `ai_prompts` table so your evaluation results match the exact prompt used.
 
+## What the measurement said
+
+`npm run evaluate` builds and runs that test set (steps 1, 2 and 4 above; step 3 is the
+scoring sheet it writes). Both sizes, 2026-09-29, same prompts and same JSON mode:
+
+| | qwen3.5:4b | qwen3.5:9b |
+|---|---|---|
+| Loaded size / placement | 2.9 GB · **100% GPU** | 5.5 GB · **100% GPU** |
+| Code feedback, valid first attempt | 13/17 | **17/17** |
+| … hints quoting the fix, rejected and retried | 4/17 | **0/17** |
+| … hints quoting the fix that reached the learner | 0 | 0 |
+| … mean | **8.8s** | 10.6s |
+| Roadmaps, valid first attempt | 6/6 | 6/6 |
+| … mean | **3.1s** | 4.6s |
+| Resumes produced | 6/6 | 6/6 |
+| … unsupported skills the grounding removed | 3 | 0 |
+| … mean | **1.0s** | 1.5s |
+
+**9B stays on the GPU.** That was the open risk on an 8GB card, and it did not happen —
+5.5 GB at 8192 context, `100% GPU`, no spill.
+
+**9B is more accurate on the one thing that can be counted.** It obeyed §7's "never write the
+corrected code" rule on every first attempt; 4B reached for the answer in 4 of 17 and needed
+the guard to send it back. Nothing bad reached a learner either way — that is the retry loop
+working — but on 4B one submission needed all three attempts, and a fourth rejection would
+have left the learner with no feedback at all.
+
+**Everywhere else they tie.** Both wrote 6 of 6 valid roadmaps first time and 6 of 6 resumes.
+4B is 20–50% faster throughout.
+
+By the table above this is "clearly more accurate and runs at 100% GPU", so **9B for code
+feedback**. Two cautions before treating it as settled:
+
+- It is **one run each**, and the 4B fabrication figure is known to swing between runs
+  (3, 0, 0, 3 unsupported skills across four). A single 9B run showing 0 does not establish a
+  difference there.
+- The decision rests mainly on the leakage metric, because bug detection and clarity are
+  evaluator-scored. **Fill in both scoring sheets before committing to it** — they are written
+  side by side for exactly this comparison.
+
+**Neither size fixes what the prompts get wrong.** Both recommended the Frontend track to
+every learner profile, including the one written to test whether Backend is ever chosen, and
+both wrote "foundational knowledge of web technologies" into a resume for a learner who has
+verified nothing. Those are prompt and grounding problems, and a larger model does not touch
+them.
+
 ---
 
 # 14. Troubleshooting

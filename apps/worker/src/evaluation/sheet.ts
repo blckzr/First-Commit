@@ -1,4 +1,5 @@
 import type { Recorder } from "./report.js";
+import { hintGivesCode } from "./code-feedback.js";
 
 /**
  * The scoring sheet: everything §9.1 marks "rated by evaluators".
@@ -60,7 +61,11 @@ export function scoringSheet(recorder: Recorder): string {
     );
     for (const issue of fb.issues ?? []) {
       const where = issue.line === null ? "" : ` *(line ${issue.line})*`;
-      lines.push(`- **${issue.problem}**${where}`, `  - Hint: ${issue.hint}`);
+      // Flagged, not judged. §7 forbids handing over the fix, and `noSolutionLeak`
+      // only catches multi-line code — so a single-line fix reaches the learner
+      // and has to be confirmed by a person rather than counted automatically.
+      const leak = hintGivesCode(issue.hint) ? " **← gives code?**" : "";
+      lines.push(`- **${issue.problem}**${where}`, `  - Hint: ${issue.hint}${leak}`);
     }
     lines.push(
       "",

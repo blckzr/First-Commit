@@ -1,0 +1,2 @@
+NAME          ID              SIZE      PROCESSOR    CONTEXT    UNTIL               
+qwen3.5:9b    6488c96fa5fa    5.5 GB    100% GPU     8192       29 minutes from now    

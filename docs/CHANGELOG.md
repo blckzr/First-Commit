@@ -11,7 +11,130 @@ lives under `[Unreleased]` until there is something to version.
 
 ## [Unreleased]
 
-### 2026-09-29 — The §9 evaluation harness, and the first measurement of two AI components
+### 2026-09-29 — The resume summary is grounded too
+
+Open question 11, closed. The evaluation found this in its first run and reproduced it in
+every run after, on **both** model sizes — which is what ruled out "use a bigger model" and
+made it a grounding problem.
+
+#### Added
+
+- **`noUngroundedSummary()`** in `prompts/resume.ts`, rejected-and-retried like
+  `noInventedExperience` — a sentence is not repaired by deleting a word from it. Two rules:
+  - **A skill named in the summary must be verified.** Checked against the names an admin
+    actually published (`skills` and `technologies`), not a list written in the worker, because
+    a hand-written list drifts from the content the moment a module is added.
+  - **With no evidence at all, no claim of knowledge is allowed**, since every one is false.
+    Deliberately narrow: with real evidence "foundational knowledge of HTML and CSS" is exactly
+    what a grounded summary should say, and the first rule already keeps it honest.
+- 18 tests, including the two ungrounded sentences the real runs produced — the 4B one and the
+  9B one. Both mutations (each rule disabled in turn) were confirmed to fail the suite.
+
+#### Changed
+
+- **Resume prompt version 2.** It states both rules, and the empty-skills case now carries an
+  instruction rather than a bare "None yet." — the same lesson the projects list already
+  taught: a model given an empty heading fills it in.
+- **Skill names must be written exactly as given.** Found while verifying the above: the
+  learner whose verified skill is *"HTTP and servers"* had it printed as "HTTP" and "Servers",
+  and `groundSkills` removed both — correctly, since it is deliberately not fuzzy, but the
+  learner lost a skill they had actually proven. The resume was safe and worse. One prompt rule
+  fixed it; that profile now keeps both skills.
+
+#### Measured
+
+`npm run evaluate -- resume`, immediately after:
+
+- **`no-evidence` now answers "Working toward becoming a Junior Front-End Developer."** One
+  retry: the guard rejected the first draft, the model wrote a goal instead of a claim.
+- 6 of 6 resumes, no unsupported skill in any of them, and no skill lost to a renamed one.
+
+### 2026-09-29 — The roadmap speaks slugs, and a hint may no longer quote the fix
+
+Both changes come straight out of the evaluation runs, and neither would have been found by
+reading the code.
+
+#### Changed
+
+- **The Roadmap AI answers in module slugs and a track title, not UUIDs.** Across three runs,
+  **every single rejected attempt was a miscopied module id** — not one prerequisite
+  violation, not one core-coverage miss. Two of the bad ids say what was happening:
+  `48b67ec1-…-16ac7f50-a97e-…` is two UUIDs spliced mid-string, and
+  `c056c754-a1ef-44d6-994a-170dc83b1696` is perfectly well formed and belongs to nothing. A 4B
+  model asked to reproduce a 36-character hex string a dozen-plus times per answer will get
+  one wrong eventually, and there was never a reason to ask it to.
+  - `RoadmapPlanDraft` is the model's contract (slugs, track title); `RoadmapPlan` stays the
+    platform's (ids). `roadmap/resolve.ts` is the only place one becomes the other, so
+    **`validateRoadmapPlan` and `applyRoadmapPlan` are untouched** and every §7 check still
+    runs on real ids.
+  - An unresolved name is a **retry, not a crash** — the message names the unknown slug and,
+    within two edits, the closest real one. `js-basic` against `js-basics` tells the retry
+    exactly what went wrong; a wrong hex digit told it nothing.
+  - Completed modules were being listed to the model as raw UUIDs, which it could not match
+    against anything. They are slugs now too.
+  - Prompt version **3**. 11 tests, including both real mangled ids, and the case that matters
+    most: an invented slug must still fail, because slugs being easier to get right must not
+    make them easier to fake.
+- **`noSolutionLeak` rejects a backticked fragment of the fix** (open question 12, closed).
+  It previously needed a fenced block or *more than one* line of code punctuation, so every
+  single-line fix passed — "change the comparison operator from `>` to `>=` on line 5" reached
+  the learner, ten times across eight of seventeen answers in one run, while §9.1's leakage
+  metric read 0%.
+  - `givesCode()` in `schemas.ts` is the rule, and the harness now imports it instead of
+    keeping its own copy. Naming a thing is still allowed — the `minLength` variable, an `if`
+    statement — because a guard that rejected those would push the model toward vaguer
+    feedback, which is the opposite of the goal. A test holds that line.
+  - **The cost is real and was accepted**: "is `>=` what you want here?" is a fair question
+    and is now rejected too. §7 is the stricter reading, the same question can be asked in
+    words, and the retry cost will show up in the next run's valid-output rate.
+  - Code feedback prompt version **2** states the rule, so the model is told what it is judged
+    by rather than discovering it through retries.
+- The four tests that pinned the old guard's blind spot now assert the opposite. They were
+  written from hints that had been **accepted and shown to a learner**; each one asserts that
+  would not happen now.
+
+#### Measured
+
+Run 4, after both changes. Both worked, and one did more than expected.
+
+- **Roadmap: 6 of 6 on the first attempt, no rejection of any kind, 3.1s mean.** Against
+  3/6, 4/6 and 6/6 produced in the three UUID runs, with means of 53s, 8.3s and 11.7s. The
+  failure class that accounted for **100%** of rejections is gone, and the answers are
+  **2.7× faster than the previous best** — a 12-module plan written in slugs is a fraction of
+  the tokens it is in UUIDs, so correctness and speed came from the same change.
+- **Code feedback: 0 accepted hints contain code**, down from 10 in 50 and 2 in 49. The model
+  still reaches for the answer in **4 of 17** submissions; the guard rejects, the retry writes
+  a clean hint, and nothing reaches the learner. The predicted cost showed up exactly where it
+  was predicted: first-attempt validity 100% → 76%, mean 7.0s → 8.8s.
+- **One case needed all three attempts.** A slightly stricter rule or an unluckier run would
+  exhaust the retries and leave a learner with no feedback at all, which is worse than a hint
+  that says too much. `maxAttempts` for `code_feedback` is now worth watching.
+- **Fabrication is intermittent, not gone.** The no-evidence profile claimed three unsupported
+  skills again, as in run 1, having claimed none in runs 2 and 3. Same profile every time.
+
+#### 4B against 9B — the comparison §13 exists for
+
+Both sizes, same sets, same prompts, same JSON mode. `model-setup-guide.md` §13 holds the
+table; `AI_MODEL` was overridden for the run rather than edited into `.env`.
+
+- **9B stays on the GPU.** 5.5 GB at 8192 context, `100% GPU`, no spill. That was the open
+  risk on an 8GB card and it did not happen.
+- **9B obeyed §7's no-code rule on 17 of 17 first attempts.** 4B reached for the answer in 4
+  of 17 and needed the guard to send it back. Nothing reached a learner either way — but on
+  4B one submission used all three attempts, and a fourth rejection would have left that
+  learner with no feedback at all.
+- **They tie everywhere else.** 6 of 6 valid roadmaps first time and 6 of 6 resumes on both.
+  4B is 20–50% faster throughout.
+- By §13's own table this is "clearly more accurate and runs at 100% GPU" → **9B for code
+  feedback**, with two cautions written into §13: it is one run each, and the decision rests
+  on the only metric that can be counted, so the two scoring sheets should be filled in first.
+
+**Neither size fixes a prompt problem, which is the useful part.** 9B also recommended the
+Frontend track to all six profiles, and also wrote "foundational knowledge of web
+technologies" into a resume for a learner who has verified nothing. Both open findings are
+prompt and grounding work; a larger model does not touch them.
+
+### 2026-09-29 — The §9 evaluation harness, and the first measurement of all three AI components
 
 `npm run evaluate`. The last open item in Phase 3, and the one that was blocked until all
 three AI components existed. `project-proposal.md` §9.1 names five metric tables; three can
@@ -107,11 +230,69 @@ point of it.
   a decision: ground the prose as the skills array is grounded, or say in §7 that it is not and
   why.
 
-#### Not yet run
+#### Found — Code Review AI
 
-- **Code Review AI** — it needs Docker Desktop, which was closed when the run reached it. The
-  fixtures and the sandbox path are built and typechecked; the run is one command.
-- **qwen3.5:9b** — the comparison §13 exists for. One `AI_MODEL` change and a second run.
+The run completed once Docker Desktop was started.
+
+- **17 of 17 answered on the first attempt, mean 7.0s.** The strongest of the three, and the
+  fixtures held: every submission labelled correct passed all seven cases and every one
+  labelled buggy failed something, so no fixture was quietly mislabelled.
+- **But 8 of 17 answers handed the learner a fragment of the fix** — 10 of 50 hints, among
+  them "change the comparison operator from `>` to `>=` on line 5" and "change `count +=
+  word.length` to `count++`". §7 says feedback never writes the fix.
+- **`noSolutionLeak` rejected none of them**, and the first version of this harness therefore
+  reported solution leakage as **0%** — because it counted the guard's rejections rather than
+  the model's output. That is the same mistake the resume side was built to avoid, repeated on
+  the other component. The summary now carries two rows: what the guard caught, and what
+  reached the learner. The second is the one §9.1 asks for. Recorded as **open question 12**;
+  the guard needs a fenced block or *more than one* line of code punctuation, so every
+  single-line fix passes, which means AGENT.md §7 and `schemas.ts` disagree and one has to move.
+- The model fills all three issue slots even when there is one bug, padding with non-issues
+  ("This part looks good") and occasional invented ones — a false-alarm figure for the sheet.
+- Two answers were truncated mid-string.
+
+#### Changed — after the first full run
+
+- **`hintGivesCode()`** counts hints that hand over a fragment of the fix **whether or not the
+  guard caught them**, and the scoring sheet marks each one `← gives code?` for a person to
+  confirm. Conservative on purpose: a backticked span naming `minLength` points at the
+  problem, one containing `>=` or `count++` is the answer.
+- The console printed `undefined attempts, 0.0s` for the four correct submissions, which are
+  never sent to the model. It now says so.
+- **The roadmap and resume numbers moved between runs**, which is itself the finding: roadmap
+  3 of 6 then 4 of 6, resume fabrication 1 of 6 then 0 of 6. Six profiles is too few to pin a
+  rate. What did reproduce in both runs: every success recommended Frontend (7 of 7), every
+  roadmap failure was an unknown module id, and the resume's summary claimed knowledge for a
+  learner with none.
+
+#### Three runs, and what actually reproduced
+
+Numbers move a lot between runs on six profiles, so a single run is a sample. Roadmaps
+produced went 3/6, 4/6, **6/6**; hints handing over code went 10/50 then 2/49; unsupported
+skills removed went 3, 0, 0. AGENT.md §7 now carries the table.
+
+Four things held in every run, and these are the ones worth acting on:
+
+- **Every roadmap rejection was an unknown module id** — not one prerequisite violation, not
+  one core-coverage miss, in any run. The catalogue makes a 4B model copy 36-character UUIDs
+  a dozen-plus times an answer; the modules already have slugs. The cheapest fix to try.
+- **Every success recommended Frontend — 13 of 13**, including the profile written to test
+  whether backend is ever chosen. The strongest signal the evaluation produced.
+- **Hints give away fixes** in both runs that produced feedback (open question 12).
+- **The resume summary claims knowledge for a learner with none**, all three runs (open
+  question 11).
+
+An earlier entry above called the Roadmap AI weak on the strength of two runs. The fuller
+picture is better and more precise: run 3 produced **6 of 6** roadmaps while only 3 were
+valid first time, so the validator caught every bad plan and regeneration fixed it. The model
+is unreliable per attempt; the pipeline is mostly reliable per job. That is the retry loop
+doing exactly what §7 designed it to do, and it is only visible because `rejections` are now
+recorded.
+
+#### Still to run
+
+- **qwen3.5:9b** — the comparison `model-setup-guide.md` §13 exists for. Every run so far has
+  been 4B.
 
 ### 2026-09-29 — The roadmap is v2's spine, not a zoomable canvas
 

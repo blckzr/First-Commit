@@ -15,14 +15,14 @@ import type { Catalogue, CatalogueModule } from "../roadmap/catalogue.js";
  * change a prompt in place" means in practice, rather than a rule people
  * remember to follow.
  */
-export const PROMPT_VERSION = 2;
+export const PROMPT_VERSION = 3;
 
 export const SYSTEM = `You plan learning roadmaps for First Commit, a platform for people learning to program for the first time.
 
 You are given a catalogue of modules an admin has published, and what is known about one learner. You choose a track, decide the order, and explain your reasoning.
 
 Rules:
-- Use only the module ids and track ids from the catalogue. Never invent one.
+- Refer to a module by its slug, exactly as the catalogue spells it, and to a track by its title. Never invent one.
 - Include every core module, and every module of the track you choose.
 - A module must come after everything it requires. The catalogue is already listed in an order that satisfies this, so you may keep it.
 - Do not include technology modules. The learner chooses their framework later, and those modules are added then.
@@ -78,8 +78,18 @@ function describeLearner(catalogue: Catalogue): string {
         .join("; ")}. Put what they are least sure of earlier.`
     : "No placement ratings recorded. Assume nothing is already known.";
 
-  const passed = catalogue.learner.completedModuleIds.length
-    ? `Already passed, at placement or on another roadmap: ${catalogue.learner.completedModuleIds.join(", ")}. Keep these on the roadmap — the chart shows them as passed.`
+  /**
+   * By slug, like everything else the model reads. These were printed as raw
+   * UUIDs, which told it nothing it could act on — it could not match them
+   * against the catalogue entries it was also shown as UUIDs without doing
+   * string comparison on hex.
+   */
+  const bySlug = new Map(catalogue.modules.map((m) => [m.id, m.slug]));
+  const passedSlugs = catalogue.learner.completedModuleIds
+    .map((id) => bySlug.get(id))
+    .filter((slug): slug is string => Boolean(slug));
+  const passed = passedSlugs.length
+    ? `Already passed, at placement or on another roadmap: ${passedSlugs.join(", ")}. Keep these on the roadmap — the chart shows them as passed.`
     : "Nothing passed yet.";
 
   return [`The learner ${experience}, ${goal}, and has ${hours}.`, placement, passed].join("\n");
@@ -93,7 +103,7 @@ function describeModule(module: CatalogueModule, catalogue: Catalogue): string {
     .join(", ");
 
   return [
-    `  - ${module.id}`,
+    `  - ${module.slug}`,
     `    ${module.title} (${module.skillName}, ${module.estimatedHours}h)`,
     `    ${module.description}`,
     requires ? `    requires: ${requires}` : null,
@@ -113,7 +123,7 @@ export function buildRoadmapMessages(input: RoadmapPromptInput): ChatMessage[] {
       const concept = modules.filter((m) => m.layer === "concept");
       const decisions = track.decisions.map((d) => d.title).join(", ") || "none";
 
-      return `Track ${track.id} — ${track.title}
+      return `Track: ${track.title}
   ${track.description}
   Who it suits: ${track.audience}
   Technology decision: ${decisions}

@@ -38,6 +38,34 @@ export type CodeFeedback = z.infer<typeof CodeFeedback>;
  * arithmetic the platform already has is the thing §7 exists to prevent, and it
  * costs tokens on an 8GB budget.
  */
+/**
+ * What the **model** returns: modules by slug, the track by title.
+ *
+ * It used to answer in UUIDs, because that is what the catalogue stores. Three
+ * evaluation runs found that every single rejected attempt was a miscopied id —
+ * not one prerequisite violation, not one core-coverage miss — including a
+ * splice of two different UUIDs and a well-formed id belonging to nothing. A 4B
+ * model asked to reproduce a 36-character hex string a dozen-plus times per
+ * answer will eventually get one wrong, and there is no reason to ask it to:
+ * `modules.slug` is unique, short, and meaningful, and a track's title is unique
+ * within its career path.
+ *
+ * `resolvePlan()` in `roadmap/resolve.ts` turns this into `RoadmapPlan` before
+ * anything is validated or written, so ids never leave the server.
+ */
+export const RoadmapPlanDraft = z.object({
+  recommendedTrack: z.string().describe("The title of one published track, exactly as listed"),
+  skipModuleSlugs: z
+    .array(z.string())
+    .describe("Modules the placement result proves the learner already knows"),
+  orderedModuleSlugs: z
+    .array(z.string())
+    .describe("Every module the learner will take, in the order to take them, by slug"),
+  explanation: z.string().describe("Two or three sentences shown on the roadmap review page"),
+});
+export type RoadmapPlanDraft = z.infer<typeof RoadmapPlanDraft>;
+
+/** The same plan in the platform's own terms, after slugs are resolved to ids. */
 export const RoadmapPlan = z.object({
   recommendedTrackId: z.string().describe("The id of one published track"),
   skipModuleIds: z
@@ -58,12 +86,49 @@ export const ResumeContent = z.object({
 });
 export type ResumeContent = z.infer<typeof ResumeContent>;
 
-/** Rejects feedback that hands the learner a solution. */
+/**
+ * Whether a hint hands over a fragment of the fix rather than pointing at the
+ * problem.
+ *
+ * **Naming a thing is allowed; spelling the answer is not.** "Use the
+ * `minLength` variable" and "try an `if` statement" point somewhere, which is
+ * what §7 asks a hint to do. A backticked span holding an operator, a call or an
+ * assignment — `>=`, `count++`, `sentence.split(" ")` — is the answer written
+ * out, and there is nothing left for the learner to work out.
+ *
+ * Exported so the evaluation harness can check accepted answers with the same
+ * rule the guard applies, rather than keeping a second copy that could drift.
+ */
+export function givesCode(hint: string): boolean {
+  const spans = hint.match(/`[^`]+`/g) ?? [];
+  return spans.some((span) => /[=<>(){};]|\+\+|--/.test(span.slice(1, -1)));
+}
+
+/**
+ * Rejects feedback that hands the learner a solution (§7: "never the corrected
+ * code").
+ *
+ * **This used to miss the common case.** It rejected a hint only for a fenced
+ * block or *more than one* line containing code punctuation, so every
+ * single-line fix passed — "change the comparison operator from `>` to `>=` on
+ * line 5" reached the learner untouched. The first evaluation run shipped ten
+ * such hints across eight of seventeen answers while §9.1's leakage metric read
+ * 0%, because the metric counted this function's rejections rather than what the
+ * model actually wrote.
+ *
+ * The inline check costs retries, and it will also reject a fair question that
+ * quotes the operator — "is `>=` what you want here?". That is the accepted
+ * trade, decided rather than stumbled into: §7's rule is the stricter reading,
+ * and the same question can always be asked in words.
+ */
 export function noSolutionLeak(feedback: CodeFeedback): string | null {
   for (const issue of feedback.issues) {
     const codeLines = issue.hint.split("\n").filter((l) => /[;{}()=]/.test(l)).length;
-    if (/```/.test(issue.hint) || codeLines > 1) {
-      return "A hint contains code. Hints must guide the learner with words or a question, not give code.";
+    if (/```/.test(issue.hint) || codeLines > 1 || givesCode(issue.hint)) {
+      return (
+        "A hint contains code. Hints must guide the learner with words or a question, " +
+        "not give code — describe the change to make instead of writing it out."
+      );
     }
   }
   return null;

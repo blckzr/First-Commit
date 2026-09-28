@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { noSolutionLeak } from "../schemas.js";
 import { validateRoadmapPlan } from "../roadmap/validate.js";
-import { isLeak } from "./code-feedback.js";
+import { hintGivesCode, isLeak } from "./code-feedback.js";
 import { classify } from "./roadmap.js";
 
 /**
@@ -124,4 +124,49 @@ describe("roadmap rejections are sorted by the validator's own wording", () => {
       "a reason was counted twice or not at all",
     ).toBe(1);
   });
+});
+
+describe("hints that hand over the fix", () => {
+  /**
+   * **These came out of a real run and were all accepted.** `noSolutionLeak`
+   * needs a fenced block or more than one line of code punctuation, so a
+   * one-line fix reaches the learner. §9.1 asks for the model's leakage rate,
+   * which is why this is counted separately from what the guard rejected.
+   */
+  it.each([
+    "Change the comparison operator from `>` to `>=` on line 5.",
+    "Think about what happens if you change `count += word.length` to `count++`.",
+    'Try running your code again after changing line 3 to `sentence.split(" ")`.',
+    "Try changing this to split by a space: `sentence.split(\" \")`",
+  ])("rejects %s", (hint) => {
+    expect(hintGivesCode(hint)).toBe(true);
+    // Every one of these was **accepted and shown to a learner** before the
+    // guard was tightened; each asserts it would not be now.
+    expect(noSolutionLeak(feedbackWith(hint))).not.toBeNull();
+  });
+
+  /**
+   * **The cost of tightening, kept visible.** Naming a thing points at the
+   * problem, which is what §7 asks a hint to do, and these must keep passing —
+   * a guard that rejected them would push the model toward vaguer feedback,
+   * which is the opposite of the goal.
+   */
+  it.each([
+    "Look at the `minLength` variable. Is every word being measured against it?",
+    "What separates the words in your example sentence?",
+    "Think about which item the loop starts from, and whether anything comes before it.",
+    "Recall how you handled the default greeting. Could the name work the same way?",
+  ])("still allows %s", (hint) => {
+    expect(hintGivesCode(hint)).toBe(false);
+    expect(noSolutionLeak(feedbackWith(hint))).toBeNull();
+  });
+
+  function feedbackWith(hint: string) {
+    return {
+      summary: "Close.",
+      issues: [{ line: 1, problem: "Something is off.", hint }],
+      rubric: [],
+      encouragement: "Keep going.",
+    };
+  }
 });
