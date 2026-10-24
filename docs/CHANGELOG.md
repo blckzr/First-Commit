@@ -11,6 +11,812 @@ lives under `[Unreleased]` until there is something to version.
 
 ## [Unreleased]
 
+### 2026-10-24 — The certificate QR code, and three assertions that proved nothing
+
+§5.15: the verification page is reached "via link or QR code". The link half was built; the code
+half was not. `renderCertificatePdf()` now draws one under the verification URL.
+
+#### `qrcode`, not `qrcode.react` — and §13.1 was corrected
+
+§13.1's table suggested `qrcode.react`. That is a React component, and **§5.15 puts no QR on any
+screen** — only View, Download PDF and Copy verification link. The QR belongs on the certificate,
+which pdfkit renders on the server, where a browser component cannot run. So the dependency is the
+Node `qrcode` package in `apps/api`, and §13.1 now says so with the reason.
+
+- **The written link stays, and is not a fallback.** §12 commits to it: "QR codes are always
+  accompanied by the written verification link." A QR is unreadable to a screen reader and useless
+  on a printout to somebody without a phone, so the text is the accessible path.
+- **A QR failure costs a convenience, not a download.** `renderQr()` returns `undefined` rather than
+  throwing, and is drawn last, so nothing here can cost the certificate its words.
+- Error correction level M — survives a crease or a thumb over a corner without a much denser image.
+
+#### Three versions of one assertion, two of which proved nothing
+
+Writing "the QR encodes *this* certificate's URL" took three attempts, and the first two passed
+while asserting nothing:
+
+1. **Everything after `/Subtype /Image`** read the XObject's *dictionary*. Two URLs of the same
+   length encode to the same QR version, so both said `/Height 186 /Width 186` — metadata that
+   could not differ.
+2. **The first image stream** read the **SMask**, the alpha channel, which is uniformly opaque for
+   every QR code ever drawn. Identical by nature.
+3. **All image streams, compared as a set.** This one fails when the derivation is broken —
+   confirmed by mutation: encoding a fixed URL instead of the certificate's failed it, and nothing
+   else.
+
+That is the fourth, fifth and sixth time in this repo that an assertion matched something failure
+produces too. The pattern is the same every time: **assert on the thing that must change, not on
+the thing nearby that happens to be visible.**
+
+Also found while testing: pdfkit writes **two** image XObjects for one PNG — the pixels plus the
+SMask. The count assertion is "at least one" so a `qrcode` release that stops emitting alpha does
+not fail it.
+
+**Not covered by a test:** that a phone camera resolves the code to the right page. Reading back an
+image this test just asked a library to write would mostly test the library against itself, so
+scanning a built PDF is a manual check, recorded as one in docs/task-tracker.md.
+
+### 2026-10-24 — Certificate lookup, and what an admin may not do
+
+§6.7's screen. `/admin/certificates` replaces a `Placeholder`; the list and revoke endpoints had
+been drivable only by curl since they were written.
+
+**Two of §6.7's four areas, and the other two are honestly absent.** Issued (search by name, email
+or code; open the public verification page) and Revoke are built. **Templates and Reissue are not**
+— neither has an endpoint, and reissue needs a column to point the old code at the new certificate.
+The screen carries a short "Not built yet" note instead of a button that does nothing.
+
+#### Most of what the screen is tested on is what it cannot do
+
+- **No issue button, and a test that it never grows one.** §6.7: "Certificates are issued
+  automatically when requirements are met; there is no manual issue button." §6 rule 1 is why —
+  `syncCertificates()` reads evidence and decides, so a certificate always means the platform
+  checked. The screen says this in its own copy, above the search box.
+- **Nothing is withdrawn without a reason.** The button stays disabled until the box has text.
+- **An already-revoked certificate offers no second revoke**, which matches the endpoint: it filters
+  on `status = 'valid'`, so a repeat is a 404 rather than a second log entry.
+
+**Both of the last two were mutation-tested.** Dropping the reason requirement failed one test;
+offering revoke on a revoked certificate failed another. One test each, no overlap.
+
+`--error` is the right token for a revoked certificate — unlike on an integrity flag, where the
+icon is `--notice`. A revocation is a fact about the certificate; a flag is a question about a
+learner, and §8 reserves `--error` for what failed rather than for a person.
+
+12 tests, including an axe pass taken with the revoke form open.
+
+### 2026-10-24 — Project reviews, and a decision §6.6 reversed
+
+§6.6's screen. `/admin/reviews` was a `Placeholder`; the integrity API had been drivable only
+by curl since the day it was written.
+
+#### §6.6 settled something against an earlier decision
+
+> "Rejecting a project revokes its Project Certificate and notifies the learner with the
+> reason."
+
+The integrity endpoint did the opposite, deliberately, with a test asserting it: the reasoning
+was that "we looked and it was fine" and "we withdrew this" should not be one click. **That
+holds for three of the four outcomes and fails for the fourth.** Rejecting a project *is* the
+judgement that it was not earned, and a rejected project holding a valid certificate is a state
+the platform should never be able to reach.
+
+So the code moved, not the document. `rejected` now revokes the Project Certificate **in the
+same transaction** as the ruling, with its own `admin_activity_log` entry — two things happened
+to the learner, so two entries. `cleared`, `explanation_requested` and `redo_requested` leave it
+standing, and a parameterised test covers all three.
+
+**Not built: the notification.** §6.6 also says the learner is told, and nothing writes the
+`notifications` table yet. Recorded rather than quietly dropped.
+
+#### The screen
+
+Flag list and detail panel, two columns over a container query. The commit history and the
+explanation answers sit beside the learner's name — **the evidence, not a conclusion.** Every
+signal here has an innocent explanation, and somebody who built offline for a week looks
+identical from the platform's side to somebody who pasted a finished repository.
+
+- **Nothing can be decided without a reason.** All four buttons are disabled until the box has
+  text — the screen enforces §6 rule 10 before the endpoint has to.
+- **The reject button says what it does**: "This revokes the Project Certificate." An admin
+  should not have to learn that from a changelog.
+- The flag icon is `--notice`, **not `--error`**. The project has not been judged, and a red
+  mark beside somebody's name before anybody has looked is a verdict the platform has not
+  reached (§8: `--error` marks what failed, never a learner).
+- An unanswered question renders as "Not answered", distinct from a short one — the same
+  distinction the detector makes.
+- 13 tests, including an axe pass taken **after** the detail panel loads, so it covers the
+  textarea and the four ruling buttons rather than the list alone.
+
+### 2026-10-05 — The webhook, the backstop, and revocation
+
+Three Phase 4 items, and a correction to something this changelog said more than once.
+
+#### The webhook was never blocked on deployment
+
+`POST /webhooks/github` is built and proved. A public HTTPS address is what GitHub needs to
+**reach** it — it is not what the endpoint needed to exist. The signature, the deduplication
+and the push handling are all exercised against supertest today; deploying turns it on rather
+than writing it. Earlier entries called the whole item blocked, which was wrong.
+
+- **The signature is the entire authentication.** No cookie, no Origin worth trusting, so
+  §6.1's session rules cannot apply. An HMAC over the **raw** body, compared with
+  `timingSafeEqual` — a byte-by-byte comparison leaks in its timing how much of a guess was
+  right, which is enough to find a valid signature one character at a time.
+- **The raw body is kept by `express.json`'s `verify` hook.** GitHub signs the bytes it sent;
+  `JSON.stringify(req.body)` differs in key order, spacing and unicode escaping, so a signature
+  checked against a re-serialised object would never match. There is a test that sends
+  deliberately differently-spaced JSON.
+- **Unconfigured means closed.** Without `GITHUB_WEBHOOK_SECRET` every delivery is refused,
+  because accepting unsigned payloads when no secret is set turns a missing environment
+  variable into a door that writes commit history for any project somebody can name.
+- **Retries are the normal case.** `delivery_id` is unique and a repeat answers 200 — an error
+  would have GitHub retry for ever, and repeated failures eventually disable the webhook for
+  the whole App, for every learner, because of one project. A processing failure is stored on
+  the row and still answers 200 for the same reason.
+- Pushes are matched on the **numeric repository id**, so renaming or transferring a repository
+  does not orphan its history.
+- 16 tests; disabling the signature check fails two.
+
+#### The commit backstop is in the API, not the worker
+
+§6.2 says "the worker also checks for new commits periodically". It is in the API instead, and
+the reason is not convenience: **the worker has no GitHub credentials.** The App's private key
+is the API's alone, and the worker exists to make only outgoing calls to Ollama and the
+database. Giving it the key to satisfy the letter of §6.2 would spread the most sensitive
+secret in the project across two processes to save one timer. §6.2 should be amended to say
+"the API"; the behaviour is exactly what it describes.
+
+There are now **three** paths into `project_commits` — the webhook, the read, and the sweep —
+and the `on conflict (project_id, sha) do nothing` clause that was a hypothetical when
+`commits.ts` was written is now load-bearing for all three. 7 tests, including one that drives
+a client which ignores `since` and returns the whole history every time.
+
+#### Revoking a certificate stops being SQL by hand
+
+`/admin/certificates` lists and searches; `PATCH …/revoke` withdraws one. Until now the single
+admin action that **takes something away from a learner** was the only one with no audit trail.
+
+- A reason is required by Zod **and** by the schema's
+  `check ((status = 'revoked') = (revoked_reason is not null))`.
+- The revocation and its `admin_activity_log` entry are one transaction (§6.1 step 5).
+- `where status = 'valid'` makes a second revocation a 404 rather than a second log row
+  claiming it happened twice. The mutation that drops it fails a test.
+- **Revoked, never deleted** (§6 rule 5): the `public_code` survives, so whoever holds the link
+  is told it was withdrawn rather than given a 404 that could mean anything. §5.15's page shows
+  the date and deliberately not the reason — asserted.
+- **There is still no endpoint that issues one**, and a test asserts the admin surface did not
+  quietly become one: the body is `.strict()`, so a request carrying `status: "valid"` is
+  refused rather than ignored.
+
+### 2026-10-05 — Integrity signals, and somewhere to judge them
+
+Phase 4's last buildable piece. Flags are raised when a project completes, and `/admin/integrity`
+is the second admin surface — built together, because detection with nowhere to be read is the
+state `ai_feedback_flags` was in before `/admin/flags` existed.
+
+#### A flag is a question, not a verdict
+
+Every signal here has an innocent explanation. Somebody who builds offline for a week and pushes
+once has done the work; somebody who pasted a finished repository looks identical from the
+platform's side. So a flag **changes nothing for the learner**: the milestone still passed, the
+Project Certificate is still issued, and nothing on their screen moves. Both are asserted.
+
+Withholding a certificate on suspicion would punish the many people who simply work in an
+unusual order, and §6 rule 10 says the same thing from the other side — an admin's correction is
+a logged override with a reason, never a silent change.
+
+#### Two signals, and one deliberately left out
+
+- **`single_commit`** — fewer pushes than half the milestones, and only on briefs of three or
+  more, so a short brief is never flagged for being short.
+- **`weak_explanation`** — an answer under 40 characters. The threshold is generous on purpose:
+  a false flag costs an admin's attention and a learner's benefit of the doubt.
+- **Similarity is not built.** It needs cross-project comparison and a threshold nobody has
+  calibrated; the enum keeps the value for when it is.
+
+**An unanswered question is not a weak answer.** The tests surfaced this: nothing requires an
+answer — the checks decide a milestone and §5.14's question sits beside them — so treating null
+as weak would flag very nearly every project, and a signal that fires on everyone tells an admin
+nothing. Only an answer somebody actually wrote is judged.
+
+#### The admin half
+
+`/admin/integrity` follows `/admin/flags` exactly: **404 rather than 403** from `requireAdmin`,
+because a 403 confirms the route exists to somebody who should not know it does; and the ruling
+and its `admin_activity_log` entry are **one transaction** (§6.1 step 5).
+
+A ruling always carries a reason — enforced by Zod *and* by the schema's
+`check (status = 'open' or decision_reason is not null)`. The two say the same thing in two
+places on purpose: the constraint is what holds if a future endpoint forgets the validation.
+
+**Deciding a flag does not revoke a certificate.** Keeping them apart means "we looked and it was
+fine" and "we withdrew this" can never be the same click. There is a test.
+
+`GET /admin/integrity/:id` is the **only** endpoint that returns an explanation answer — §5.14
+says they are "saved for admin review if the project is flagged", and that is exactly the
+condition.
+
+#### 17 tests, two mutations caught
+
+Dropping `requireAdmin` from the ruling route, and making the reason optional. Also fixed along
+the way: pg-mem will not implicitly cast a text parameter to an enum in an `insert … select`
+where PostgreSQL would, so the cast is explicit now — better SQL either way.
+
+### 2026-10-01 — Finishing a capstone now earns something
+
+Everything Phase 4 built was unconnected to the two things it existed to produce. Three pieces
+were in place and none of them joined up:
+
+- `capstone_projects.completed_at` was **never set** — `milestones.ts` set it on *attempts*,
+  never on the project.
+- **No code issued a Project Certificate.** `syncCertificates()` only handled `completion`.
+- The resume reads `where p.completed_at is not null`, so its Projects section could never fill.
+
+#### Added
+
+- **A project is finished when its milestones are**, worked out by the platform rather than
+  claimed: every milestone of the brief must hold a `complete` attempt, which only `evaluate()`
+  writes from checks the API ran (§6 rule 1). Written on the read that completes the last one,
+  the same way `syncCertificates()` decides on read.
+- **`issueProjectCertificates()`** — separate from the completion certificate, because they are
+  different claims about different evidence: one says the modules were passed, the other that a
+  project was built. A learner can hold the first for ever without earning the second, which is
+  the state §5.15 draws as locked.
+  - **No skills on it.** They belong to the Certificate of Completion; repeating them would put
+    the same evidence on two documents.
+  - The repository and live address are **snapshotted**, like `recipient_name` — §5.15 shows
+    them, and the certificate has to keep saying what it said the day it was issued even if the
+    learner later renames or deletes either.
+  - The schema enforces the pairing (`check ((type = 'project') = (project_id is not null))`),
+    so a project certificate without a project cannot be written at all.
+- **The resume's Projects section fills**, which closes §9.1's "resume at the completed-project
+  level" — the evaluation harness has reported that as not measurable since the day it was
+  written.
+- 9 API tests and 3 screen tests. The mutation — completing the project when *any* milestone is
+  complete rather than every one — fails two of them.
+
+#### Two strings that had quietly become lies
+
+`GET /certificates` returned `reason: "capstone-not-built"`, and the screen printed "Capstones
+aren't built yet". Both were true while the capstone was unbuilt and became false the moment it
+was built — and nothing failed, because no test asserts that a hard-coded string is still
+accurate. A learner finishing their modules this week would have been told the feature does not
+exist while the Capstone page sat in their own navigation.
+
+The reason is now computed: **no project started**, or **in progress with a milestone count**
+("you have completed 2 of 5 milestones"), or earned. The response is a union rather than one
+shape with optional fields, so the screen cannot read a milestone count off a certificate that
+has been earned.
+
+### 2026-10-01 — `milestone_review`, the last AI stub
+
+All four job types are now implemented. The empty panel in §5.14 has something in it.
+
+#### A documentation error found first
+
+AGENT.md §7's job table, the task tracker, and a comment in `worker.ts` all said "output schema
+already in `schemas.ts`". **It was never written.** Three places asserting a fact that was not
+true; the schema is there now and the claims are corrected.
+
+#### Added
+
+- **`MilestoneReview`** in `schemas.ts` — a summary, a judgement per review-checklist item with
+  the evidence from the diff, and one next step.
+- **`noUnearnedPass()`**, the grounding guard, with two rules:
+  - **It must not call a milestone finished when a check failed.** The status comes from the
+    checks; a model saying "all done" over a failing test would contradict the row beside it on
+    screen and be believed anyway, because it reads more kindly. Deliberately narrow — "adding
+    and editing work" is true and useful about a partly working milestone, so only a claim about
+    the *whole* of it is rejected, and the same sentences are allowed when everything passed.
+  - **The next step must not be the fix**, reusing `givesCode()` so there is one definition of
+    "this is the answer rather than a pointer" across both halves of the Code Review AI.
+- **`prompts/milestone-review.ts`** with `trimDiff()`, and **`AI_CONTEXT_LARGE`** — the one
+  place AGENT.md's budget allows 16,384 instead of 8,192.
+- **The API queues the job** once the checks reach a verdict, never while they are still
+  running: a model explaining results that have not arrived is the one thing §7 forbids.
+- **The AI panel** on the milestone tracker, through the shared `AiPanel` so it carries §7's
+  three requirements together — labelled as AI, a reason, and a flag control. `source_id` is the
+  attempt, so `POST /ai-outputs/:id/flags` works with no new endpoint.
+- 23 worker tests, 7 API tests, 2 screen tests.
+
+#### The diff travels in the payload
+
+The worker has no GitHub credentials — the App's private key lives only in the API — so the API
+fetches the diff and sends it, exactly as `queueFeedback` sends files and test results. The
+check results travel with it, which is what keeps §7's ordering intact: the model is handed
+conclusions rather than asked to reach them.
+
+`trimDiff()` enforces the budget rather than trusting the caller. Generated files (lockfiles,
+`dist/`) are dropped outright, each file is capped **before** the total is, and truncation is
+announced in the text so the model can say it saw only part. The failure that prevents: one
+large lockfile filling the window, pushing the checks, the checklist and the criteria out of the
+prompt — and the model still writing a confident review, about nothing.
+
+#### Another test that proved nothing
+
+"Does not queue a second review" passed with the duplicate guard removed. In the ordinary flow
+`evaluate` runs once per (milestone, commit), so `queueReview` is never called twice and the
+guard was never reached. The test now forces the real path — an attempt put back to `checking`
+and re-read, which is what a workflow finishing between two reads looks like, and what two open
+tabs polling at once reach as well. **Only then did removing the guard fail.**
+
+That is three times this week: asserting an outcome that failure also produces proves nothing.
+
+### 2026-10-01 — The milestone tracker screen
+
+§5.14 stage 3, built. Phase 4 item 6 is finished: a learner can now choose a brief, connect a
+repository, push, and watch the checks decide each milestone.
+
+#### Added
+
+- **`features/capstone/MilestoneTracker.tsx`** — the milestone list, the detail panel with
+  acceptance criteria, related modules and checks, the explanation question, the live-address
+  field, and a completion message. Push history sits below it on the capstone screen.
+- Two columns once the tracker is 720px wide, via a **container query** rather than a media
+  query, so the panel behaves the same wherever it is placed. One column below that, list
+  first — which is also the reading order.
+- 11 screen tests, including an axe pass over the fullest state the panel has.
+
+#### Status is icon, text **and** colour
+
+§8 requires all three, and this is the screen where it matters most: a learner scanning five
+milestones for the one needing attention is exactly who a colour-only signal fails. Every
+milestone carries a word — "Complete", "Not passing yet", "Checks running", "Not started" —
+and so does every check.
+
+**"Still running" is the one that earns its place.** A check that has not finished is not a
+check that failed, and the distinction is carried all the way from `checks.ts` to the markup.
+The test asserts a single panel showing "Passed", "Still running" and "Not passing" at once,
+because that is the state a learner hits a few seconds after pushing.
+
+Checks live in a **polite live region** (§12), since they update underneath the learner as the
+workflow finishes.
+
+#### Deliberately absent
+
+§5.14 draws an **AI review panel**. `milestone_review` is still a stub in the worker, so there
+is nothing to show and no `ai_outputs` row for the flag control to point at — and an AI panel
+without a label, a reason and a way to flag it would break §7. It arrives with the job type,
+like the technology recommendation and the brief "Recommended" badge before it.
+
+#### Also
+
+- `ProgressBar` takes a percentage and a required label; the bar here is given `hideLabel`
+  because the sentence above it is its text — §7 never allows a bare bar, and the label stays
+  as the accessible name.
+- The related-modules list is filtered to the learner's own technology on the server, so a
+  React learner is never sent to a Vue module that is not on their roadmap.
+
+### 2026-10-01 — Milestone attempts: the checks become evidence
+
+Phase 4 item 6, the API half. `capstone/milestones.ts` turns check results into
+`milestone_attempts` rows, and §5.14 stage 3 has something real to draw.
+
+#### Added
+
+- **`GET /roadmaps/:id/capstone/milestones`** — every milestone of the project's brief with
+  where the learner has got to. Reading it runs the checks for the milestone being worked on,
+  against the newest commit, and records the attempt. Same sync-on-read arrangement as
+  `commits.ts`.
+- **`PUT /roadmaps/:id/capstone/demo-url`** — §5.14's milestone 5 "asks for the live demo
+  link". The learner says *where*; whether it answers is decided by `isLive()` on the server,
+  which also refuses anything that is not a public HTTP address.
+- **`PUT …/milestones/:milestoneId/explanation`** — §5.14's explanation question. Saved for
+  admin review if the project is ever flagged. **Not graded, and it decides no milestone** —
+  the checks do that, which is why this writes only `explanation_answer`.
+- 13 API tests.
+
+#### Two §6 rules shaped this
+
+- **`milestone_attempts` is evidence** (§6 rule 1, which names it beside `module_completions`
+  and `certificates`). Every row is written from `runChecks()` — results the API computed from
+  what GitHub reports. No endpoint accepts a status, a check result or a `passed` flag, and
+  `DemoUrlBody` is `.strict()` so a body carrying one is **rejected** rather than ignored.
+  There is a test that posts `{ demoUrl, passed: true }` and expects a 400.
+- **`review_checklist` never leaves the server** (§6 rule 2 names rubrics). It is what the Code
+  Review AI judges against; `acceptance_criteria` is what the learner reads. The query selects
+  the second and not the first, and **the mutation — adding it to the select — fails the
+  test**. That leak would have been completely silent in production.
+
+#### The status is derived, never supplied
+
+Any check still pending leaves the whole attempt `checking`; any failure makes it `failed`;
+only all-passed is `complete`. The order matters — a milestone with one failing check and one
+still running is not complete, and is not yet a failure either.
+
+#### One milestone judged per read
+
+A test expectation of mine was wrong here, and the code was right: the current milestone is
+worked out **once** per read, so completing one judges the next on the *following* read rather
+than immediately. That is one milestone's worth of GitHub traffic per page load instead of the
+whole brief's, and the screen refetches within a second. Now written down in the code rather
+than left to be rediscovered.
+
+### 2026-10-01 — The three milestone checks
+
+Phase 4 item 5. `capstone/checks.ts` runs every check type the `check_type` enum names —
+`file_exists`, `workflow_test`, `deployment_url` — against one commit. 47 tests.
+
+#### Three outcomes, not two
+
+`passed`, `failed`, and **`pending`**. The third is the point. A learner who pushed ten
+seconds ago has no workflow run yet, and reporting that as a failure would tell them their
+code is wrong on no evidence at all. §5.14 draws exactly this state: "Running checks on
+commit a1b2c3d…".
+
+Pending also covers *GitHub could not be read* and *no step by that name* — the platform
+cannot tell a run that has not started from a test the template renamed, so it says the
+neutral true thing rather than blaming the learner for a test it cannot find.
+
+#### The deployment check fetches an address the learner chose
+
+Which is server-side request forgery unless it is fenced. Unguarded, `demo_url` could point
+at `localhost`, at another service inside the host's network, or at `169.254.169.254` — the
+cloud metadata endpoint that hands out credentials on some providers — and the pass or fail
+would be a readable answer about what is there.
+
+- HTTP(S) only, no credentials in the URL, and **every** resolved address must be public:
+  loopback, private ranges, link-local, carrier-grade NAT, unique-local, and the IPv4-mapped
+  IPv6 forms of all of them.
+- Resolution happens **before** the request, so a name that resolves privately is refused
+  rather than followed.
+- **Redirects are not followed.** A public address that redirects to `127.0.0.1` would walk
+  straight past a check done only on the original URL. A 3xx counts as a working site without
+  being chased.
+
+**The mutation is the evidence.** Disabling the public-address check failed 7 tests — and the
+private-range cases each took **5 seconds**, because without the guard they genuinely
+attempted outbound connections. The SSRF is visible in the timings.
+
+Those tests originally asserted only `ok: false`, which is *also* what a failed fetch
+returns — so they would have passed with the guard removed, since nothing listens on
+`127.0.0.1:80` here either. They now assert the **reason**, which is what distinguishes
+"refused before any request" from "tried it and it did not answer". Same lesson as the commit
+deduplication test, two days running.
+
+#### Fewer round trips, which is also correctness
+
+The repository tree is read **once per milestone** and shared by every `file_exists` check;
+workflow steps are cached per workflow file. A milestone with three file checks would
+otherwise be three requests against a rate limit shared by every learner on the installation.
+Both call counts are asserted.
+
+`listFiles` uses the git trees API with `recursive=1` — one request for the whole tree. A
+truncated tree (GitHub says when it truncates) is reported as a check that could not run,
+never as a file that is missing.
+
+#### The development fixtures fail on purpose
+
+The invented repository **lacks** `src/components/TaskForm.*`, which milestone 2 asks for, and
+one workflow step **fails** while another is still running. A fixture where everything passed
+would make a passing result mean nothing.
+
+### 2026-09-30 — Commits arrive, and a test that proved nothing
+
+Phase 4 item 4. `project_commits` fills from GitHub, and §5.14 stage 3 shows the latest push.
+
+#### The decision: sync on read
+
+§6.2 names two paths into `project_commits` — a webhook on every push, and a periodic check
+"in case a delivery fails while the API is waking from sleep". Neither exists yet: webhooks
+need a public address the API does not have.
+
+So the third path is the one this repo already uses for this exact shape of problem.
+`syncCertificates()` decides about certificates **when a learner opens the screen**; commits
+now do the same. A learner looking at their capstone is the moment the answer has to be
+current, and it needs no timer in a service that sleeps after fifteen minutes.
+
+This does not replace the webhook. When the API has an address, a push will arrive in seconds
+rather than on the next read, and this becomes the backstop §6.2 describes.
+
+#### Added
+
+- **`capstone/commits.ts`** — `syncCommits()` and `readCommits()`. Only commits newer than the
+  newest stored are fetched, using GitHub's own `since` filter, so a long history is read once
+  rather than on every open.
+- **`GitHubClient.listCommits()`**, with a development implementation whose history is **fixed
+  in time** — dates derive from the repository name, not `Date.now()`, so two reads a second
+  apart are not two different histories.
+- **Additions and deletions are deliberately not fetched.** GitHub gives them only per commit,
+  one request each, which would turn a 30-commit history into 31 calls against a rate limit
+  shared by every learner on the installation. The columns allow null and §5.14 shows neither.
+- §5.14 stage 3 now shows the short sha, the latest message, and how many commits are
+  recorded — and says plainly when GitHub is unreachable, because a history that may be behind
+  is not a history that was lost.
+
+#### A test that proved nothing, found by mutating
+
+The first version of "does not store a commit twice" passed with `on conflict … do nothing`
+**removed entirely**. Two separate reasons, and both are worth remembering:
+
+1. The development client honours `since`, so the second read returned nothing and the
+   conflict clause was never reached. The test was proving the `since` filter.
+2. After fixing that with a client that ignores `since`, it *still* passed — because without
+   the clause the duplicate insert **raises**, the request 500s, and no rows are added. A
+   count-only assertion cannot tell a crash from working deduplication.
+
+It now uses a client that returns the full history every time, as a webhook redelivery will,
+and asserts the request **succeeds** as well as adding nothing. Only then did removing the
+clause fail the suite. This is the property that will matter most once webhooks are on: the
+same push arriving twice must not double the history.
+
+### 2026-09-30 — Capstone stage 2: the screen
+
+§5.14 stage 2 end to end — the three numbered steps, the connect button, and the repository
+picker. With the development GitHub client the whole flow can be walked through today.
+
+#### Added
+
+- **`ConnectRepository`** in `/app/capstone`. The steps are an ordered list because they are
+  one, and only the third is a control: creating a repository and cloning it happen on GitHub
+  and on the learner's own machine, so those are instructions, not buttons that pretend.
+- **The starter template link** points at GitHub's `/generate` form — which creates the
+  *learner's own* repository from the template, rather than sending them to ours. The first
+  external link in the app; `LinkButton` takes `to` with an absolute URL, which React Router
+  renders as a plain anchor, so the styling is reused rather than copied.
+- **`starterRepo` on the project payload**, joined on the project's own technology through a
+  `left join`: a template withdrawn after a learner started must leave them with the step
+  missing, not the screen failing. There is a test for that.
+- 10 screen tests, including an axe pass over the connecting state — it is the only capstone
+  screen with real form controls, so it is the one where a missing label would actually cost
+  somebody the ability to finish.
+
+#### What the screen refuses to pretend
+
+- **A connected account GitHub cannot be reached for is not a disconnected one.** It says so
+  and does **not** offer to reconnect, which would be both wrong and useless.
+- **Start building stays disabled until a repository is chosen**, rather than guessing.
+- Stage 3 names the connected repository and says milestone tracking comes next. §9: say what
+  is true and what happens next, rather than drawing a tracker with nothing behind it.
+
+### 2026-09-30 — Pointing a capstone at a repository
+
+`PUT /roadmaps/:id/capstone/repository` — §5.14 stage 2's last step. The project moves from
+`connecting` to `in_progress` and gains the repository its commits and milestones will hang
+off.
+
+#### The two rules that make it safe
+
+- **The repository is named by GitHub's numeric id, and checked against the installation.** A
+  browser can send any number; only one that appears in the repositories **this learner's
+  installation currently grants** is accepted, read live rather than from a list the browser
+  was once handed. So a learner cannot attach a repository they do not own, or one they have
+  since removed the App from — and `repo_full_name` is GitHub's answer, not a string the
+  browser composed. Taking a *name* would have failed both ways: names are transferable, and
+  it would have been the browser's word for it.
+- **Only while `connecting`.** Once a project is building, its commits and milestone attempts
+  point at that repository; repointing would leave them describing work the project no longer
+  claims. Changing repository is starting again, which is a different action.
+
+`repo_github_id` is unique across projects, so two learners cannot both track one repository —
+that would be two Project Certificates for one piece of work.
+
+#### Also
+
+- GitHub being unreachable is a **503 that says to try again**, not a 500 — it is neither the
+  learner's fault nor permanent (§9).
+- `test/http.ts` gained a `put` helper. It had `post` and `get`; without the `Origin` header
+  the CSRF guard answers 403, so every new PUT test was asserting against the guard rather
+  than the handler. Two call sites needed it immediately.
+- 8 tests. The mutation — falling back to the first granted repository when the id matches
+  nothing — is caught.
+
+### 2026-09-30 — Connecting a GitHub account, without a GitHub App
+
+Phase 4 item 3, the API half. Built against a development client, so none of it waited on an
+App being registered — the same arrangement `mail/` uses, and for the same reason: AGENT.md
+says of the mailer that "no provider account is needed to work on auth".
+
+#### Added
+
+- **`GitHubClient`, one interface and two implementations.** `github/dev.ts` invents an
+  identity and a repository; `github/rest.ts` talks to GitHub. Unset settings mean the
+  development client, exactly as an unset `BREVO_API_KEY` means the console mailer. A
+  **half**-configured App is refused at boot naming what is missing, rather than failing at
+  the first API call with something unhelpful.
+- **The development client invents *consistently*** — identity and ids are hashed from the
+  code, so the same input always gives the same account. A client returning random values
+  would pass one test and hide every bug about storing the wrong id, or about a second
+  connect overwriting the first.
+- **`GET /github/connect`, `GET /github/callback`, `GET /github/connection`**, and the five
+  settings in `.env.example` with the exact registration steps: callback URL, "Request user
+  authorization during installation" ON, Metadata/Contents/Actions read, Push event.
+- 25 tests. Two mutations — disabling the `state` comparison, and dropping the per-learner
+  filter — caught by three tests and one respectively.
+
+#### The security decision
+
+**The callback is a GET that writes, and that is forced rather than chosen.** OAuth returns
+by browser redirect, so GET is the only method available and the CSRF guard — which covers
+state-changing *methods* — cannot help. The defence is a random `state` minted when the flow
+starts, held in an `httpOnly` cookie, and required to match on return.
+
+Without it, anyone could send a signed-in learner to
+`/github/callback?installation_id=<theirs>&code=<theirs>` and attach **their** repository to
+that learner's account, putting someone else's code behind that learner's Project
+Certificate. That is the test named "refuses a callback with no state cookie".
+
+One test's name was corrected before it shipped: it claimed to prove single use, which it
+does not. Replaying with the cookie still in hand would succeed — and deliberately so, since
+anyone holding the state cookie also holds the session cookie and has the account already. A
+security test that overstates what it checks is worse than none.
+
+#### Two credential types, which is the part that trips people up
+
+The OAuth client id and secret identify **the learner** — they answer "who is this". The App
+id and private key sign a JWT exchanged for an **installation** token, the only thing that
+can read the selected repository. Neither alone is enough: the first cannot read a
+repository, the second cannot name a person. `github_connections` stores the result of both.
+
+No dependency was added for the JWT — RS256 is `node:crypto` plus base64url.
+
+#### Fixed
+
+- **The development client returned a relative callback URL**, which a browser would have
+  resolved against the web app (:5173) instead of the API (:4000) — breaking the one flow
+  that client exists to make workable. `/github/connect` now resolves it against the API's
+  own host, leaving a real GitHub URL untouched. Found by reading it back, not by a test.
+
+### 2026-09-29 — Capstone stage 1: choosing a brief
+
+§5.14's first stage, end to end. It needs nothing outside the platform, so it works today
+while the GitHub App and the starter repositories are still outstanding.
+
+#### Added
+
+- **`GET /capstone`**, **`GET /roadmaps/:id/capstone`** and **`POST /roadmaps/:id/capstone`**.
+  The first resolves the learner's **active roadmap itself** — §5.14 lives at `/app/capstone`
+  with no id in the address, and which roadmap somebody is on is the server's answer, not a
+  parameter a browser could point at someone else's.
+- **`/app/capstone` is built and the navigation is unlocked.** It was a `Placeholder` behind a
+  locked nav item, so the screen could not be reached at all.
+- 27 API tests and 9 screen tests, axe included.
+
+#### Three rules the endpoint enforces, all from the server's own rows
+
+- **The roadmap is the learner's** — 404, never 403, because a 403 confirms it exists.
+- **The Certificate of Completion must exist.** That is the same gate `roadmaps/build.ts`
+  already draws when it locks the capstone step, read from the same row, so the screen and the
+  endpoint cannot drift into disagreeing about who may begin. A **revoked** certificate does
+  not count, and there is a test for it.
+- **The technology comes from `roadmap_technology_choices`, never the request.** `POST` takes a
+  brief id and nothing else, and the body is `.strict()` so one carrying a technology is
+  rejected outright rather than quietly ignored — otherwise a learner could put a framework
+  they never studied on their Project Certificate. The React learner gets the React starter
+  template and the Vue learner the Vue one, from the same brief.
+
+**Five mutations, all caught**: dropping the ownership filter, skipping the certificate gate,
+loosening the body schema, accepting any brief id, and dropping the track filter.
+
+#### Two things found while building it
+
+- **`on conflict (roadmap_id) do nothing` threw a 500 under the endpoint tests.** pg-mem will
+  not match `on conflict` to a **table-level** unique constraint, though PostgreSQL does — the
+  exact class of divergence `packages/test-db` exists to catch. Replaced with a plain insert
+  that turns a `23505` into a 409, which reads better anyway: the ordinary second click is
+  caught by the state check, and the constraint catches the race between two of them.
+- **`security.test.ts` failed the moment the routes were registered**, naming all three. That
+  is the test reading Express's own route registry doing exactly its job — a new endpoint
+  cannot ship without being listed and cross-learner tested.
+
+#### Deliberately absent
+
+§5.14 stage 1 shows a **"Recommended"** badge. There is no `brief_recommendation` job type in
+`ai_job_type`, so nothing could write one, and a badge chosen by the API would be an
+unlabelled recommendation with no reason and nothing to flag — which §7 forbids. It arrives
+with the job type, like the technology panel's.
+
+Stage 2 says plainly that connecting a repository is not ready and that the choice is saved,
+rather than drawing a "Connect with GitHub" button that cannot work.
+
+### 2026-09-29 — Phase 4 begins: the first capstone brief
+
+The capstone is the largest unbuilt piece and the half of the pitch the platform cannot
+currently deliver. Its schema was already complete — 11 tables, 5 enums — and §5.14 already
+draws all three stages, so this is building, not designing.
+
+**Content first, deliberately.** Everything downstream is built against a brief, and nothing
+here needs GitHub, so there is a working seed before any external dependency exists.
+
+#### Added
+
+- **`supabase/seed/capstone.mjs`** — the *Task tracker* brief for the Frontend track: one
+  published version, starter templates for React and Vue, and the five milestones §5.14's own
+  mockup names (set up the repository, build the layout, add and edit tasks, save tasks,
+  deploy). Each carries acceptance criteria the learner sees, a review checklist the Code
+  Review AI reads and the learner never does (§6 rule 2), and automatic checks. 17 related-
+  module links and 10 checks in all.
+- **The seed loads and validates it.** Six new checks, each for something that would otherwise
+  surface as a broken screen rather than a seed error: a brief on a track that does not exist,
+  a technology the track does not offer, a missing starter template for one it does, a
+  milestone with no acceptance criteria or no checks, a "related module" that names nothing,
+  and a last milestone with no `deployment_url` check — which would let a project be finished
+  without anything ever being live. **All six were mutation-tested**, and each names the brief,
+  the milestone and the problem.
+- **`packages/test-db` knows the capstone chain** — `starter_templates`, `milestones`,
+  `milestone_modules`, `milestone_checks`, `project_commits`, `milestone_attempts`,
+  `check_overrides`, `integrity_flags`, `github_connections` and `github_events`. Added in
+  dependency order, because the DDL runs in list order and pg-mem rejects a foreign key to a
+  table it has not created yet.
+
+#### Two decisions worth recording
+
+- **The checks lean on `workflow_test`, not on file paths.** `milestone_checks` belong to a
+  brief *version*, and a version has a starter template for *each* technology — one set of
+  checks has to pass for a React learner and a Vue learner alike. A test name is
+  technology-neutral by construction: both templates ship the same test names over completely
+  different code, which is exactly what §5.14's mockup shows ("✕ Test: rejects empty input").
+- **`file_exists` treats its `path` as a glob**, so `src/components/TaskForm.*` matches `.jsx`
+  and `.vue` without the check knowing which framework it is looking at. The schema comment
+  said `{path}` and still does; only the meaning of the value is now written down.
+
+#### Blocked on you, not on code
+
+- **The two starter repositories do not exist.** `first-commit/task-tracker-react` and
+  `-vue` are placeholders; the owner has to change to an account or organisation you control,
+  and the repositories have to be created with the tests the checks name. The seed validates
+  shape, not existence — a wrong name here is a dead button on §5.14 stage 2 and nothing else
+  will notice.
+- **The GitHub App is yours to register.** Stage 2 needs it. Everything before that does not.
+
+### 2026-09-29 — Onboarding asks the question the track recommendation depends on
+
+Open question 13, closed. Five evaluation runs across **both** model sizes recommended the
+Frontend track to **25 of 25** learner profiles, including one written to test the opposite.
+The model was not at fault, and no prompt change alone could have fixed it.
+
+#### The diagnosis
+
+Onboarding collected experience level, goal, weekly hours and per-skill placement ratings.
+**None of them distinguishes front-end work from back-end work.** Meanwhile the two seeded
+track blurbs were not symmetrical: Frontend's audience ended *"The most common first job, and
+the easiest to show in a portfolio"* — a general argument that fits every learner who wants a
+job — while Backend's described *"learners who prefer logic and data to layout"*, a preference
+the platform never asked about. The model went with the only asymmetry it could see, and its
+explanations quoted that blurb back. §5's promise that the Roadmap AI picks the track was not
+being kept.
+
+#### Added
+
+- **A fourth onboarding question** — "Which sounds more like you?", with *building things
+  people can see and use* / *working out logic and how data moves* / *I'd need to try both*.
+  §5.4 already specified "4 to 6 questions" and three were built, so this is the spec being
+  met rather than changed.
+  - **It never names a track.** Tracks belong to a career path and a second path would have
+    different ones, so the question asks a preference and the Roadmap AI reads it against each
+    track's "Who it suits". A new career path needs no new question.
+  - Stored in `survey_answers.workStyle` — no migration; that column exists for exactly this.
+    Merged rather than replaced, because `careerPathId` already lives there and a learner
+    walking Back to this page must not lose the path they chose. A test covers that.
+  - Required, not optional: a missing answer is what caused the problem.
+  - The "unsure" option reads *"I'd need to try both"* rather than *"I'm not sure yet"* —
+    the goal question above already uses that exact label, and two radios reading identically
+    on one page leave a screen-reader user no way to tell the groups apart.
+
+#### Changed
+
+- **The Frontend blurb drops the career argument**, so neither track carries a claim the other
+  lacks and the answer does the work instead of the copy. Rebalancing alone would have been
+  worse than doing nothing: it removes the thumb from the scale without adding information, so
+  the choice would have become arbitrary while still looking personalised.
+- **Roadmap prompt version 4** — the preference decides the track; the goal and the hours do
+  not, because every track leads to a job and any of them fits any number of hours a week.
+
+#### Measured
+
+`npm run evaluate -- roadmap`, immediately after:
+
+- **The `logical` profile now gets Backend** (11 modules) and the five `visual` profiles still
+  get Frontend — so it discriminates rather than simply flipping. All six first attempt, ~2.6s.
+- Its explanation cites the reason: *"you mentioned preferring logic and how data moves, which
+  matches who this path suits."*
+- **One fix needed a second pass.** The `unsure` profile's first explanation said *"you
+  mentioned wanting to see your work immediately"* — a preference that learner never stated,
+  which is the Roadmap AI inventing something about a person (§1). Moving the instruction from
+  the rules list to sit beside the fact fixed it: *"a starting point… you can change this
+  choice later if you prefer logic over layout."*
+
 ### 2026-09-29 — The resume summary is grounded too
 
 Open question 11, closed. The evaluation found this in its first run and reproduced it in

@@ -21,6 +21,10 @@ export function postFrom(app: Express, path: string, origin: string | null) {
   return origin === null ? req : req.set("Origin", origin);
 }
 
+export function put(app: Express, path: string) {
+  return request(app).put(path).set("Origin", config.appOrigin);
+}
+
 export function get(app: Express, path: string) {
   return request(app).get(path).set("Origin", config.appOrigin);
 }

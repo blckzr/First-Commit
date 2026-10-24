@@ -76,11 +76,15 @@ export function certificateRoutes(pool: Pool): Router {
        */
       progress,
       /**
-       * The Project Certificate is Phase 4. Reported as locked rather than
-       * omitted, because §5.15 shows it locked with a reason — and "not built
-       * yet" is a more honest reason than a milestone count we cannot produce.
+       * §5.15 shows the Project Certificate locked with a reason until it is
+       * earned.
+       *
+       * The reason is now a real one. It used to be the literal string
+       * "capstone-not-built", which was true while the capstone was unbuilt and
+       * became a lie the moment it was — the kind of placeholder that survives
+       * because nothing fails when it stops being accurate.
        */
-      projectCertificate: { available: false, reason: "capstone-not-built" as const },
+      projectCertificate: await projectCertificateState(pool, user.id),
     });
   });
 
@@ -163,4 +167,53 @@ export function certificateRoutes(pool: Pool): Router {
   });
 
   return router;
+}
+
+/**
+ * Why §5.15's Project Certificate card is locked, or that it is not.
+ *
+ * Four answers, each a different thing to tell somebody: no project started, one
+ * in progress with a milestone count, one finished, or — the state that only
+ * exists because the capstone gates on it — no roadmap finished yet, so there is
+ * nothing to build a project on.
+ */
+async function projectCertificateState(
+  pool: Pool,
+  userId: string,
+): Promise<
+  | { available: true }
+  | { available: false; reason: "no-project" | "in-progress"; complete?: number; total?: number }
+> {
+  const project = await pool.query<{ id: string; completed_at: Date | null }>(
+    `select p.id, p.completed_at
+       from capstone_projects p
+      where p.user_id = $1
+      order by p.started_at desc
+      limit 1`,
+    [userId],
+  );
+
+  if (!project.rows[0]) return { available: false, reason: "no-project" };
+  if (project.rows[0].completed_at) return { available: true };
+
+  /**
+   * A milestone count the screen can say out loud — "2 of 5 complete" — rather
+   * than a bare "locked". Counted from attempts, which is where the truth is.
+   */
+  const counts = await pool.query<{ total: string; complete: string }>(
+    `select
+       (select count(*) from milestones m
+          join capstone_projects p on p.brief_version_id = m.brief_version_id
+         where p.id = $1) as total,
+       (select count(*) from milestone_attempts a
+         where a.project_id = $1 and a.status = 'complete') as complete`,
+    [project.rows[0].id],
+  );
+
+  return {
+    available: false,
+    reason: "in-progress",
+    complete: Number(counts.rows[0]?.complete ?? 0),
+    total: Number(counts.rows[0]?.total ?? 0),
+  };
 }

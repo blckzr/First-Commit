@@ -36,7 +36,23 @@ export type Progress = z.infer<typeof Progress>;
 const CertificateList = z.object({
   certificates: z.array(Certificate),
   progress: z.array(Progress),
-  projectCertificate: z.object({ available: z.boolean(), reason: z.string() }),
+  /**
+   * §5.15's Project Certificate card.
+   *
+   * A union rather than one shape with optional fields, so the screen cannot
+   * read a milestone count off a certificate that has been earned, or a reason
+   * off one that has not.
+   */
+  projectCertificate: z.union([
+    z.object({ available: z.literal(true) }),
+    z.object({
+      available: z.literal(false),
+      reason: z.enum(["no-project", "in-progress"]),
+      /** Present on `in-progress`, so the card can say "2 of 5". */
+      complete: z.number().optional(),
+      total: z.number().optional(),
+    }),
+  ]),
 });
 export type CertificateList = z.infer<typeof CertificateList>;
 

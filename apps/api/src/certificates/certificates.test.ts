@@ -318,13 +318,20 @@ describe("§5.15 — earning one", () => {
     expect(res.body.progress[0]).toMatchObject({ required: 2, completed: 1, blockedBy: null });
   });
 
-  /** The Project Certificate is Phase 4; §5.15 shows it locked with a reason. */
-  it("reports the project certificate as unavailable", async () => {
+  /**
+   * §5.15 shows the Project Certificate locked with a reason.
+   *
+   * The reason used to be the literal string "capstone-not-built", which was
+   * true while the capstone was unbuilt and silently became a lie once it was
+   * built. A learner who has finished their modules but started no project is
+   * told that, which is a thing they can act on.
+   */
+  it("says there is no project yet, rather than that nothing is built", async () => {
     await finish();
     const res = await read("/certificates");
     expect(res.body.projectCertificate).toEqual({
       available: false,
-      reason: "capstone-not-built",
+      reason: "no-project",
     });
   });
 

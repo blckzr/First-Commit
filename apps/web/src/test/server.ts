@@ -107,7 +107,12 @@ export const api = {
     generation?: "queued" | "running" | "completed" | "failed" | null;
     /** design.md §5.4 — the skills to rate and the checks behind them. */
     placement?: { skills: unknown[] };
-    about?: { experienceLevel: string | null; goal: string | null; weeklyHours: number | null } | null;
+    about?: {
+      experienceLevel: string | null;
+      goal: string | null;
+      weeklyHours: number | null;
+      workStyle?: string | null;
+    } | null;
     careerPathId?: string | null;
   }) {
     server.use(
@@ -156,6 +161,119 @@ export const api = {
     server.use(path === "placement" ? http.post(url, handler) : http.put(url, handler));
   },
   /** design.md §5.7 — the roadmap the chart reads. */
+  /**
+   * §5.14 — the capstone. `stage` is the API's answer, not the screen's.
+   *
+   * A `project` gets the fields every project has filled in, so a test that
+   * only cares about the brief title does not have to restate a commit history
+   * — and adding a field to the payload does not break every fixture at once.
+   */
+  capstone(state: Record<string, unknown>) {
+    const project = state.project as Record<string, unknown> | null | undefined;
+    server.use(
+      http.get(`${BASE}/capstone`, () =>
+        HttpResponse.json({
+          stage: "locked",
+          reason: null,
+          technology: null,
+          briefs: [],
+          roadmapId: null,
+          ...state,
+          project: project ? { commits: [], githubReachable: true, ...project } : null,
+        }),
+      ),
+    );
+  },
+  capstoneStartSucceeds(seen?: (body: unknown) => void, roadmapId = "r1") {
+    server.use(
+      http.post(`${BASE}/roadmaps/${roadmapId}/capstone`, async ({ request }) => {
+        seen?.(await request.json());
+        return HttpResponse.json({ projectId: "p1", stage: "connect" }, { status: 201 });
+      }),
+    );
+  },
+  /** §5.14 stage 2 — the learner's GitHub connection. */
+  githubConnection(state: Record<string, unknown>) {
+    server.use(
+      http.get(`${BASE}/github/connection`, () =>
+        HttpResponse.json({
+          connected: false,
+          configured: false,
+          repositories: [],
+          ...state,
+        }),
+      ),
+    );
+  },
+  githubConnectUrl(url = "http://localhost:4000/github/callback?installation_id=1&code=dev&state=s") {
+    server.use(http.get(`${BASE}/github/connect`, () => HttpResponse.json({ url, configured: false })));
+  },
+  capstoneRepositorySucceeds(seen?: (body: unknown) => void, roadmapId = "r1") {
+    server.use(
+      http.put(`${BASE}/roadmaps/${roadmapId}/capstone/repository`, async ({ request }) => {
+        seen?.(await request.json());
+        return HttpResponse.json({ stage: "build", repoFullName: "learner/task-tracker" });
+      }),
+    );
+  },
+  /** §5.14 stage 3 — the milestone tracker. */
+  capstoneMilestones(
+    milestones: Record<string, unknown>[],
+    latestCommitSha: string | null = "a1b2c3d4e5",
+    roadmapId = "r1",
+  ) {
+    server.use(
+      http.get(`${BASE}/roadmaps/${roadmapId}/capstone/milestones`, () =>
+        HttpResponse.json({
+          milestones: milestones.map((m, i) => ({
+            id: `m${i + 1}`,
+            sortOrder: i,
+            title: "A milestone",
+            acceptanceCriteria: [],
+            explanationQuestion: null,
+            modules: [],
+            status: "not-started",
+            commitSha: null,
+            checks: [],
+            explanationAnswer: null,
+            review: null,
+            ...m,
+          })),
+          latestCommitSha,
+        }),
+      ),
+    );
+  },
+  capstoneExplanationSucceeds(seen?: (body: unknown) => void, roadmapId = "r1") {
+    server.use(
+      http.put(`${BASE}/roadmaps/${roadmapId}/capstone/milestones/:milestoneId/explanation`, async ({ request }) => {
+        seen?.(await request.json());
+        return HttpResponse.json({ saved: true });
+      }),
+    );
+  },
+  capstoneDemoUrlSucceeds(seen?: (body: unknown) => void, roadmapId = "r1") {
+    server.use(
+      http.put(`${BASE}/roadmaps/${roadmapId}/capstone/demo-url`, async ({ request }) => {
+        seen?.(await request.json());
+        return HttpResponse.json({ demoUrl: "https://example.com" });
+      }),
+    );
+  },
+  capstoneRepositoryFails(status: number, error: string, roadmapId = "r1") {
+    server.use(
+      http.put(`${BASE}/roadmaps/${roadmapId}/capstone/repository`, () =>
+        HttpResponse.json({ error }, { status }),
+      ),
+    );
+  },
+  capstoneStartFails(status: number, error: string, roadmapId = "r1") {
+    server.use(
+      http.post(`${BASE}/roadmaps/${roadmapId}/capstone`, () =>
+        HttpResponse.json({ error }, { status }),
+      ),
+    );
+  },
   roadmap(roadmap: unknown, id = "r1") {
     server.use(http.get(`${BASE}/roadmaps/${id}`, () => HttpResponse.json({ roadmap })));
   },

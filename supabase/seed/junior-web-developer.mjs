@@ -69,7 +69,7 @@ export const tracks = [
     title: "Frontend",
     description: "The part of the product people see and click.",
     audience:
-      "Learners who want to see their work immediately and care how things look and feel. The most common first job, and the easiest to show in a portfolio.",
+      "Learners who want to see their work immediately and care how things look and feel.",
     sortOrder: 0,
     decision: {
       title: "Choose your framework",

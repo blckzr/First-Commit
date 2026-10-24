@@ -78,6 +78,81 @@ export const RoadmapPlan = z.object({
 });
 export type RoadmapPlan = z.infer<typeof RoadmapPlan>;
 
+/**
+ * A capstone milestone review (`design.md` §5.14, `project-proposal.md` §6.3).
+ *
+ * The Code Review AI's second job, and the same rules apply: it **explains**
+ * the checks the platform already ran, in beginner language, and never decides
+ * whether a milestone passed. `milestone_attempts.status` is computed from the
+ * checks before any model call.
+ *
+ * `checklist` is the brief's `review_checklist` — the judgments a check cannot
+ * make ("the markup uses elements that mean something"). It is the one part the
+ * model is actually asked to assess, which is why §9.1 measures "checklist
+ * accuracy" against an evaluator.
+ */
+export const MilestoneReview = z.object({
+  summary: z
+    .string()
+    .describe("Two or three sentences: what works, and what still needs doing"),
+  checklist: z
+    .array(
+      z.object({
+        criterion: z.string(),
+        met: z.boolean(),
+        note: z.string().describe("One sentence of evidence from the diff"),
+      }),
+    )
+    .max(8),
+  nextStep: z
+    .string()
+    .describe("The single most useful next thing to look at. Never the corrected code."),
+});
+export type MilestoneReview = z.infer<typeof MilestoneReview>;
+
+/**
+ * Rejects a review that claims more than the checks proved (§7).
+ *
+ * Two rules, both for the same reason the Code Review AI exists under
+ * supervision at all:
+ *
+ * 1. **It must not call a milestone finished when a check failed.** The status
+ *    comes from the checks; a model saying "all done" over a failing test would
+ *    contradict the row beside it on the screen and be believed, because it
+ *    reads more kindly.
+ * 2. **The next step must not be the fix.** Identical rule to `noSolutionLeak`,
+ *    and it reuses `givesCode()` so there is one definition of "this is the
+ *    answer rather than a pointer" across both halves of the component.
+ */
+export function noUnearnedPass(
+  review: MilestoneReview,
+  anyCheckFailed: boolean,
+): string | null {
+  if (givesCode(review.nextStep)) {
+    return (
+      "The next step contains code. Describe what to change in words — never write the " +
+      "corrected code or quote the expression to use."
+    );
+  }
+
+  if (anyCheckFailed && COMPLETE_CLAIMS.test(review.summary)) {
+    return (
+      "A check did not pass, so the summary must not say the milestone is complete or that " +
+      "everything works. Say what works and what still needs doing."
+    );
+  }
+
+  return null;
+}
+
+/**
+ * Phrases that assert the milestone is done. Narrow on purpose: "adding and
+ * editing work" is a true and useful thing to say about a partly working
+ * milestone, so only a claim about the *whole* of it is rejected.
+ */
+const COMPLETE_CLAIMS =
+  /\b(all (?:the )?(?:checks|tests) pass|everything (?:works|passes)|milestone (?:is )?complete|all done|nothing left to do|ready to submit|fully working)\b/i;
+
 /** Resume text. Skills are checked against verified evidence after parsing. */
 export const ResumeContent = z.object({
   summary: z.string(),

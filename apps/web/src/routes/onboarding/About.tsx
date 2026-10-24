@@ -24,6 +24,23 @@ const GOALS = [
 ] as const;
 
 /**
+ * What kind of work appeals — the fourth question, and the one the roadmap's
+ * track recommendation depends on (AGENT.md open question 13).
+ *
+ * **It never names a track.** Tracks belong to a career path, and a second path
+ * would have different ones; the Roadmap AI reads this against each track's
+ * "Who it suits", so the question keeps working for content it has never seen.
+ */
+const WORK_STYLE = [
+  { value: "visual", label: "Building things people can see and use" },
+  { value: "logical", label: "Working out logic and how data moves" },
+  // Not "I'm not sure yet" — the goal question above already uses that exact
+  // label, and two radios reading the same on one page leave a screen-reader
+  // user no way to tell the groups apart.
+  { value: "unsure", label: "I'd need to try both" },
+] as const;
+
+/**
  * design.md §5.4 step 1 — "4 to 6 questions on experience, goals and weekly
  * hours using radio groups and chips".
  *
@@ -36,12 +53,14 @@ export function About() {
 
   const [experience, setExperience] = useState<string>();
   const [goal, setGoal] = useState<string>();
+  const [workStyle, setWorkStyle] = useState<string>();
   const [hours, setHours] = useState<string>();
   const [errors, setErrors] = useState<Record<string, string>>({});
 
   // Prefill once the saved answers arrive, without clobbering a later edit.
   const experienceValue = experience ?? data?.about?.experienceLevel ?? "";
   const goalValue = goal ?? data?.about?.goal ?? "";
+  const workStyleValue = workStyle ?? data?.about?.workStyle ?? "";
   const hoursValue = hours ?? (data?.about?.weeklyHours?.toString() || "");
 
   const save = useMutation({
@@ -59,6 +78,7 @@ export function About() {
     const next: Record<string, string> = {};
     if (!experienceValue) next.experience = "Pick the one that sounds most like you.";
     if (!goalValue) next.goal = "Pick the one closest to what you want.";
+    if (!workStyleValue) next.workStyle = "Pick the one that sounds more like you.";
 
     const parsedHours = Number(hoursValue);
     if (!hoursValue || !Number.isInteger(parsedHours) || parsedHours < 1 || parsedHours > 40) {
@@ -71,6 +91,7 @@ export function About() {
     save.mutate({
       experienceLevel: experienceValue as AboutInput["experienceLevel"],
       goal: goalValue as AboutInput["goal"],
+      workStyle: workStyleValue as AboutInput["workStyle"],
       weeklyHours: parsedHours,
     });
   }
@@ -111,6 +132,22 @@ export function About() {
                 label={option.label}
                 checked={goalValue === option.value}
                 onChange={() => setGoal(option.value)}
+              />
+            ))}
+          </div>
+        </fieldset>
+
+        <fieldset className={styles.field}>
+          <legend className={styles.legend}>Which sounds more like you?</legend>
+          {errors.workStyle && <p className={styles.help}>{errors.workStyle}</p>}
+          <div className={styles.options}>
+            {WORK_STYLE.map((option) => (
+              <RadioOption
+                key={option.value}
+                name="workStyle"
+                label={option.label}
+                checked={workStyleValue === option.value}
+                onChange={() => setWorkStyle(option.value)}
               />
             ))}
           </div>

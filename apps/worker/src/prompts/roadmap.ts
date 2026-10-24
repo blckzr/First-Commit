@@ -15,7 +15,7 @@ import type { Catalogue, CatalogueModule } from "../roadmap/catalogue.js";
  * change a prompt in place" means in practice, rather than a rule people
  * remember to follow.
  */
-export const PROMPT_VERSION = 3;
+export const PROMPT_VERSION = 4;
 
 export const SYSTEM = `You plan learning roadmaps for First Commit, a platform for people learning to program for the first time.
 
@@ -27,7 +27,9 @@ Rules:
 - A module must come after everything it requires. The catalogue is already listed in an order that satisfies this, so you may keep it.
 - Do not include technology modules. The learner chooses their framework later, and those modules are added then.
 - Never leave a module out. Placement does not remove modules from a roadmap: a learner who proved a skill at placement already has a completion for those modules, and they belong on the roadmap marked as passed rather than missing from it.
-- Recommend the track that fits the learner's stated goal and experience. Say why in the explanation.
+- Recommend the track whose "Who it suits" matches what the learner says they enjoy. That preference decides the track; the goal and the hours do not — every track leads to a job, and any track can be done in any number of hours a week.
+- If the learner is unsure what they enjoy, recommend a track on what else they have told you, and say in the explanation that the choice can change.
+- Say why in the explanation, in terms of what they said they enjoy.
 - The explanation is two or three sentences, spoken to the learner as "you". Plain, specific, no cheerleading. Mention the track you chose and what happens at the technology decision.
 - Never state that the learner has passed, failed or mastered anything. You are planning what they will learn, not judging what they have done.`;
 
@@ -92,7 +94,31 @@ function describeLearner(catalogue: Catalogue): string {
     ? `Already passed, at placement or on another roadmap: ${passedSlugs.join(", ")}. Keep these on the roadmap — the chart shows them as passed.`
     : "Nothing passed yet.";
 
-  return [`The learner ${experience}, ${goal}, and has ${hours}.`, placement, passed].join("\n");
+  /**
+   * **The answer the track choice turns on** (AGENT.md open question 13).
+   *
+   * Without it, five evaluation runs recommended Frontend to 25 of 25 learners
+   * across both model sizes — correctly, because the only asymmetry the model
+   * could see was the Frontend blurb claiming the most common first job.
+   * Neither the goal nor the hours can decide a track: every track leads to a
+   * job, and any of them fits any number of hours a week.
+   */
+  const enjoys =
+    {
+      visual: "They would rather build things people can see and use.",
+      logical: "They would rather work out logic and how data moves.",
+      unsure:
+        "They are not sure yet which kind of work they prefer. They did not tell you one, so do not " +
+        "write that they did. Pick a track anyway, say it is a starting point, and say the choice can " +
+        "change later.",
+    }[learner.workStyle ?? ""] ?? "They were not asked which kind of work they prefer.";
+
+  return [
+    `The learner ${experience}, ${goal}, and has ${hours}.`,
+    enjoys,
+    placement,
+    passed,
+  ].join("\n");
 }
 
 function describeModule(module: CatalogueModule, catalogue: Catalogue): string {

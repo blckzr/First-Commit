@@ -31,7 +31,7 @@ const listing = (over: Record<string, unknown> = {}) =>
       HttpResponse.json({
         certificates: [],
         progress: [],
-        projectCertificate: { available: false, reason: "capstone-not-built" },
+        projectCertificate: { available: false, reason: "no-project" },
         ...over,
       }),
     ),
@@ -132,12 +132,36 @@ describe("§5.15 — the learner's certificates", () => {
     expect(screen.queryByRole("button", { name: /Copy/ })).not.toBeInTheDocument();
   });
 
-  it("shows the project certificate as locked, with an honest reason", async () => {
+  /**
+   * The reason has to be one the learner can act on. It used to read "Capstones
+   * aren't built yet", which was true while they weren't and became false the
+   * moment they were — nothing failed when it stopped being accurate, which is
+   * exactly why it lasted.
+   */
+  it("tells a learner with no project where to start one", async () => {
     listing({ certificates: [certificate] });
     await openList();
 
     expect(await screen.findByRole("heading", { name: "Project Certificate" })).toBeInTheDocument();
-    expect(screen.getByText(/Capstones aren't built yet/)).toBeInTheDocument();
+    expect(screen.getByText(/start one from the capstone page/i)).toBeInTheDocument();
+  });
+
+  it("counts the milestones when a project is under way", async () => {
+    listing({
+      certificates: [certificate],
+      projectCertificate: { available: false, reason: "in-progress", complete: 2, total: 5 },
+    });
+    await openList();
+
+    expect(await screen.findByText(/completed 2 of 5 milestones/i)).toBeInTheDocument();
+  });
+
+  it("stops showing the locked card once the certificate is earned", async () => {
+    listing({ certificates: [certificate], projectCertificate: { available: true } });
+    await openList();
+
+    await screen.findByRole("heading", { name: /Certificates/i });
+    expect(screen.queryByRole("heading", { name: "Project Certificate" })).not.toBeInTheDocument();
   });
 
   describe("a roadmap that has not earned one", () => {

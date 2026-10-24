@@ -83,6 +83,38 @@ export const config = {
   brevoApiKey: optional("BREVO_API_KEY"),
   mailFrom: optional("MAIL_FROM"),
   mailFromName: optional("MAIL_FROM_NAME") ?? "First Commit",
+
+  /**
+   * The GitHub App the capstone is tracked through (`project-proposal.md` §6.2).
+   *
+   * **All optional, and all read together.** Unset means the development
+   * client, exactly as an unset `BREVO_API_KEY` means the console mailer: the
+   * whole connect flow can be built and tested without an App existing, and the
+   * screen says plainly that connecting is not available rather than offering a
+   * button that cannot work.
+   *
+   * `githubAppSlug` is the name in the install URL
+   * (`github.com/apps/<slug>/installations/new`), which is why it is separate
+   * from the numeric id.
+   *
+   * The private key is a PEM. It is never logged, never returned by any
+   * endpoint, and never written anywhere but `.env` (AGENT.md §10).
+   */
+  githubAppId: optional("GITHUB_APP_ID"),
+  githubAppSlug: optional("GITHUB_APP_SLUG"),
+  githubClientId: optional("GITHUB_CLIENT_ID"),
+  githubClientSecret: optional("GITHUB_CLIENT_SECRET"),
+  /**
+   * The App's PEM.
+   *
+   * `\n` escapes are turned back into newlines, because a PEM is multi-line and
+   * the two ways of getting one into a `.env` file both happen: quoted across
+   * several lines, or flattened to one with escapes. Without this, the flattened
+   * form reaches `crypto.createSign()` as a single line and fails with an
+   * "unsupported" error that says nothing about the cause.
+   */
+  githubPrivateKey: optional("GITHUB_PRIVATE_KEY")?.replace(/\\n/g, "\n") ?? null,
+  githubWebhookSecret: optional("GITHUB_WEBHOOK_SECRET"),
 } as const;
 
 export type Config = typeof config;

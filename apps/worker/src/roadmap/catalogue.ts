@@ -49,6 +49,14 @@ export interface Learner {
   experienceLevel: string | null;
   goal: string | null;
   weeklyHours: number | null;
+  /**
+   * What kind of work appeals: `visual`, `logical`, or `unsure`.
+   *
+   * **The only answer that bears on the track**, which is why it exists
+   * (AGENT.md open question 13). Null for learners who onboarded before the
+   * question was asked.
+   */
+  workStyle: string | null;
   /** Free-form, per-skill. Empty until placement questions exist. */
   placement: Record<string, unknown>;
   /** Modules already passed or tested out — on any roadmap (§6 rule 7). */
@@ -168,8 +176,10 @@ export async function loadCatalogue(
     experience_level: string | null;
     goal: string | null;
     weekly_hours: number | null;
+    survey_answers: Record<string, unknown>;
   }>(
-    `select experience_level, goal, weekly_hours from learner_profiles where user_id = $1`,
+    `select experience_level, goal, weekly_hours, survey_answers
+       from learner_profiles where user_id = $1`,
     [userId],
   );
 
@@ -234,6 +244,7 @@ export async function loadCatalogue(
       experienceLevel: profile.rows[0]?.experience_level ?? null,
       goal: profile.rows[0]?.goal ?? null,
       weeklyHours: profile.rows[0]?.weekly_hours ?? null,
+      workStyle: (profile.rows[0]?.survey_answers?.workStyle as string | undefined) ?? null,
       placement: placement.rows[0]?.results ?? {},
       completedModuleIds: completed.rows.map((r) => r.module_id),
     },

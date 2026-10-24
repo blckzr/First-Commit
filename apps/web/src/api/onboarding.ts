@@ -17,6 +17,8 @@ export const AboutAnswers = z.object({
   experienceLevel: z.enum(["none", "some", "comfortable"]).nullable(),
   goal: z.enum(["company_job", "freelance", "undecided"]).nullable(),
   weeklyHours: z.number().nullable(),
+  /** The fourth question; null for accounts that onboarded before it existed. */
+  workStyle: z.enum(["visual", "logical", "unsure"]).nullable(),
 });
 export type AboutAnswers = z.infer<typeof AboutAnswers>;
 
@@ -79,6 +81,8 @@ const StepResult = z.object({ step: z.string(), next: z.string() });
 export interface AboutInput {
   experienceLevel: "none" | "some" | "comfortable";
   goal: "company_job" | "freelance" | "undecided";
+  /** What kind of work appeals — what the roadmap's track recommendation reads. */
+  workStyle: "visual" | "logical" | "unsure";
   weeklyHours: number;
 }
 

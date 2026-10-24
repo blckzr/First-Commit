@@ -260,7 +260,101 @@ export async function syncCertificates(
     if (row) issued.push(row);
   }
 
+  issued.push(...(await issueProjectCertificates(db, userId)));
+
   return { issued, progress: states };
+}
+
+/**
+ * The Project Certificate (§5.15, `project-proposal.md` §6).
+ *
+ * **Nothing here takes anybody's word for it.** A project is eligible when
+ * `capstone_projects.completed_at` is set, and that is written by
+ * `readMilestones()` only when every milestone of the brief holds a `complete`
+ * attempt — which in turn only exists because the API ran the checks. No
+ * endpoint can set any of it (§6 rule 1).
+ *
+ * **Issued separately from the completion certificate**, because they are
+ * different claims about different evidence: one says the modules were passed,
+ * the other that a project was built. A learner can hold the first without ever
+ * earning the second, which is exactly the state §5.15 draws as "locked".
+ *
+ * The schema enforces the pairing — `check ((type = 'project') = (project_id is
+ * not null))` — so a project certificate without a project cannot be written at
+ * all.
+ */
+async function issueProjectCertificates(
+  db: Pool | PoolClient,
+  userId: string,
+): Promise<IssuedCertificate[]> {
+  const finished = await db.query<{
+    project_id: string;
+    roadmap_id: string;
+    brief_title: string;
+    technology_name: string | null;
+    repo_full_name: string | null;
+    demo_url: string | null;
+  }>(
+    `select p.id as project_id, p.roadmap_id, bv.title as brief_title,
+            t.name as technology_name, p.repo_full_name, p.demo_url
+       from capstone_projects p
+       join capstone_brief_versions bv on bv.id = p.brief_version_id
+       left join technologies t on t.id = p.technology_id
+      where p.user_id = $1 and p.completed_at is not null`,
+    [userId],
+  );
+  if (finished.rowCount === 0) return [];
+
+  const held = await db.query<{ project_id: string }>(
+    `select project_id from certificates
+      where user_id = $1 and type = 'project' and status <> 'revoked'`,
+    [userId],
+  );
+  const alreadyHas = new Set(held.rows.map((r) => r.project_id));
+
+  const name = await db.query<{ full_name: string }>(
+    `select full_name from users where id = $1`,
+    [userId],
+  );
+  if (!name.rows[0]) return [];
+
+  const issued: IssuedCertificate[] = [];
+
+  for (const project of finished.rows) {
+    if (alreadyHas.has(project.project_id)) continue;
+
+    const title = project.technology_name
+      ? `${project.brief_title} with ${project.technology_name}`
+      : project.brief_title;
+
+    const row = await insertWithUniqueCode(db, {
+      userId,
+      roadmapId: project.roadmap_id,
+      recipientName: name.rows[0].full_name,
+      title,
+      /**
+       * No skills list. A Project Certificate attests to a project, and the
+       * skills belong to the Certificate of Completion — repeating them here
+       * would claim the same evidence twice on two documents.
+       */
+      skills: [],
+      type: "project",
+      projectId: project.project_id,
+      /**
+       * Snapshotted, like `recipient_name`: §5.15 shows the repository and the
+       * live link on the certificate, and it has to keep saying what it said the
+       * day it was issued even if the learner later renames or deletes either.
+       */
+      details: {
+        projectTitle: project.brief_title,
+        repoFullName: project.repo_full_name,
+        demoUrl: project.demo_url,
+      },
+    });
+    if (row) issued.push(row);
+  }
+
+  return issued;
 }
 
 /**
@@ -278,23 +372,30 @@ async function insertWithUniqueCode(
     recipientName: string;
     title: string;
     skills: string[];
+    /** `project` also carries the project id; the schema requires the pair. */
+    type?: CertificateType;
+    projectId?: string;
+    details?: Record<string, unknown>;
   },
 ): Promise<IssuedCertificate | null> {
+  const type = input.type ?? "completion";
   for (let attempt = 0; attempt < 3; attempt++) {
     const code = newPublicCode();
     const inserted = await db.query<{ id: string; issued_at: Date }>(
       `insert into certificates
-         (public_code, user_id, type, roadmap_id, recipient_name, title, details)
-       values ($1, $2, 'completion', $3, $4, $5, $6)
+         (public_code, user_id, type, roadmap_id, project_id, recipient_name, title, details)
+       values ($1, $2, $3, $4, $5, $6, $7, $8)
        on conflict (public_code) do nothing
        returning id, issued_at`,
       [
         code,
         input.userId,
+        type,
         input.roadmapId,
+        input.projectId ?? null,
         input.recipientName,
         input.title,
-        JSON.stringify({ skills: input.skills }),
+        JSON.stringify({ skills: input.skills, ...(input.details ?? {}) }),
       ],
     );
 
@@ -302,7 +403,7 @@ async function insertWithUniqueCode(
       return {
         id: inserted.rows[0].id,
         publicCode: code,
-        type: "completion",
+        type,
         roadmapId: input.roadmapId,
         title: input.title,
         recipientName: input.recipientName,

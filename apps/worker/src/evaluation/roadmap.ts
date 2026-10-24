@@ -65,9 +65,17 @@ async function evaluateOne(
     [userId, `${fixture.id}@evaluation.invalid`, `Evaluation ${fixture.id}`],
   );
   await pool.query(
-    `insert into learner_profiles (user_id, experience_level, goal, weekly_hours, onboarding_step)
-     values ($1, $2, $3, $4, 'generating')`,
-    [userId, fixture.experienceLevel, fixture.goal, fixture.weeklyHours],
+    `insert into learner_profiles
+       (user_id, experience_level, goal, weekly_hours, survey_answers, onboarding_step)
+     values ($1, $2, $3, $4, $5, 'generating')`,
+    [
+      userId,
+      fixture.experienceLevel,
+      fixture.goal,
+      fixture.weeklyHours,
+      // Where onboarding puts it, so the catalogue reads it the same way here.
+      JSON.stringify({ workStyle: fixture.workStyle }),
+    ],
   );
 
   for (const slug of fixture.completedSlugs) {

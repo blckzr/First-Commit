@@ -1,4 +1,5 @@
 import PDFDocument from "pdfkit";
+import QRCode from "qrcode";
 
 /**
  * PDF rendering for certificates (§5.15) and resumes (§5.16).
@@ -192,5 +193,51 @@ export async function renderCertificatePdf(certificate: CertificatePdf): Promise
   doc.moveDown(0.4);
   doc.fontSize(9).text(`Verify at ${certificate.verifyUrl}`, centre);
 
+  /*
+   * The QR code (§5.15: the verification page is reached "via link or QR code").
+   *
+   * **The written link above is not decoration, and it stays.** §12 commits to
+   * it — "QR codes are always accompanied by the written verification link" —
+   * because a QR is unreadable to a screen reader, unusable to somebody reading
+   * a printout without a phone, and silently useless if this image fails to
+   * render. The text is the accessible path; the code is the convenience.
+   *
+   * Drawn last, so a failure here cannot cost the certificate its words.
+   */
+  const qr = await renderQr(certificate.verifyUrl);
+  if (qr) {
+    const size = 84;
+    doc.image(qr, (doc.page.width - size) / 2, doc.y + 12, { width: size });
+  }
+
   return collect(doc);
+}
+
+/**
+ * The verification URL as a PNG.
+ *
+ * **`qrcode`, not `qrcode.react`.** design.md §13.1's table suggests the latter,
+ * which is a React component — but §5.15 puts no QR on a screen, only on the
+ * certificate, and the certificate is rendered by pdfkit on the server. A
+ * browser component cannot run here. §13.1 has been corrected.
+ *
+ * Error correction level M, the usual choice for a printed code: it survives a
+ * crease or a thumb over one corner without making the image much denser.
+ *
+ * **A failure returns `undefined` rather than throwing.** The certificate's
+ * text already carries the code and the URL, so a missing QR costs a
+ * convenience; a thrown error would cost the learner their download.
+ */
+async function renderQr(url: string): Promise<Buffer | undefined> {
+  try {
+    return await QRCode.toBuffer(url, {
+      type: "png",
+      errorCorrectionLevel: "M",
+      margin: 1,
+      scale: 6,
+      color: { dark: INK, light: "#ffffff" },
+    });
+  } catch {
+    return undefined;
+  }
 }

@@ -58,11 +58,17 @@ describe("About", () => {
 
     await userEvent.click(await screen.findByLabelText("I've tried a bit — a tutorial or two"));
     await userEvent.click(screen.getByLabelText("A job at a company"));
+    await userEvent.click(screen.getByLabelText("Working out logic and how data moves"));
     await userEvent.type(screen.getByLabelText("Hours a week you can study"), "10");
     await userEvent.click(screen.getByRole("button", { name: /continue/i }));
 
     await waitFor(() => expect(navigate).toHaveBeenCalledWith("/onboarding/target"));
-    expect(sent).toEqual({ experienceLevel: "some", goal: "company_job", weeklyHours: 10 });
+    expect(sent).toEqual({
+      experienceLevel: "some",
+      goal: "company_job",
+      workStyle: "logical",
+      weeklyHours: 10,
+    });
   });
 
   /**
@@ -73,7 +79,12 @@ describe("About", () => {
   it("refills answers already saved", async () => {
     api.onboarding({
       step: "target",
-      about: { experienceLevel: "comfortable", goal: "freelance", weeklyHours: 12 },
+      about: {
+        experienceLevel: "comfortable",
+        goal: "freelance",
+        workStyle: "visual",
+        weeklyHours: 12,
+      },
     });
     render(<About />, { route: "/onboarding/about" });
 
@@ -81,6 +92,7 @@ describe("About", () => {
       expect(screen.getByLabelText("I can build small things on my own")).toBeChecked(),
     );
     expect(screen.getByLabelText("Freelance or client work")).toBeChecked();
+    expect(screen.getByLabelText("Building things people can see and use")).toBeChecked();
     expect(screen.getByLabelText("Hours a week you can study")).toHaveValue(12);
   });
 
@@ -91,6 +103,7 @@ describe("About", () => {
 
     await userEvent.click(await screen.findByLabelText("I've never written code"));
     await userEvent.click(screen.getByLabelText("I'm not sure yet"));
+    await userEvent.click(screen.getByLabelText("I'd need to try both"));
     await userEvent.type(screen.getByLabelText("Hours a week you can study"), value);
     await userEvent.click(screen.getByRole("button", { name: /continue/i }));
 
@@ -107,6 +120,7 @@ describe("About", () => {
 
     await userEvent.click(await screen.findByLabelText("I've never written code"));
     await userEvent.click(screen.getByLabelText("I'm not sure yet"));
+    await userEvent.click(screen.getByLabelText("I'd need to try both"));
     await userEvent.type(screen.getByLabelText("Hours a week you can study"), "5");
     await userEvent.click(screen.getByRole("button", { name: /continue/i }));
 

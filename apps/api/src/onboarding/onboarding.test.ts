@@ -81,6 +81,7 @@ describe("GET /onboarding", () => {
       experienceLevel: "some",
       goal: "company_job",
       weeklyHours: 10,
+      workStyle: "visual",
     });
 
     const res = await read("/onboarding");
@@ -89,6 +90,7 @@ describe("GET /onboarding", () => {
       experienceLevel: "some",
       goal: "company_job",
       weeklyHours: 10,
+      workStyle: "visual",
     });
   });
 });
@@ -99,6 +101,7 @@ describe("PUT /onboarding/about", () => {
       experienceLevel: "none",
       goal: "freelance",
       weeklyHours: 5,
+      workStyle: "logical",
     });
 
     expect(res.status).toBe(200);
@@ -117,9 +120,73 @@ describe("PUT /onboarding/about", () => {
       experienceLevel: "none",
       goal: "freelance",
       weeklyHours: hours,
+      workStyle: "logical",
     });
     expect(res.status).toBe(400);
     expect(res.body.error).toMatch(/between 1 and 40/i);
+  });
+
+  /**
+   * **The answer the track recommendation depends on** (AGENT.md open question
+   * 13). Five evaluation runs recommended Frontend to 25 of 25 learners because
+   * nothing asked bore on the choice; this is that question, so it is required
+   * rather than optional.
+   */
+  it("stores what kind of work appeals", async () => {
+    await put("/onboarding/about").send({
+      experienceLevel: "some",
+      goal: "company_job",
+      weeklyHours: 10,
+      workStyle: "logical",
+    });
+
+    const profile = db.rows("learner_profiles")[0];
+    expect((profile.survey_answers as Record<string, unknown>).workStyle).toBe("logical");
+  });
+
+  it("rejects a work style it does not know", async () => {
+    const res = await put("/onboarding/about").send({
+      experienceLevel: "some",
+      goal: "company_job",
+      weeklyHours: 10,
+      workStyle: "backend",
+    });
+    expect(res.status).toBe(400);
+  });
+
+  it("requires it, because a missing answer is what caused the problem", async () => {
+    const res = await put("/onboarding/about").send({
+      experienceLevel: "some",
+      goal: "company_job",
+      weeklyHours: 10,
+    });
+    expect(res.status).toBe(400);
+  });
+
+  /**
+   * `survey_answers` already holds `careerPathId` from the target step. A
+   * learner who walks Back to this page and saves again must not lose the path
+   * they chose — the whole of onboarding would restart.
+   */
+  it("keeps the chosen career path when the learner goes back and saves again", async () => {
+    await put("/onboarding/about").send({
+      experienceLevel: "some",
+      goal: "company_job",
+      weeklyHours: 10,
+      workStyle: "visual",
+    });
+    await put("/onboarding/target").send({ careerPathId: pathId });
+
+    await put("/onboarding/about").send({
+      experienceLevel: "comfortable",
+      goal: "freelance",
+      weeklyHours: 20,
+      workStyle: "logical",
+    });
+
+    const survey = db.rows("learner_profiles")[0].survey_answers as Record<string, unknown>;
+    expect(survey.careerPathId, "the career path was overwritten").toBe(pathId);
+    expect(survey.workStyle).toBe("logical");
   });
 
   it("rejects an experience level it does not know", async () => {
@@ -127,6 +194,7 @@ describe("PUT /onboarding/about", () => {
       experienceLevel: "expert",
       goal: "freelance",
       weeklyHours: 5,
+      workStyle: "logical",
     });
     expect(res.status).toBe(400);
   });
@@ -134,12 +202,12 @@ describe("PUT /onboarding/about", () => {
   /** Redoing an earlier step must not drag a further-along learner backwards. */
   it("does not move a later learner back to target", async () => {
     await put("/onboarding/about").send({
-      experienceLevel: "none", goal: "freelance", weeklyHours: 5,
+      experienceLevel: "none", goal: "freelance", weeklyHours: 5, workStyle: "visual",
     });
     await put("/onboarding/target").send({ careerPathId: pathId });
 
     const res = await put("/onboarding/about").send({
-      experienceLevel: "some", goal: "company_job", weeklyHours: 12,
+      experienceLevel: "some", goal: "company_job", weeklyHours: 12, workStyle: "visual",
     });
 
     expect(res.body.step).toBe("placement");
@@ -150,7 +218,7 @@ describe("PUT /onboarding/about", () => {
 describe("PUT /onboarding/target", () => {
   beforeEach(async () => {
     await put("/onboarding/about").send({
-      experienceLevel: "none", goal: "freelance", weeklyHours: 5,
+      experienceLevel: "none", goal: "freelance", weeklyHours: 5, workStyle: "visual",
     });
   });
 
@@ -182,7 +250,7 @@ describe("PUT /onboarding/target", () => {
 describe("POST /onboarding/placement", () => {
   beforeEach(async () => {
     await put("/onboarding/about").send({
-      experienceLevel: "none", goal: "freelance", weeklyHours: 5,
+      experienceLevel: "none", goal: "freelance", weeklyHours: 5, workStyle: "visual",
     });
     await put("/onboarding/target").send({ careerPathId: pathId });
   });
@@ -249,7 +317,7 @@ describe("step order is enforced by the API", () => {
 
   it("refuses placement before target", async () => {
     await put("/onboarding/about").send({
-      experienceLevel: "none", goal: "freelance", weeklyHours: 5,
+      experienceLevel: "none", goal: "freelance", weeklyHours: 5, workStyle: "visual",
     });
     const res = await send("/onboarding/placement").send({ careerPathId: pathId, ratings: {} });
     expect(res.status).toBe(409);
@@ -269,7 +337,7 @@ describe("POST /onboarding/generating/retry", () => {
   /** Walks a fresh learner up to a queued roadmap job. */
   const reachGenerating = async () => {
     await put("/onboarding/about").send({
-      experienceLevel: "none", goal: "freelance", weeklyHours: 5,
+      experienceLevel: "none", goal: "freelance", weeklyHours: 5, workStyle: "visual",
     });
     await put("/onboarding/target").send({ careerPathId: pathId });
     await send("/onboarding/placement").send({ careerPathId: pathId, ratings: {} });
@@ -434,7 +502,7 @@ describe("POST /onboarding/placement — grading", () => {
     }
 
     await put("/onboarding/about").send({
-      experienceLevel: "comfortable", goal: "company_job", weeklyHours: 10,
+      experienceLevel: "comfortable", goal: "company_job", weeklyHours: 10, workStyle: "visual",
     });
     await put("/onboarding/target").send({ careerPathId: pathId });
   });
@@ -607,7 +675,7 @@ describe("POST /onboarding/placement — grading", () => {
 describe("placement is idempotent", () => {
   const walkUp = async () => {
     await put("/onboarding/about").send({
-      experienceLevel: "none", goal: "freelance", weeklyHours: 5,
+      experienceLevel: "none", goal: "freelance", weeklyHours: 5, workStyle: "visual",
     });
     await put("/onboarding/target").send({ careerPathId: pathId });
   };
@@ -655,7 +723,7 @@ describe("GET /onboarding reports the roadmap job", () => {
 
   it("reports the status once a job exists", async () => {
     await put("/onboarding/about").send({
-      experienceLevel: "none", goal: "freelance", weeklyHours: 5,
+      experienceLevel: "none", goal: "freelance", weeklyHours: 5, workStyle: "visual",
     });
     await put("/onboarding/target").send({ careerPathId: pathId });
     await send("/onboarding/placement").send({ careerPathId: pathId, ratings: {} });
@@ -676,7 +744,7 @@ describe("GET /onboarding reports the roadmap job", () => {
    */
   it("never sends the job's error text", async () => {
     await put("/onboarding/about").send({
-      experienceLevel: "none", goal: "freelance", weeklyHours: 5,
+      experienceLevel: "none", goal: "freelance", weeklyHours: 5, workStyle: "visual",
     });
     await put("/onboarding/target").send({ careerPathId: pathId });
     await send("/onboarding/placement").send({ careerPathId: pathId, ratings: {} });

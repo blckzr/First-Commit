@@ -554,7 +554,7 @@ Each step is its own page and its own address. Answers are saved when the learne
 
 | Step | Route | What the learner does |
 |---|---|---|
-| 1. About you | `/onboarding/about` | Answers 4 to 6 questions on experience, goals (company job, freelance), and weekly hours using radio groups and chips |
+| 1. About you | `/onboarding/about` | Four questions, using radio groups and chips: how much code they have written, what they are working toward (company job, freelance, undecided), **which kind of work sounds more like them** (building things people see / working out logic and data / would need to try both), and hours a week. The third is the only answer that bears on the track the Roadmap AI recommends — see `AGENT.md` §11 question 13 for why it was added. It never names a track, so it still works for a career path with different ones |
 | 2. Target position | `/onboarding/target` | Chooses a career path |
 | 3. Placement | `/onboarding/placement` | Rates what they already know per skill, then answers a check for anything rated "comfortable"; "I'm new to all of this" is always available; no time limit |
 | 4. Generating | `/onboarding/generating` | Waits while the Roadmap AI runs, then moves on automatically |
@@ -1700,7 +1700,7 @@ Target: **WCAG 2.2 Level AA**.
 | Roadmap chart | HTML and CSS grid | First Commit v2.dc.html draws the roadmap as a fixed spine with branches, not a canvas, so it is a nested list laid out by CSS: one DOM for the eye, the keyboard and the screen reader. It replaced a React Flow canvas that panned and zoomed over an `aria-hidden` copy. React Flow (`@xyflow/react`) is still installed and may suit the admin editor's free-form prerequisite graph |
 | Code editor | CodeMirror 6 | Works better than Monaco on touch devices and small screens |
 | React and Vue exercises | Sandpack (or similar in-browser bundler) | Runs framework exercises, tests, and live previews in the browser |
-| QR codes | A QR code library (e.g., qrcode.react) | Certificate verification links |
+| QR codes | `qrcode` (Node), in **`apps/api`** — not `qrcode.react` | The QR on the certificate PDF. §5.15 puts no QR on a screen, and the PDF is rendered by pdfkit on the server, where a React component cannot run. Always drawn beside the written verification link (§12) |
 | Live capstone updates | Polling with TanStack Query, or server-sent events | Updates the milestone tracker when a push arrives |
 | Styling | CSS Modules with CSS custom properties | Tokens from Section 3. Hover, press, and focus are CSS state selectors, never React state. |
 | Analytics charts | Recharts | Admin analytics |

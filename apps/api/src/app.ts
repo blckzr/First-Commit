@@ -17,8 +17,15 @@ import { moduleRoutes } from "./modules/routes.js";
 import { exerciseRoutes } from "./exercises/routes.js";
 import { homeRoutes } from "./home/routes.js";
 import { decisionRoutes } from "./decisions/routes.js";
+import { capstoneRoutes } from "./capstone/routes.js";
+import { githubRoutes } from "./github/routes.js";
+import { createGitHub, type GitHubClient } from "./github/index.js";
+import { githubWebhookRoutes } from "./github/webhook.js";
+import { startCommitSweep } from "./capstone/sweep.js";
 import { flagRoutes } from "./flags/routes.js";
 import { adminFlagRoutes } from "./admin/flags.js";
+import { adminIntegrityRoutes } from "./admin/integrity.js";
+import { adminCertificateRoutes } from "./admin/certificates.js";
 import { certificateRoutes } from "./certificates/routes.js";
 import { resumeRoutes } from "./resume/routes.js";
 import { pdfRoutes } from "./pdf/routes.js";
@@ -44,6 +51,10 @@ export interface AppDeps {
   pool?: Pool;
   /** Injected so a test can cover the unconfigured case. `null` closes the route. */
   workerSecret?: string | null;
+  /** Injected so endpoint tests drive the connect flow without an App. */
+  github?: GitHubClient;
+  /** Injected so a test can cover the unconfigured case. `null` closes the webhook. */
+  githubWebhookSecret?: string | null;
 }
 
 export function createApp(deps: AppDeps = {}) {
@@ -62,6 +73,21 @@ export function createApp(deps: AppDeps = {}) {
   // singleton and every endpoint test can substitute its own.
   app.locals.mailer = mailer;
 
+  /**
+   * Unset GitHub settings mean the development client, the same way an unset
+   * `BREVO_API_KEY` means the console mailer — the capstone's connect flow is
+   * built and tested without an App existing.
+   */
+  const github =
+    deps.github ??
+    createGitHub({
+      appId: config.githubAppId,
+      appSlug: config.githubAppSlug,
+      clientId: config.githubClientId,
+      clientSecret: config.githubClientSecret,
+      privateKey: config.githubPrivateKey,
+    });
+
   // Render terminates TLS at its proxy. Without this, `secure` cookies are
   // never set and req.ip is the proxy's address, which would break the
   // per-IP rate limiting in §6.3.
@@ -79,7 +105,23 @@ export function createApp(deps: AppDeps = {}) {
     }),
   );
 
-  app.use(express.json({ limit: "1mb" }));
+  /**
+   * The raw body is kept alongside the parsed one.
+   *
+   * GitHub signs the **bytes it sent**, so a webhook signature cannot be checked
+   * against a re-serialised object: `JSON.stringify(req.body)` differs from the
+   * original in key order, spacing and unicode escaping, and the HMAC would
+   * never match. `verify` runs before parsing and is the only place those bytes
+   * still exist.
+   */
+  app.use(
+    express.json({
+      limit: "1mb",
+      verify: (req, _res, buffer) => {
+        (req as express.Request & { rawBody?: Buffer }).rawBody = buffer;
+      },
+    }),
+  );
   app.use(cookieParser());
 
   // §6.1 step 1 runs on every request. Steps 2 and 5 are requireAuth and
@@ -91,9 +133,27 @@ export function createApp(deps: AppDeps = {}) {
   const hub = new EventHub(pool);
   app.locals.hub = hub;
 
+  /**
+   * §6.2's commit backstop, for a push that arrived while this instance was
+   * asleep. In the API rather than the worker because the App's private key is
+   * the API's alone — see `capstone/sweep.ts`.
+   *
+   * Not started under test: a timer firing between assertions would make the
+   * suite depend on wall-clock timing, and `sweepCommits()` is exported so it
+   * can be driven directly.
+   */
+  if (!deps.pool) app.locals.stopCommitSweep = startCommitSweep(pool, github);
+
   // Mounted BEFORE the CSRF guard: the worker is not a browser, sends no
   // Origin, and authenticates with WORKER_SECRET instead.
   app.use(internalEventRoutes(hub, deps.workerSecret === undefined ? config.workerSecret : deps.workerSecret));
+
+  /**
+   * Mounted **before `requireSameOrigin`**, like `/internal/events`. A webhook
+   * carries no Origin header, so the CSRF guard would refuse every delivery.
+   * Its signature is what authenticates it instead.
+   */
+  app.use(githubWebhookRoutes(pool, deps.githubWebhookSecret));
 
   // Every state-changing browser route sits behind the CSRF guard. Routes
   // authenticated by a shared secret rather than a cookie are mounted before
@@ -110,8 +170,12 @@ export function createApp(deps: AppDeps = {}) {
   app.use(exerciseRoutes(pool));
   app.use(homeRoutes(pool));
   app.use(decisionRoutes(pool));
+  app.use(capstoneRoutes(pool, github));
+  app.use(githubRoutes(pool, github));
   app.use(flagRoutes(pool));
   app.use(adminFlagRoutes(pool));
+  app.use(adminIntegrityRoutes(pool));
+  app.use(adminCertificateRoutes(pool));
   app.use(certificateRoutes(pool));
   app.use(resumeRoutes(pool));
   app.use(pdfRoutes(pool));

@@ -66,6 +66,7 @@ function catalogue(over: Partial<Catalogue> = {}): Catalogue {
       experienceLevel: "none",
       goal: "company_job",
       weeklyHours: 6,
+      workStyle: "visual",
       placement: {},
       completedModuleIds: [],
     },

@@ -266,6 +266,16 @@ const LEARNER_ROUTES: [method: "get" | "post" | "put" | "patch", path: string][]
   ["patch", "/roadmaps/ROADMAP"],
   ["get", "/roadmaps/ROADMAP/decisions/DECISION"],
   ["post", "/roadmaps/ROADMAP/decisions/DECISION"],
+  ["get", "/capstone"],
+  ["get", "/github/connect"],
+  ["get", "/github/callback"],
+  ["get", "/github/connection"],
+  ["get", "/roadmaps/ROADMAP/capstone"],
+  ["post", "/roadmaps/ROADMAP/capstone"],
+  ["put", "/roadmaps/ROADMAP/capstone/repository"],
+  ["get", "/roadmaps/ROADMAP/capstone/milestones"],
+  ["put", "/roadmaps/ROADMAP/capstone/demo-url"],
+  ["put", "/roadmaps/ROADMAP/capstone/milestones/MILESTONE/explanation"],
   ["get", "/modules/MODULE"],
   ["post", "/modules/MODULE/start"],
   ["post", "/lessons/LESSON/complete"],
@@ -372,6 +382,13 @@ describe("§9.2 — every learner endpoint resolves a session", () => {
       "/auth/password/forgot",
       "/auth/password/reset",
       "/internal/events",
+      /**
+       * A GitHub webhook has no session and no Origin — §6.1's rules cannot
+       * apply to it. Its HMAC signature is the authentication instead, and
+       * `github/webhook.test.ts` asserts that an unsigned or wrongly signed
+       * delivery writes nothing.
+       */
+      "/webhooks/github",
       "/events",
       "/health",
       "/health/db",
@@ -383,6 +400,10 @@ describe("§9.2 — every learner endpoint resolves a session", () => {
        */
       "/admin/flags",
       "/admin/flags/:id",
+      "/admin/integrity",
+      "/admin/integrity/:id",
+      "/admin/certificates",
+      "/admin/certificates/:id/revoke",
       /**
        * §5.15's verification page is reachable without logging in, by link or QR
        * code — that is the whole point of a "publicly verifiable" certificate.
@@ -405,6 +426,7 @@ describe("§9.2 — every learner endpoint resolves a session", () => {
           .replace("EXERCISE", ":id")
           .replace("ASSESSMENT", ":assessmentId")
           .replace("AI_OUTPUT", ":id")
+          .replace("MILESTONE", ":milestoneId")
           .replace("CODE.pdf", ":code.pdf")}`,
       ),
     );

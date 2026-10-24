@@ -46,6 +46,21 @@ function advance(current: string, to: Step): string {
 const AboutBody = z.object({
   experienceLevel: z.enum(["none", "some", "comfortable"]),
   goal: z.enum(["company_job", "freelance", "undecided"]),
+  /**
+   * What kind of work appeals, which is the **only** answer that bears on the
+   * track the Roadmap AI recommends (AGENT.md open question 13).
+   *
+   * Five evaluation runs recommended Frontend to 25 of 25 learners, across both
+   * model sizes. Nothing here distinguished front-end work from back-end work,
+   * so the model went by the one asymmetry it could see — the Frontend track's
+   * blurb claiming "the most common first job" — and was right to.
+   *
+   * **Deliberately not a track name.** Tracks belong to a career path and a
+   * second path would have different ones; this asks a preference that any
+   * track's `audience` can be read against, so the question survives content it
+   * has never seen.
+   */
+  workStyle: z.enum(["visual", "logical", "unsure"]),
   weeklyHours: z
     .number()
     .int("Enter weekly hours as a whole number between 1 and 40.")
@@ -238,6 +253,7 @@ export function onboardingRoutes(pool: Pool): Router {
               experienceLevel: profile.experience_level,
               goal: profile.goal,
               weeklyHours: profile.weekly_hours,
+              workStyle: (profile.survey_answers.workStyle as string | undefined) ?? null,
             }
           : null,
       careerPathId:
@@ -259,12 +275,32 @@ export function onboardingRoutes(pool: Pool): Router {
     if (!rows[0]) throw new HttpError(404, "Not found");
 
     const next = advance(rows[0].onboarding_step, "target");
+
+    /**
+     * Merged, not replaced. `survey_answers` already holds `careerPathId` from
+     * the target step, and a learner who walks back to this page must not lose
+     * the path they chose. Read and merge here rather than `||` in SQL, which
+     * pg-mem does not implement, so the endpoint tests exercise the real query.
+     */
+    const existing = await pool.query<{ survey_answers: Record<string, unknown> }>(
+      `select survey_answers from learner_profiles where user_id = $1`,
+      [user.id],
+    );
+    const survey = { ...(existing.rows[0]?.survey_answers ?? {}), workStyle: parsed.data.workStyle };
+
     await pool.query(
       `update learner_profiles
           set experience_level = $1, goal = $2, weekly_hours = $3,
-              onboarding_step = $4, updated_at = now()
-        where user_id = $5`,
-      [parsed.data.experienceLevel, parsed.data.goal, parsed.data.weeklyHours, next, user.id],
+              survey_answers = $4, onboarding_step = $5, updated_at = now()
+        where user_id = $6`,
+      [
+        parsed.data.experienceLevel,
+        parsed.data.goal,
+        parsed.data.weeklyHours,
+        JSON.stringify(survey),
+        next,
+        user.id,
+      ],
     );
 
     res.json({ step: next, next: "/onboarding/target" });

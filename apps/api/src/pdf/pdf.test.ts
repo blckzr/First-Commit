@@ -6,6 +6,7 @@ import { createTestDb, type TestDb } from "@first-commit/test-db";
 import { post } from "../test/http.js";
 import type { Mailer } from "../mail/index.js";
 import { inflateSync } from "node:zlib";
+import { renderCertificatePdf } from "./render.js";
 
 const silentMailer: Mailer = { name: "test", async send() {} };
 
@@ -262,5 +263,93 @@ describe("GET /certificates/:code.pdf", () => {
   it("requires a session", async () => {
     await giveCertificate();
     expect((await request(app).get("/certificates/FC-7K2M-94QX.pdf")).status).toBe(401);
+  });
+});
+
+/**
+ * The QR code on the certificate (§5.15: the verification page is reached "via
+ * link or QR code").
+ *
+ * **What these prove and what they do not.** They prove a QR is embedded, that
+ * it is derived from the verification URL rather than being a fixed decoration,
+ * and that the written link §12 requires is still there. They do **not** prove a
+ * phone camera resolves it to the right page — that needs a decoder, and adding
+ * one to read back an image this file just asked a library to write would mostly
+ * be testing the library against itself. Scanning a built PDF is a manual check;
+ * it is in docs/task-tracker.md as one.
+ */
+describe("the certificate QR code", () => {
+  const sample = (verifyUrl: string) =>
+    renderCertificatePdf({
+      recipientName: "Jan Kevin Gerona",
+      title: "Junior Web Developer",
+      type: "completion",
+      publicCode: "FC-7K2M-94QX",
+      issuedAt: new Date("2026-09-02T00:00:00Z"),
+      skills: ["HTML", "CSS"],
+      verifyUrl,
+    });
+
+  /**
+   * pdfkit writes an embedded bitmap as an image XObject — currently **two** of
+   * them for one PNG, the pixels plus an `SMask` carrying the alpha channel. So
+   * this asserts "at least one" rather than an exact count, which would break on
+   * a `qrcode` release that stops emitting alpha.
+   */
+  const imageCount = (pdf: Buffer) =>
+    pdf.toString("latin1").match(/\/Subtype\s*\/Image/g)?.length ?? 0;
+
+  it("embeds an image", async () => {
+    expect(
+      imageCount(await sample("https://firstcommit.app/verify/FC-7K2M-94QX")),
+    ).toBeGreaterThanOrEqual(1);
+  });
+
+  /**
+   * **The code is derived from the URL.** Two certificates whose only difference
+   * is the verification URL must not carry the same image — otherwise the QR
+   * would be a decorative square pointing everybody at the same place, which is
+   * exactly the bug this asserts against.
+   */
+  it("encodes the certificate's own verification URL", async () => {
+    const [a, b] = await Promise.all([
+      sample("https://firstcommit.app/verify/FC-7K2M-94QX"),
+      sample("https://firstcommit.app/verify/FC-ZZZZ-0000"),
+    ]);
+
+    /*
+     * **Every image stream, not the dictionary and not just the first one.**
+     * Two earlier versions of this assertion proved nothing:
+     *
+     * 1. Taking everything after `/Subtype /Image` read the XObject's
+     *    *dictionary*. Two URLs of the same length encode to the same QR
+     *    version, so both said `/Height 186 /Width 186` and the test passed on
+     *    metadata that could never differ.
+     * 2. Taking the first image stream read the **SMask** — the alpha channel,
+     *    which is uniformly opaque for every QR code ever drawn, so again
+     *    identical by nature.
+     *
+     * So this collects all of them and asserts that *something* differs.
+     */
+    const imageStreamsOf = (pdf: Buffer) => [
+      ...pdf
+        .toString("latin1")
+        .matchAll(/\/Subtype\s*\/Image[^]*?stream([^]*?)endstream/g),
+    ].map((match) => match[1]);
+
+    expect(imageStreamsOf(a).length).toBeGreaterThan(0);
+    expect(imageStreamsOf(a)).not.toEqual(imageStreamsOf(b));
+  });
+
+  /**
+   * §12: "QR codes are always accompanied by the written verification link."
+   * A QR is unreadable to a screen reader and useless on a printout to somebody
+   * without a phone, so the text is the accessible path — not a fallback.
+   */
+  it("keeps the written verification link beside it", async () => {
+    const text = textOf(await sample("https://firstcommit.app/verify/FC-7K2M-94QX"));
+
+    expect(text).toContain("https://firstcommit.app/verify/FC-7K2M-94QX");
+    expect(text).toContain("FC-7K2M-94QX");
   });
 });

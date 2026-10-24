@@ -1,0 +1,227 @@
+/*
+ * design.md §5.14 — the capstone, stage 1.
+ *
+ * Tokens only (§8): no literal colour appears here. The brief cards are a
+ * two-up grid on a wide viewport and one column below, via a container query
+ * rather than a media query, so the panel behaves the same wherever it is put.
+ */
+
+.page {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-6);
+}
+
+.header {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.title {
+  margin: 0;
+  font-size: var(--text-h1);
+  font-weight: 800;
+  letter-spacing: var(--ls-heading);
+  color: var(--text-strong);
+}
+
+.heading {
+  margin: 0 0 var(--space-4);
+  font-size: var(--text-h3);
+  font-weight: 700;
+  letter-spacing: var(--ls-heading);
+  color: var(--text-strong);
+}
+
+.briefs {
+  container-type: inline-size;
+  display: grid;
+  gap: var(--space-4);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+@container (min-width: 640px) {
+  .briefs {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+.brief {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  height: 100%;
+  padding: var(--space-5);
+}
+
+.briefTitle {
+  margin: 0;
+  font-size: var(--text-h4);
+  font-weight: 700;
+  letter-spacing: var(--ls-heading);
+  color: var(--text-strong);
+}
+
+.briefText {
+  margin: 0;
+  color: var(--text-body);
+  line-height: var(--leading-body);
+}
+
+.facts {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin: 0;
+  /* Pushes the button to the foot of every card, so a shorter brief does not
+     leave its action floating halfway up next to a longer one. */
+  flex: 1 1 auto;
+}
+
+.fact {
+  display: flex;
+  gap: var(--space-2);
+  font-size: var(--text-sm);
+}
+
+.factLabel {
+  margin: 0;
+  color: var(--text-muted);
+  min-width: 5.5rem;
+}
+
+.factValue {
+  margin: 0;
+  color: var(--text-body);
+}
+
+.notice {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-3);
+  padding: var(--space-5);
+  background: var(--surface-card-soft);
+}
+
+.noticeText {
+  margin: 0;
+  color: var(--text-body);
+  line-height: var(--leading-body);
+}
+
+.connect {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+}
+
+.steps {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+  margin: 0;
+  padding-left: var(--space-6);
+  color: var(--text-strong);
+}
+
+.step {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-3);
+}
+
+.stepText {
+  margin: 0;
+  color: var(--text-body);
+  line-height: var(--leading-body);
+}
+
+.hint {
+  margin: 0;
+  font-size: var(--text-sm);
+  color: var(--text-muted);
+}
+
+.connected {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin: 0;
+  color: var(--verified);
+}
+
+.picker {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  align-items: flex-start;
+}
+
+.repos {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  width: 100%;
+}
+
+.repoChoice {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  /* §12: at least 44px, so a radio in a list is a real target on a phone. */
+  min-height: 44px;
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--border-control);
+  border-radius: var(--radius-input);
+  cursor: pointer;
+}
+
+.repoChoice:hover {
+  background: var(--surface-card-soft);
+}
+
+.repo {
+  font-family: var(--font-mono);
+  font-size: var(--text-sm);
+  color: var(--text-strong);
+}
+
+.commits {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.commit {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  gap: var(--space-3);
+  align-items: baseline;
+  padding: var(--space-2) 0;
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.commitMessage {
+  color: var(--text-body);
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.loading {
+  color: var(--text-muted);
+}
+
+.error {
+  margin: var(--space-4) 0 0;
+  color: var(--error);
+}

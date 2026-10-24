@@ -16,6 +16,15 @@ export interface LearnerFixture {
   id: string;
   experienceLevel: string;
   goal: string;
+  /**
+   * `visual`, `logical` or `unsure` — the answer the track turns on.
+   *
+   * Added after five runs recommended Frontend to 25 of 25 profiles. The old
+   * `backend-leaning` fixture was misnamed: it set a goal and an experience
+   * level, neither of which leans anywhere, because the platform collected
+   * nothing that could (AGENT.md open question 13).
+   */
+  workStyle: "visual" | "logical" | "unsure";
   weeklyHours: number;
   /** Seeded module slugs this learner has already passed. */
   completedSlugs: string[];
@@ -26,15 +35,17 @@ export interface LearnerFixture {
 export const learners: LearnerFixture[] = [
   {
     id: "complete-beginner",
+    workStyle: "unsure",
     experienceLevel: "none",
     goal: "company_job",
     weeklyHours: 10,
     completedSlugs: [],
     expectation:
-      "Has never programmed. Either track is defensible; the order must start from the basics and skip nothing.",
+      "Has never programmed and does not know what they enjoy. Either track is defensible; the explanation should say the choice can change, and the order must start from the basics and skip nothing.",
   },
   {
     id: "beginner-few-hours",
+    workStyle: "visual",
     experienceLevel: "none",
     goal: "company_job",
     weeklyHours: 3,
@@ -44,6 +55,7 @@ export const learners: LearnerFixture[] = [
   },
   {
     id: "some-html-css",
+    workStyle: "visual",
     experienceLevel: "some",
     goal: "company_job",
     weeklyHours: 12,
@@ -53,6 +65,7 @@ export const learners: LearnerFixture[] = [
   },
   {
     id: "comfortable-js",
+    workStyle: "visual",
     experienceLevel: "comfortable",
     goal: "company_job",
     weeklyHours: 15,
@@ -62,6 +75,7 @@ export const learners: LearnerFixture[] = [
   },
   {
     id: "freelance-goal",
+    workStyle: "visual",
     experienceLevel: "some",
     goal: "freelance",
     weeklyHours: 20,
@@ -71,11 +85,12 @@ export const learners: LearnerFixture[] = [
   },
   {
     id: "backend-leaning",
+    workStyle: "logical",
     experienceLevel: "comfortable",
     goal: "company_job",
     weeklyHours: 18,
     completedSlugs: ["html-basics", "css-basics", "js-basics"],
     expectation:
-      "The one profile written to test whether the model ever recommends the backend track, or defaults to frontend for everyone.",
+      "Says plainly they prefer logic and data. **This must recommend Backend.** If it does not, the track choice is still not being made from what the learner said.",
   },
 ];

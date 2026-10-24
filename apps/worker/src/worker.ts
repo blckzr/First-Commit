@@ -22,7 +22,13 @@ import { PROMPT_VERSION as ROADMAP_PROMPT_VERSION, SYSTEM as ROADMAP_SYSTEM } fr
 import { runRoadmapGeneration } from "./roadmap/index.js";
 import { runResumeGeneration } from "./resume/index.js";
 import { PROMPT_VERSION as RESUME_PROMPT_VERSION, SYSTEM as RESUME_SYSTEM } from "./prompts/resume.js";
-import { CodeFeedback, noSolutionLeak } from "./schemas.js";
+import { CodeFeedback, MilestoneReview, noSolutionLeak, noUnearnedPass } from "./schemas.js";
+import {
+  buildMilestoneReviewMessages,
+  MilestoneReviewInput,
+  PROMPT_VERSION as REVIEW_PROMPT_VERSION,
+  SYSTEM as REVIEW_SYSTEM,
+} from "./prompts/milestone-review.js";
 import { createRunner } from "./runner.js";
 import { queueFeedback, runSubmission, type Submission } from "./submissions.js";
 
@@ -94,7 +100,36 @@ const handlers: Record<string, Handler> = {
 
   resume_generation: (job) => runResumeGeneration(pool, job),
 
-  // Add milestone_review as you build it. Its output schema is in schemas.ts.
+  /**
+   * The Code Review AI's second half (design.md §5.14).
+   *
+   * **The diff arrives in the payload.** The worker has no GitHub credentials —
+   * the App's private key lives only in the API — so the API fetches the diff
+   * and sends it, exactly as it sends files and test results for
+   * `code_feedback`. The checks have already run and travel with it, which is
+   * what keeps §7's ordering: the model explains conclusions rather than
+   * reaching them.
+   *
+   * `AI_CONTEXT_LARGE` because a diff is longer than a submission — the one
+   * place AGENT.md's budget allows 16,384 instead of 8,192.
+   */
+  async milestone_review(job) {
+    const input = MilestoneReviewInput.parse(job.payload);
+    const anyCheckFailed = input.checks.some((check) => check.state === "failed");
+
+    const r = await chatJson({
+      schema: MilestoneReview,
+      messages: buildMilestoneReviewMessages(input),
+      context: config.contextLarge,
+      validate: (review) => noUnearnedPass(review, anyCheckFailed),
+    });
+
+    return {
+      result: { attempts: r.attempts, durationMs: r.durationMs, rejections: r.rejections },
+      output: r.data,
+      promptVersion: REVIEW_PROMPT_VERSION,
+    };
+  },
 };
 
 /**
@@ -111,6 +146,7 @@ async function registerPrompts(): Promise<void> {
     { component: "code_feedback", version: FEEDBACK_PROMPT_VERSION, content: FEEDBACK_SYSTEM },
     { component: "roadmap_generation", version: ROADMAP_PROMPT_VERSION, content: ROADMAP_SYSTEM },
     { component: "resume_generation", version: RESUME_PROMPT_VERSION, content: RESUME_SYSTEM },
+    { component: "milestone_review", version: REVIEW_PROMPT_VERSION, content: REVIEW_SYSTEM },
   ];
 
   for (const prompt of prompts) {

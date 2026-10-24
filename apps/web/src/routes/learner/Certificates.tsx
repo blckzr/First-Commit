@@ -97,9 +97,18 @@ export function Certificates() {
             <Icon name="lock" size={16} aria-hidden />
             <h2 className={styles.lockedTitle}>Project Certificate</h2>
           </span>
+          {/*
+            A reason the learner can act on. This used to read "Capstones aren't
+            built yet", which was true while they weren't and quietly became
+            false the moment they were — the sort of copy that survives because
+            nothing fails when it stops being accurate.
+          */}
           <p className={styles.lede}>
-            Earned by finishing a capstone project. Capstones aren&apos;t built yet — this is
-            where yours will appear.
+            {data.projectCertificate.reason === "no-project"
+              ? "Earned by finishing a capstone project. Start one from the Capstone page."
+              : `Earned by finishing a capstone project. You have completed ${
+                  data.projectCertificate.complete ?? 0
+                } of ${data.projectCertificate.total ?? 0} milestones.`}
           </p>
         </Card>
       )}

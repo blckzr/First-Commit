@@ -98,11 +98,22 @@ const TABLES = [
   // Admin-only, and read when queueing code feedback for the model.
   "rubrics",
   "code_submissions",
-  // certificates.project_id points into the capstone chain, so the whole chain
-  // has to exist even though nothing here reads it yet.
+  // The capstone chain (design.md §5.14). **Order is dependency order** — the
+  // DDL runs in the order of this list, so a table must appear after everything
+  // it references or pg-mem rejects the foreign key.
+  "github_connections",
+  "github_events",
   "capstone_briefs",
   "capstone_brief_versions",
+  "starter_templates",
+  "milestones",
+  "milestone_modules",
+  "milestone_checks",
   "capstone_projects",
+  "project_commits",
+  "milestone_attempts",
+  "check_overrides",
+  "integrity_flags",
   "certificates",
   // The resume reads verified evidence and stores rendered sections.
   "resumes",

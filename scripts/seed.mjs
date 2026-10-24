@@ -33,6 +33,7 @@ import {
 import { lessons as lessonsBySlug } from "../supabase/seed/lessons.mjs";
 import { placement } from "../supabase/seed/placement.mjs";
 import { exercises } from "../supabase/seed/exercises.mjs";
+import { capstones } from "../supabase/seed/capstone.mjs";
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 void ROOT;
@@ -245,6 +246,83 @@ function validate() {
     }
     if (!exercise.referenceSolution?.length) {
       problems.push(`exercise "${slug}": no reference solution to check the tests against`);
+    }
+  }
+
+  /**
+   * Capstone briefs. Everything checked here is something that would otherwise
+   * surface as a broken screen rather than a seed error: a brief on a track
+   * that does not exist has nowhere to appear, a milestone whose "related
+   * modules" name nothing leaves §5.14's panel empty, and a brief with no
+   * starter template for a technology the track offers sends that learner to a
+   * dead button on stage 2.
+   */
+  const techBySlug = new Map(technologies.map((t) => [t.slug, t]));
+  const trackTechnologies = new Map(
+    tracks.map((t) => [t.title, new Set((t.decision?.options ?? []).map((o) => o.technology))]),
+  );
+
+  for (const brief of capstones) {
+    const where = `capstone "${brief.slug}"`;
+    if (!trackTitles.has(brief.track)) {
+      problems.push(`${where}: no track called "${brief.track}"`);
+    }
+
+    const offered = trackTechnologies.get(brief.track);
+    for (const slug of Object.keys(brief.starterTemplates ?? {})) {
+      if (!techBySlug.has(slug)) problems.push(`${where}: unknown technology "${slug}"`);
+      else if (offered && offered.size > 0 && !offered.has(slug)) {
+        problems.push(`${where}: "${slug}" is not offered on the ${brief.track} track`);
+      }
+    }
+    for (const slug of offered ?? []) {
+      if (!brief.starterTemplates?.[slug]) {
+        problems.push(
+          `${where}: no starter template for "${slug}", which the ${brief.track} track offers — ` +
+            `a learner who chose it would reach a dead button on §5.14 stage 2`,
+        );
+      }
+    }
+
+    if (!brief.milestones?.length) {
+      problems.push(`${where}: no milestones, so there is nothing to track`);
+    }
+
+    for (const [i, m] of (brief.milestones ?? []).entries()) {
+      const at = `${where} milestone ${i + 1} ("${m.title}")`;
+      if (!m.acceptanceCriteria?.length) {
+        problems.push(`${at}: no acceptance criteria, so the learner is told nothing to aim at`);
+      }
+      if (!m.checks?.length) {
+        problems.push(`${at}: no checks, so nothing decides whether it is done`);
+      }
+      for (const module of m.modules ?? []) {
+        if (!bySlug.has(module)) problems.push(`${at}: names unknown module "${module}"`);
+      }
+      for (const check of m.checks ?? []) {
+        if (!["file_exists", "workflow_test", "deployment_url"].includes(check.type)) {
+          problems.push(`${at}: unknown check type "${check.type}"`);
+        }
+        if (check.type === "file_exists" && !check.config?.path) {
+          problems.push(`${at}: a file_exists check needs a path`);
+        }
+        if (check.type === "workflow_test" && !(check.config?.workflow && check.config?.test_name)) {
+          problems.push(`${at}: a workflow_test check needs a workflow and a test_name`);
+        }
+      }
+    }
+
+    /**
+     * The last milestone is the one §5.14 says asks for the live address, and
+     * a `deployment_url` check is what confirms it loads. Without one the
+     * project can be "complete" while nothing was ever published.
+     */
+    const last = brief.milestones?.[brief.milestones.length - 1];
+    if (last && !last.checks?.some((c) => c.type === "deployment_url")) {
+      problems.push(
+        `${where}: the last milestone has no deployment_url check, so a project could finish ` +
+          `without anything being live`,
+      );
     }
   }
 
@@ -660,6 +738,109 @@ async function seed() {
     codeAssessments += 1;
   }
   if (codeAssessments) console.log(ok(`${codeAssessments} coding exercises with test cases`));
+
+  // --- Capstone briefs (design.md §5.14) -----------------------------------
+  for (const brief of capstones) {
+    const briefId = await upsert(
+      `insert into capstone_briefs (track_id, slug, status)
+       values ($1, $2, 'published')
+       on conflict (slug) do update set track_id = excluded.track_id, status = 'published'
+       returning id`,
+      [trackIds.get(brief.track), brief.slug],
+    );
+
+    /**
+     * Version 1, published. `brief_versions_one_published` allows only one
+     * published version per brief, so re-seeding updates this row rather than
+     * adding a second — §6 rule 6 means a learner mid-project keeps the version
+     * they started, and a real content edit would be a new version number
+     * written by the admin editor, not by re-running the seed.
+     */
+    const versionId = await upsert(
+      `insert into capstone_brief_versions
+         (brief_id, version_no, title, description, goals, estimated_weeks, status, published_at)
+       values ($1, 1, $2, $3, $4, $5, 'published', now())
+       on conflict (brief_id, version_no) do update
+         set title = excluded.title,
+             description = excluded.description,
+             goals = excluded.goals,
+             estimated_weeks = excluded.estimated_weeks,
+             status = 'published'
+       returning id`,
+      [
+        briefId,
+        brief.version.title,
+        brief.version.description,
+        brief.version.goals,
+        brief.version.estimatedWeeks,
+      ],
+    );
+
+    for (const [techSlug, repo] of Object.entries(brief.starterTemplates)) {
+      await client.query(
+        `insert into starter_templates (brief_version_id, technology_id, repo_full_name)
+         values ($1, $2, $3)
+         on conflict (brief_version_id, technology_id) do update
+           set repo_full_name = excluded.repo_full_name`,
+        [versionId, techIds.get(techSlug), repo],
+      );
+    }
+
+    for (const [i, m] of brief.milestones.entries()) {
+      const milestoneId = await upsert(
+        `insert into milestones
+           (brief_version_id, sort_order, title, acceptance_criteria, review_checklist, explanation_question)
+         values ($1, $2, $3, $4, $5, $6)
+         on conflict (brief_version_id, sort_order) do update
+           set title = excluded.title,
+               acceptance_criteria = excluded.acceptance_criteria,
+               review_checklist = excluded.review_checklist,
+               explanation_question = excluded.explanation_question
+         returning id`,
+        [
+          versionId,
+          i,
+          m.title,
+          JSON.stringify(m.acceptanceCriteria),
+          JSON.stringify(m.reviewChecklist ?? []),
+          m.explanationQuestion ?? null,
+        ],
+      );
+
+      for (const moduleSlug of m.modules ?? []) {
+        await client.query(
+          `insert into milestone_modules (milestone_id, module_id) values ($1, $2)
+           on conflict do nothing`,
+          [milestoneId, moduleIds.get(moduleSlug)],
+        );
+      }
+
+      /**
+       * Checks are replaced rather than upserted: they have no natural key, and
+       * an edited brief that renamed a check would otherwise leave the old one
+       * behind for every future attempt to fail against. Nothing points at a
+       * `milestone_checks` row except `check_overrides`, which only exists once
+       * an attempt has been reviewed — so a project mid-flight keeps its
+       * results (`milestone_attempts.check_results` stores them) and only the
+       * definition moves.
+       */
+      await client.query(`delete from milestone_checks where milestone_id = $1`, [milestoneId]);
+      for (const [j, check] of (m.checks ?? []).entries()) {
+        await client.query(
+          `insert into milestone_checks (milestone_id, type, name, config, sort_order)
+           values ($1, $2, $3, $4, $5)`,
+          [milestoneId, check.type, check.name, JSON.stringify(check.config ?? {}), j],
+        );
+      }
+    }
+
+    console.log(
+      ok(
+        `capstone "${brief.version.title}": ${brief.milestones.length} milestones, ` +
+          `${Object.keys(brief.starterTemplates).length} starter templates`,
+      ),
+    );
+  }
 
   await client.query("commit");
 }

@@ -43,7 +43,7 @@ const GROUPS: NavGroup[] = [
     items: [
       { to: "/app/roadmaps", label: "My roadmaps", icon: "map" },
       { to: "/app/explore", label: "Explore modules", icon: "layers" },
-      { to: "/app/capstone", label: "Capstone", icon: "wrench", locked: true },
+      { to: "/app/capstone", label: "Capstone", icon: "wrench" },
     ],
     owns: ["/app/roadmap/", "/app/module/", "/app/quiz/", "/app/exercise/"],
   },
@@ -68,7 +68,7 @@ const GROUPS: NavGroup[] = [
 const BOTTOM: NavItem[] = [
   { to: "/app", label: "Home", icon: "circle-dot" },
   { to: "/app/roadmaps", label: "Roadmaps", icon: "map" },
-  { to: "/app/capstone", label: "Capstone", icon: "wrench", locked: true },
+  { to: "/app/capstone", label: "Capstone", icon: "wrench" },
   { to: "/app/resume", label: "Resume", icon: "file-text" },
 ];
 

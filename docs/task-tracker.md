@@ -14,6 +14,10 @@ What is planned and what is done, from an empty repository to a working platform
 
 The immediate queue. Everything here is unblocked and ready to pick up.
 
+- [x] **The Roadmap AI can recommend Backend now.** Five evaluation runs across both model sizes gave Frontend to 25 of 25 profiles — onboarding asked nothing that bore on the choice, and the Frontend blurb carried a career argument Backend lacked. §5.4 gains a fourth question, the blurbs are symmetrical, and roadmap prompt v4 says the preference decides the track. Measured: the `logical` profile gets Backend, the five `visual` ones still get Frontend (AGENT.md open question 13, closed)
+  - [ ] **Re-run the seed** (`npm run db:seed`) so the rebalanced track blurb reaches the real database. The evaluation builds its own copy, so it saw the change immediately; the development database has not
+  - [ ] **Existing accounts have no `workStyle`.** The prompt handles it ("were not asked") and the roadmap still generates, but their track was chosen without it. Re-onboarding or a one-off question would fix it
+
 - [x] **Supabase project created**, migrated and verified. `npm run db:seed` loads the curriculum and `npm run db:accounts` creates the sign-in accounts.
 - [ ] **Replace the placeholder `SESSION_SECRET` in `apps/api/.env`.** It is the literal instruction text rather than a value. `required()` only checks for non-empty, so the API boots and sessions work — but the signing secret is a publicly known string. Generate one with `node -e "console.log(crypto.randomBytes(32).toString('hex'))"`. (`apps/api/.env` also lists `APP_ORIGIN` twice; harmless, but worth tidying.)
 - [ ] **`config.ts` accepts a placeholder as a secret.** `SESSION_SECRET` passing validation as `<node -e "...">` is the kind of thing that reaches production. A length check, and a refusal on anything starting with `<`, would cost two lines.
@@ -123,10 +127,14 @@ changelog for 2026-09-22.
 - [x] `/app/module/:id` — **applied**. The rail uses v2's `LessonRow` — numbered disc, title, caption — with the quiz and exercise continuing the count. Header panel, notice tile, rail with the quiz as a row, reading panel, test-out strip
 - [x] `/app/quiz/:id` — **applied**. Green tick and a sentence on a pass, the same panel either way
 - [x] `/app/roadmaps` — **applied from v2** (h1 header, lime Active badge, ruled footer with Review plan, the inset Archived tile). §5.12: per-roadmap progress with the shared count, last studied, archive and restore behind a disclosure
-  - [ ] "Create roadmap" is in §5.12 and absent here — it means running the survey and target steps outside the onboarding guard, which does not exist. Left out rather than shipped dead
+  - [ ] **"Create roadmap" is absent** (AGENT.md open question 14) — running §5.4's survey and target steps outside the onboarding guard. A learner who finishes a roadmap currently has nowhere to go, and only one career path is seeded, so a second path is content work that has to land with it
+  - [ ] **Changing track is a different problem** (question 15): it is a regeneration against a forced track, not a second roadmap
+  - [ ] **"The active roadmap" becomes ambiguous** the moment two exist (question 16) — `GET /capstone` and Home both take the newest, and §5.12 draws two Active cards
 - [x] `/app/certificates` — **applied**. §5.15: earned certificates with View and Copy verification link, each unfinished roadmap with its reason, and the Project Certificate locked
 - [x] `/app/resume` — **applied**. §5.16: the evidence panel, the ATS-friendly preview, generate, and inline editing of the AI summary
-- [ ] `/app/explore` · `/app/capstone` · `/app/settings` — **designed**, not built. Each has a screen in the prototype
+- [x] `/app/capstone` — **built, all three stages**. §5.14's step indicator; the brief cards with milestone count, length and the skills they draw on; the connect-repository steps and repository picker; and the milestone tracker with checks, criteria, the explanation question and push history
+  - [ ] **Not applied to v2.** Built from §5.14 and the tokens; the prototype's capstone screen has not been diffed against it (see the note at the top of this table)
+- [ ] `/app/explore` · `/app/settings` — **designed**, not built. Each has a screen in the prototype
 - [x] **Log out** — in the learner profile menu and the admin bar, one shared control. Ends the session server-side, clears the query cache (§13.6), then navigates; signs out anyway if the request fails
 - [x] `/app/exercise/:id` — **applied from v2**: one-row header, the editor as the ink code block with syntax tones, pill tabs, tinted failing cases. No Hint button (no hint data) — design-source.md §7.1. §5.11: CodeMirror 6, Instructions/Results tabs, the results panel, and the AI feedback panel under it
   - [ ] "Run tests" is in §5.11 and absent here — the in-browser run is Sandpack practice for React and Vue, and Sandpack is not installed. Submit (the server run) is the only path, which is the only one that writes evidence anyway
@@ -233,7 +241,15 @@ The main loop: sign up → roadmap → learn → pass.
   - [ ] **`technology_recommendation` is not built**, so the AI panel is absent rather than filled in. The job type is in the enum and `roadmap_technology_choices` already has `recommended_technology_id` and `recommendation_reason`
   - [x] ~~"Is this wrong?" is disabled until `ai_feedback_flags` has an endpoint~~ — the endpoint exists and the shared `AiPanel` carries the control. **This panel still has none**, and for a different reason: nothing writes `recommendation_reason`, so there is no `ai_outputs` row to point a flag at. It arrives with `technology_recommendation` above
 - [ ] **Adaptive modules** — reinforcement after repeated low scores, challenge after high ones
-- [ ] **`milestone_review`** — diff-only, split by file, `AI_CONTEXT_LARGE`
+- [x] **`milestone_review`** — the last AI stub, now implemented. Diff-only in the job payload (the
+  worker has no GitHub credentials), `AI_CONTEXT_LARGE`, `trimDiff()` dropping generated files and
+  capping each file before the total. `noUnearnedPass` rejects a summary calling a milestone
+  finished when a check failed, and a next step that writes the fix. 23 worker tests, 7 API, 2 screen
+  - **The schema was never written**, though AGENT.md §7, this tracker and a `worker.ts` comment all
+    said it was already in `schemas.ts`. All three corrected
+  - [ ] **Not measured.** `npm run evaluate` reports capstone milestone reviews as not measured
+    (§9.1's second Code Review AI table); it needs sample diffs that meet, partly meet and fail a
+    checklist. Now possible for the first time
 - [x] **`resume_generation`** — the third and last AI component. Prompt, handler, and two grounding mechanisms: an unsupported skill is removed, a claim of experience is rejected and retried. 29 worker tests, 33 API tests, mutation-tested with six defects
   - [x] `readEvidence()` is the one place that says what a learner proved — the same rows the certificate check reads, so the two can never disagree
   - [x] **No endpoint accepts a skill.** The selection takes ids and checks each against the evidence; `POST /resume/generate` takes no body; `PATCH /resume` refuses `skills`
@@ -246,21 +262,105 @@ The main loop: sign up → roadmap → learn → pass.
 
 ## Phase 4 — Capstone and certificates
 
-- [ ] GitHub App — registration, install flow, `github_connections`
-- [ ] Webhook endpoint — signature verification, `github_events` deduplication by `delivery_id`
-- [ ] Project briefs, starter template repositories for React and Vue
-- [ ] Milestone tracker — criteria, latest push, check results, AI review, history
-- [ ] Automatic checks — `file_exists`, `workflow_test`, `deployment_url`
-- [ ] Worker commit polling — backstop for deliveries missed while Render wakes
-- [ ] Integrity signals — single-commit detection, similarity, `integrity_flags`
+- [x] **Capstone stage 1 — choosing a brief.** `GET /capstone` (resolves the active roadmap itself), `GET`/`POST /roadmaps/:id/capstone`, and `/app/capstone` built with the navigation unlocked. Gated on the roadmap's Certificate of Completion — the same row `roadmaps/build.ts` locks the step with — and the technology comes from the roadmap, never the request. 27 API tests, 9 screen tests, five mutations caught
+  - [ ] No "Recommended" badge (§5.14 stage 1 draws one): `ai_job_type` has no `brief_recommendation`, so nothing writes it and a badge picked by the API would be an unlabelled recommendation (§7)
+- [~] **GitHub App — the API half is built, against a development client.** `GET /github/connect`,
+  `/github/callback`, `/github/connection`, and `github_connections` written. One `GitHubClient`
+  interface with two implementations, the same arrangement as `mail/`: unset settings mean a client
+  that invents a consistent account, so none of this waited on an App existing. The callback is a
+  GET that writes (OAuth gives no choice), defended by a `state` cookie. 25 tests, two mutations caught
+  - [ ] **Register the App** — `.env.example` has the exact settings. Needed before a *real*
+    repository can be tracked, not before the code
+  - [ ] **`github/rest.ts` is unexercised**, like `mail/brevo.ts` was: the shapes come from GitHub's
+    documentation and the first real installation is what proves it
+  - [x] **Choosing the repository** — `PUT /roadmaps/:id/capstone/repository`, by GitHub's numeric id
+    and checked live against what the installation grants, so a learner cannot attach a repository
+    they do not own. Only while `connecting`: once building, the commits point at it. 8 API tests,
+    the mutation caught
+  - [x] **The stage 2 screen** — three numbered steps, the connect button with §5.14's scope promise,
+    and the repository picker. 10 screen tests including an axe pass over the form controls
+- [x] **Commits arrive** — `capstone/commits.ts`, synced **when the capstone is read**, the same
+  pattern `syncCertificates()` uses. Only what is newer than the newest stored, via GitHub's own
+  `since`. §5.14 stage 3 shows the latest push and the count. 7 API tests, 3 screen tests
+  - The mutation (removing `on conflict … do nothing`) passed twice before the test was strong
+    enough to catch it — see the changelog. Deduplication is what will matter once a webhook and
+    this both deliver the same push
+  - [ ] Additions and deletions are not fetched: GitHub gives them only per commit, which would
+    be one request each against a shared rate limit. The columns allow null and §5.14 shows neither
+- [x] **Webhook endpoint** — `POST /webhooks/github`. HMAC over the **raw** body (kept by `express.json`'s
+  `verify` hook, because GitHub signs the bytes it sent), `timingSafeEqual`, `delivery_id` dedup, and a 200 on
+  both a repeat and a processing failure so GitHub never retries a delivery into disabling the App's webhook.
+  Pushes match on the numeric repo id, so a rename does not orphan the history. 16 tests, the signature mutation caught
+  - **It was never blocked on deployment.** A public address is what GitHub needs to *reach* it; the endpoint
+    was always writable and testable. Earlier notes in this tracker said otherwise
+- [~] **Project briefs** — the *Task tracker* brief is written and seeded: Frontend track, one published version, 5 milestones with acceptance criteria, review checklists, 17 related-module links and 10 checks. Six content validators, all mutation-tested
+  - [ ] **Create the two starter template repositories.** `first-commit/task-tracker-react` and `-vue` are placeholders in `supabase/seed/capstone.mjs`; they need a real owner, and the tests the `workflow_test` checks name ("adds a task", "rejects empty input", "keeps tasks after a reload", "starts with an empty store", "renders the app shell"). Both templates must use the same test names over different code
+  - [ ] A second brief (§5.14 stage 1 draws two cards)
+- [x] **Milestone tracker** — criteria, latest push, check results, AI review, history. Built across
+  the three items below it: `capstone/checks.ts`, `capstone/milestones.ts` and
+  `features/capstone/MilestoneTracker.tsx`
+- [x] **Automatic checks** — `capstone/checks.ts`. All three types, run against one commit, with
+  **three** outcomes: passed, failed, and **pending** (no workflow run yet, GitHub unreadable, or
+  no step by that name — none of which is the learner's code being wrong). The tree is read once
+  per milestone and workflow steps cached per file. 47 tests
+  - The `deployment_url` check fetches an address the learner chose, so it is fenced against SSRF:
+    HTTP(S) only, no embedded credentials, every resolved address must be public, and redirects are
+    not followed. Disabling the guard fails 7 tests — and the private-range cases take 5s each,
+    because without it they really do attempt the connection
+  - [x] **The results are stored.** `capstone/milestones.ts` records `milestone_attempts` from
+    checks the server ran (§6 rule 1 — no endpoint accepts a status or a `passed` flag), and
+    `review_checklist` never leaves the server (§6 rule 2 — the mutation that selects it fails a
+    test). `GET /roadmaps/:id/capstone/milestones`, `PUT …/demo-url`, `PUT …/explanation`. 13 tests
+- [x] **The stage 3 screen** — `features/capstone/MilestoneTracker.tsx`. Milestone list, detail panel
+  with criteria, related modules (filtered to the learner's technology) and checks, the explanation
+  question, the live-address field, a completion message, and the push history. Status is icon **and
+  text** and colour throughout (§8); checks are a polite live region. 11 tests including axe
+  - [ ] **No AI review panel.** §5.14 draws one; `milestone_review` is a stub, so there is nothing
+    to show and no `ai_outputs` row to flag. It arrives with the job type
+  - [ ] **Not applied to v2.** Built from §5.14 and the tokens; the prototype's capstone screen has
+    not been diffed against it
+- [x] **Commit backstop** — `capstone/sweep.ts`, every 10 minutes, batched at 20. **In the API, not the worker**:
+  the App's private key is the API's alone, and spreading it to a second process to satisfy §6.2's wording would
+  trade the project's most sensitive secret for a timer. §6.2 should say "the API". 7 tests
+  - Three paths now write `project_commits` — webhook, read, sweep — so `on conflict do nothing` is load-bearing
+- [x] **Integrity signals** — `capstone/integrity.ts`, raised once when a project completes.
+  `single_commit` (fewer pushes than half the milestones, briefs of 3+) and `weak_explanation`
+  (an answer under 40 characters). **A flag changes nothing for the learner**: the milestone still
+  passed, the certificate is still issued, and §6 rule 2 keeps it out of every learner response —
+  both asserted. 17 tests, two mutations caught
+  - [x] **`/admin/integrity`** — list, detail with the commit history and explanation answers, and
+    a ruling that is one transaction with its `admin_activity_log` entry. A reason is required by
+    Zod *and* by the schema's check constraint
+  - [ ] **Similarity is not built.** It needs cross-project comparison and a threshold nobody has
+    calibrated; the enum keeps the value for when it is
+  - [x] **The review screen is built** — `/admin/reviews` (§6.6). Flag list and detail panel with the commit
+    history and explanation answers, four rulings, and a reason required before any of them. 13 tests including axe
+    - **§6.6 reversed an earlier decision**: rejecting a project now revokes its Project Certificate in the same
+      transaction. The three other outcomes leave it standing
+    - [ ] **The learner is not notified.** §6.6 says they are told with the reason; nothing writes `notifications`
 - [~] **Certificates** — issuance, `public_code`, and the name-and-skills snapshot are built; the PDF is not
   - [x] **No endpoint issues one** (§6 rule 1). `syncCertificates()` reads completions and decides; the check runs on read, because the worker writes completions from another process and cannot call it. Idempotent. 32 API tests, mutation-tested with five defects
   - [x] **Two false positives guarded**: a roadmap with zero items (vacuously "complete"), and an unanswered technology decision (§3 counts technology modules). Both found in the real database
   - [x] **`GET /verify/:code`** — the API's only public read of a learner's record. Valid, revoked and unknown all answer 200; no email, no ids, and a revoked certificate gives the date but never the reason
   - [x] **PDF built** — `pdfkit`, generated on request rather than stored, for certificates *and* resumes. A stored resume would be stale evidence with an official look; `database-schema.md` §8's own note allows generating on demand. A test decodes the text back out, because "ATS-friendly" is only real if the words are text. 14 tests
-  - [ ] **Admin revocation has no screen** (§6.7). `revoked_reason` already enforces §6 rule 10 through a check constraint; revoking is SQL for now
+  - [x] **The Project Certificate is issued** — a project is finished when every milestone holds a `complete` attempt, which the platform works out rather than being told (§6 rule 1). Issued separately from the completion certificate: different claims, different evidence, and no skills repeated. Repository and live address snapshotted. 9 API tests, the mutation caught
+  - [x] **The resume's Projects section fills**, closing §9.1's "resume at the completed-project level" — reported as not measurable since the harness was written
+  - [x] **Two stale strings removed**: `GET /certificates` returned `capstone-not-built` and the screen printed "Capstones aren't built yet". Both became false when the capstone shipped and nothing failed. The reason is now computed — no project, in progress with a milestone count, or earned
+  - [x] **Revocation has an endpoint** — `/admin/certificates` lists and searches, `PATCH …/revoke` withdraws with a
+    required reason, logged in one transaction. Revoked never deleted, so the public code still answers "withdrawn".
+    A test asserts the admin surface did not become a way to *issue* one. 13 tests, the idempotence mutation caught
+  - [x] **The lookup and revoke page is built** (§6.7) — `/admin/certificates`: search by name, email or code,
+    the public page linked, and revoke behind a required reason. 12 tests, two mutation-tested
+    - **No issue button, asserted** (§6.7, §6 rule 1) — and a test that the screen never grows one
+    - [ ] **Templates and reissue are not built** — §6.7's other two areas. No endpoint; reissue also needs a
+      column pointing the old code at the new certificate. The screen says so rather than offering a dead button
 - [x] **`/verify/:code` designed and built** — from §5.15's content and §3's tokens, since the prototype does not cover it. Public, outside every shell, with all three states. A test asserts it offers nothing to sign into and no link into `/app`
-  - [ ] No QR code yet. §5.15 mentions scanning one; generating it belongs with the PDF
+  - [x] **The QR code is on the PDF** (§5.15). `qrcode` (Node) in `apps/api`, **not** `qrcode.react` — §5.15
+    puts no QR on a screen and pdfkit renders on the server, so §13.1's table was corrected. Drawn beside the
+    written verification link §12 requires, and a QR failure returns `undefined` rather than costing the download
+    - Mutation-tested: encoding a fixed URL instead of the certificate's fails the derivation test
+    - [ ] **Manual check outstanding:** scan a built PDF with a phone and confirm it opens the verification page.
+      Not automated on purpose — decoding an image the test just asked the library to write mostly tests the library
 
 ## Phase 5 — Resume and admin
 
@@ -270,7 +370,9 @@ The main loop: sign up → roadmap → learn → pass.
 - [ ] Module editor — lessons, quizzes, exercises, test cases, rubrics; preview
 - [ ] **Versioning** — minor edit vs major revision, impact preview, learner update notices
 - [ ] Capstone brief and milestone editor
-- [ ] Project reviews — repositories, commit history, integrity flags, check overrides
+- [~] **Project reviews** — `/admin/reviews` built (§6.6): flags, commit history, explanation answers and
+  rulings. **Check overrides are not built** — §6.6 offers overriding an incorrect check with a reason, and
+  `check_overrides` has no endpoint
 - [ ] Flagged AI feedback review
 - [ ] **Design + build `/admin/certificates`** — not in the prototype (see *Screen design coverage*). Templates, lookup, revoke, reissue
 - [ ] Analytics — journey funnel, module pass rates, milestone drop-off, technology split, AI flag rate
