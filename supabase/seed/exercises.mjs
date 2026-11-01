@@ -25,14 +25,17 @@
  * |---|---|
  * | `html-basics`, `forms-and-semantics`, `css-basics`, `css-layout` | Markup and styling. A quiz checks these; a program cannot |
  * | `git-basics`, `git-branching` | Git operations, not a program. The capstone is where Git is actually exercised |
- * | `js-dom` | Needs a `document`. Bare Node has none, so this waits on the jsdom runner — the same one React and Vue need |
- * | `what-are-components`, `http-basics`, `fetching-data` | Concept modules. An exercise here would be a contrivance dressed as practice |
- * | React, Vue | Component tests, so the jsdom runner again |
+ *  * | `what-are-components`, `http-basics`, `fetching-data` | Concept modules. An exercise here would be a contrivance dressed as practice |
+ * | React, Vue | Component tests. A DOM is necessary and not sufficient — they also need JSX or SFC compilation and a render call, which is a harness of its own |
  * | Express, Django | Would need the framework installed in the image, and testing a hand-rolled imitation of a router teaches the imitation |
  *
- * So three of ten core modules can have one today: `js-basics`, `js-functions`,
- * and `js-arrays-objects`. The ceiling lifts when the jsdom runner exists, which
- * unlocks `js-dom` and the four technology modules at once.
+ * So four of ten core modules have one: `js-basics`, `js-functions`,
+ * `js-arrays-objects` on the `javascript` runtime, and **`js-dom` on `jsdom`**
+ * (migration 0004) — the runtime that gives the program a real `document`
+ * before the learner's code runs.
+ *
+ * The four technology modules are still waiting. They share the `jsdom` image,
+ * so the dependency is there; what they need is the component harness.
  */
 
 export const exercises = {
@@ -267,6 +270,153 @@ module.exports = { greet };
 }
 
 module.exports = { greet };
+`,
+      },
+    ],
+  },
+  "js-dom": {
+    title: "Show the task count",
+    runtime: "jsdom",
+    passingScore: 100,
+    instructions:
+      "The page has a list of tasks and an empty `<p id=\"count\">`. Write `updateCount()` so it counts the `<li>` items inside `#tasks` and writes \"3 tasks\" into `#count`. One task reads \"1 task\", and an empty list reads \"No tasks yet\".",
+    /**
+     * **The first exercise on the `jsdom` runtime** (migration 0004). The page is
+     * a starter file ending in `.html`, which the harness turns into the
+     * document; everything else is concatenated as code, exactly as the
+     * `javascript` runtime does.
+     */
+    starterFiles: [
+      {
+        path: "index.html",
+        content: `<!doctype html>
+<html>
+  <body>
+    <ul id="tasks">
+      <li>Write the plan</li>
+      <li>Read the brief</li>
+    </ul>
+    <p id="count"></p>
+  </body>
+</html>
+`,
+      },
+      {
+        path: "script.js",
+        content: `function updateCount() {
+  const list = document.getElementById("tasks");
+  const items = list.querySelectorAll("li");
+  const label = document.getElementById("count");
+
+  label.textContent = items.length + " tasks";
+}
+
+module.exports = { updateCount };
+`,
+      },
+    ],
+    /**
+     * The starter carries the mistake this module teaches: it reads the count
+     * correctly and then writes one label for every case, so plural text appears
+     * for a single task and for none. Two visible cases fail on it, both with a
+     * readable difference ("expected \\"1 task\\", got \\"1 tasks\\"").
+     *
+     * Nothing tells the learner that. The failing tests do, which is what §5.11
+     * and the Code Review AI both rely on.
+     */
+    testCases: [
+      {
+        name: "Counts the tasks already on the page",
+        visible: true,
+        code: `updateCount();
+expect(document.getElementById("count")).toHaveTextContent("2 tasks");`,
+      },
+      {
+        name: "Counts a task added to the list",
+        visible: true,
+        code: `const li = document.createElement("li");
+li.textContent = "Ship it";
+document.getElementById("tasks").appendChild(li);
+
+updateCount();
+expect(document.getElementById("count")).toHaveTextContent("3 tasks");`,
+      },
+      {
+        name: "Says \"1 task\" for a single task",
+        visible: true,
+        code: `const list = document.getElementById("tasks");
+list.innerHTML = "<li>Only this one</li>";
+
+updateCount();
+expect(document.getElementById("count")).toHaveTextContent("1 task");`,
+      },
+      {
+        name: "Says \"No tasks yet\" for an empty list",
+        visible: true,
+        code: `document.getElementById("tasks").innerHTML = "";
+
+updateCount();
+expect(document.getElementById("count")).toHaveTextContent("No tasks yet");`,
+      },
+      /*
+       * Hidden, for the reason every hidden case here exists: a solution that
+       * writes the four visible answers as literals passes everything above.
+       */
+      {
+        name: "Counts a longer list",
+        visible: false,
+        code: `const list = document.getElementById("tasks");
+list.innerHTML = "<li>a</li><li>b</li><li>c</li><li>d</li><li>e</li><li>f</li><li>g</li>";
+
+updateCount();
+expect(document.getElementById("count")).toHaveTextContent("7 tasks");`,
+      },
+      {
+        name: "Reads the list rather than remembering it",
+        visible: false,
+        code: `const list = document.getElementById("tasks");
+list.innerHTML = "<li>a</li><li>b</li><li>c</li>";
+updateCount();
+
+list.innerHTML = "<li>a</li>";
+updateCount();
+
+expect(document.getElementById("count")).toHaveTextContent("1 task");`,
+      },
+      /*
+       * Only `<li>` inside `#tasks` counts. A solution reaching for
+       * `document.querySelectorAll("li")` passes every case above and fails
+       * here, which is the mistake this one exists to catch.
+       */
+      {
+        name: "Ignores list items outside the task list",
+        visible: false,
+        code: `const other = document.createElement("ul");
+other.innerHTML = "<li>not a task</li><li>nor this</li>";
+document.body.appendChild(other);
+
+updateCount();
+expect(document.getElementById("count")).toHaveTextContent("2 tasks");`,
+      },
+    ],
+    referenceSolution: [
+      {
+        path: "script.js",
+        content: `function updateCount() {
+  const list = document.getElementById("tasks");
+  const items = list.querySelectorAll("li");
+  const label = document.getElementById("count");
+
+  if (items.length === 0) {
+    label.textContent = "No tasks yet";
+  } else if (items.length === 1) {
+    label.textContent = "1 task";
+  } else {
+    label.textContent = items.length + " tasks";
+  }
+}
+
+module.exports = { updateCount };
 `,
       },
     ],

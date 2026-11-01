@@ -1,0 +1,35 @@
+-- =============================================================================
+-- 0004 — A `jsdom` code runtime
+--
+-- `code_runtime` was ('javascript', 'python', 'react', 'vue'), and
+-- `database-schema.md` §8 step 2 names the Node test runner "for React and
+-- Vue". Neither accounts for the `js-dom` module.
+--
+-- **The gap.** A `js-dom` exercise is plain JavaScript, so its runtime is
+-- `javascript` — which runs on bare Node, where there is no `document`. The
+-- module teaches DOM manipulation, so every exercise it could have needs one.
+-- `supabase/seed/exercises.mjs` records this as the reason that module has no
+-- exercise: "Needs a `document`. Bare Node has none, so this waits on the jsdom
+-- runner — the same one React and Vue need."
+--
+-- **Two ways to close it, and why this one.** The alternative was to give the
+-- `javascript` runtime a `document` always. That taxes the common case: the
+-- three seeded exercises are pure functions, and jsdom costs a heavier image
+-- and a few hundred milliseconds of startup on every submission that does not
+-- want it. It also hides the requirement — an exercise that needs a browser
+-- environment should say so, not discover it.
+--
+-- So the exercise declares what it needs. `javascript` keeps running on
+-- `node:20-alpine` from stdin, unchanged and fast; `jsdom`, `react` and `vue`
+-- share one image that has jsdom and the frameworks baked in, because
+-- `--network none` means nothing can be installed at run time.
+--
+-- `database-schema.md` §8 is updated in the same task to describe all three.
+--
+-- **`alter type ... add value` cannot run inside a transaction block on every
+-- supported Postgres**, and the new value is not usable in the transaction that
+-- added it. It is alone in this file for that reason — nothing here depends on
+-- reading the value back.
+-- =============================================================================
+
+alter type code_runtime add value if not exists 'jsdom';

@@ -50,6 +50,19 @@ const request = (
 ): RunRequest => ({
   runtime: exercise.runtime,
   files,
+  /**
+   * **The exercise's own files, always the starter's.**
+   *
+   * A `jsdom` exercise's page lives in `starterFiles`, and the reference
+   * solution replaces only the code. Passing `files` alone would run the
+   * reference against an empty document, so every case would fail and the check
+   * would report the reference solution as broken — found by reading this before
+   * it could be run, because the page is not in `referenceSolution`.
+   *
+   * It mirrors `runSubmission`, which reads `assessments.starter_files` on every
+   * run for the same reason.
+   */
+  fixtures: exercise.starterFiles,
   cases: exercise.testCases.map((c, i) => ({
     id: `c${i}`,
     name: c.name,

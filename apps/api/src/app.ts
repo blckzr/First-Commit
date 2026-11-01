@@ -27,6 +27,7 @@ import { adminFlagRoutes } from "./admin/flags.js";
 import { adminIntegrityRoutes } from "./admin/integrity.js";
 import { adminCertificateRoutes } from "./admin/certificates.js";
 import { certificateRoutes } from "./certificates/routes.js";
+import { notificationRoutes } from "./notifications/routes.js";
 import { resumeRoutes } from "./resume/routes.js";
 import { pdfRoutes } from "./pdf/routes.js";
 import { requireSameOrigin } from "./middleware/csrf.js";
@@ -177,6 +178,7 @@ export function createApp(deps: AppDeps = {}) {
   app.use(adminIntegrityRoutes(pool));
   app.use(adminCertificateRoutes(pool));
   app.use(certificateRoutes(pool));
+  app.use(notificationRoutes(pool));
   app.use(resumeRoutes(pool));
   app.use(pdfRoutes(pool));
   app.use(eventRoutes(hub));

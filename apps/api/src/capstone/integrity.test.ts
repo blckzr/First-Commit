@@ -365,6 +365,46 @@ describe("an admin ruling", () => {
   });
 
   /**
+   * §6.6: rejecting "notifies the learner with the reason". Until §5.17's write
+   * path existed this was the half of the sentence the endpoint did not do, and
+   * a learner found out by noticing their certificate had gone.
+   */
+  it("tells the learner, with the admin's reason", async () => {
+    const flagId = await flagged();
+
+    await request(app)
+      .patch(`/admin/integrity/${flagId}`)
+      .set("Cookie", adminCookie)
+      .set("Origin", "http://localhost:5173")
+      .send({ status: "rejected", reason: "The repository was copied." });
+
+    const sent = db.rows("notifications").filter((n) => n.user_id === learnerId);
+    expect(sent).toHaveLength(1);
+    expect(sent[0].type).toBe("project_rejected");
+    expect(sent[0].body).toBe("The repository was copied.");
+    expect(sent[0].read_at).toBeNull();
+  });
+
+  /**
+   * The other three outcomes tell nobody — the reason on a cleared flag is an
+   * internal note, and §6.6 only says the learner is told on a rejection.
+   */
+  it.each(["cleared", "explanation_requested", "redo_requested"])(
+    "tells the learner nothing when the ruling is %s",
+    async (status) => {
+      const flagId = await flagged();
+
+      await request(app)
+        .patch(`/admin/integrity/${flagId}`)
+        .set("Cookie", adminCookie)
+        .set("Origin", "http://localhost:5173")
+        .send({ status, reason: "An internal note nobody should receive." });
+
+      expect(db.rows("notifications")).toHaveLength(0);
+    },
+  );
+
+  /**
    * The other three outcomes leave it standing. The project still stands while
    * the question is open, and withdrawing on suspicion would punish the many
    * learners who simply work in an unusual order.

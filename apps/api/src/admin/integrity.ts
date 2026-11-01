@@ -4,6 +4,7 @@ import type { Pool } from "pg";
 import { HttpError } from "../middleware/errors.js";
 import { requireAdmin, requireAuth, sessionUser } from "../middleware/session.js";
 import { logAdminAction } from "./log.js";
+import { notify } from "../notifications/notify.js";
 
 /**
  * Flagged capstone projects (`design.md` §6.7, `project-proposal.md` §6).
@@ -217,6 +218,18 @@ export function adminIntegrityRoutes(pool: Pool): Router {
        * log entry, because it is a second thing that happened to the learner.
        */
       if (parsed.data.status === "rejected") {
+        /*
+         * The learner comes from the **project**, not from the revocation
+         * below. A project can be rejected before any certificate was issued
+         * — a milestone can fail its checks — and then there is no row to
+         * revoke, but §6.6 still says the learner is told.
+         */
+        const owner = await client.query<{ user_id: string }>(
+          `select user_id from capstone_projects where id = $1`,
+          [updated.rows[0].project_id],
+        );
+        const learnerId = owner.rows[0]?.user_id;
+
         const revoked = await client.query<{ id: string; user_id: string }>(
           `update certificates
               set status = 'revoked', revoked_at = now(), revoked_reason = $2
@@ -233,6 +246,28 @@ export function adminIntegrityRoutes(pool: Pool): Router {
             targetId: certificate.id,
             reason: parsed.data.reason,
             details: { learnerId: certificate.user_id, viaIntegrityFlag: flagId },
+          });
+        }
+
+        /*
+         * §6.6: "Rejecting a project revokes its Project Certificate **and
+         * notifies the learner with the reason**."
+         *
+         * Same transaction as the ruling and the revocation. A learner told
+         * nothing finds out by noticing their certificate has gone, which is
+         * the worst possible way to learn it.
+         *
+         * **The admin's reason is the body.** It is written to be read by the
+         * learner for exactly this outcome — unlike the reason on a cleared
+         * flag, which is an internal note and is never sent anywhere.
+         */
+        if (learnerId) {
+          await notify(client, {
+            userId: learnerId,
+            type: "project_rejected",
+            title: "Your capstone project was not accepted",
+            body: parsed.data.reason,
+            link: "/app/capstone",
           });
         }
       }

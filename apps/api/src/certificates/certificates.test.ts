@@ -259,6 +259,33 @@ describe("§5.15 — earning one", () => {
     expect(cert.publicCode).toMatch(/^FC-[0-9A-Z]{4}-[0-9A-Z]{4}$/);
   });
 
+  /** §5.17: a learner is told when they earn one. */
+  it("notifies the learner", async () => {
+    await finish();
+    await read("/certificates");
+
+    const sent = db.rows("notifications");
+    expect(sent).toHaveLength(1);
+    expect(sent[0].type).toBe("certificate_earned");
+    expect(sent[0].title).toMatch(/Certificate of Completion/);
+    expect(sent[0].link).toBe("/app/certificates");
+  });
+
+  /**
+   * **Once, not on every read.** `syncCertificates()` runs whenever a learner
+   * opens the screen, and `issued` holds only the rows it newly inserted — so
+   * the second read notifies nobody. Without that, visiting the page twice
+   * would leave two notifications for one certificate, and ten visits ten.
+   */
+  it("notifies once however many times the screen is opened", async () => {
+    await finish();
+    await read("/certificates");
+    await read("/certificates");
+    await read("/certificates");
+
+    expect(db.rows("notifications")).toHaveLength(1);
+  });
+
   /** §5.15's heading: "Junior Web Developer, Frontend track with React". */
   it("titles it with the path and the track", async () => {
     await finish();

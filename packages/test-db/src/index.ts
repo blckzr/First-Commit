@@ -115,6 +115,8 @@ const TABLES = [
   "check_overrides",
   "integrity_flags",
   "certificates",
+  // §5.17. Only `users` is referenced, so it can sit anywhere after it.
+  "notifications",
   // The resume reads verified evidence and stores rendered sections.
   "resumes",
   "resume_details",
@@ -150,9 +152,33 @@ function forPgMem(statement: string): string {
 function extractStatements(sql: string): string[] {
   const statements: string[] = [];
 
-  // Enums first — the tables reference them.
-  for (const match of sql.matchAll(/create type\s+\w+\s+as enum\s*\([^;]*\);/g)) {
-    statements.push(match[0]);
+  /*
+   * Enums first — the tables reference them.
+   *
+   * **A later migration's `alter type ... add value` is folded into the
+   * `create type` rather than run as its own statement.** pg-mem does not apply
+   * it, so without this the in-memory enum silently lacks the value and an
+   * insert using it fails with "invalid input value" — a failure that looks like
+   * a broken endpoint rather than a stale harness, which is the exact confusion
+   * this whole file exists to avoid. Migration 0004 adds `jsdom` to
+   * `code_runtime` this way.
+   */
+  const added = new Map<string, string[]>();
+  for (const match of sql.matchAll(
+    /alter type\s+(\w+)\s+add value\s+(?:if not exists\s+)?'([^']+)'/gi,
+  )) {
+    const [, type, value] = match;
+    added.set(type, [...(added.get(type) ?? []), value]);
+  }
+
+  for (const match of sql.matchAll(/create type\s+(\w+)\s+as enum\s*\(([^;]*)\);/g)) {
+    const [statement, type, values] = match;
+    const extra = added.get(type);
+    statements.push(
+      extra
+        ? `create type ${type} as enum (${values.trim()}, ${extra.map((v) => `'${v}'`).join(", ")});`
+        : statement,
+    );
   }
 
   for (const table of TABLES) {

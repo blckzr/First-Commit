@@ -76,14 +76,15 @@ async function main(): Promise<void> {
   console.log(`\nSandbox: ${runner.name}\n`);
 
   // ---- 1. Does it take the runtimes the platform has? ---------------------
-  for (const runtime of ["javascript", "python"]) {
+  for (const runtime of ["javascript", "python", "jsdom"]) {
     if (runner.supports(runtime)) console.log(ok(`accepts ${runtime}`));
     else console.log(note(`does not accept ${runtime} — exercises in it will refuse honestly`));
   }
   /**
-   * §5.11's React and Vue exercises need Vitest with jsdom. Claiming them would
-   * mean sending a component test to a bare runtime and reporting the syntax
-   * error as the learner's fault, so refusing is the correct answer here.
+   * §5.11's React and Vue exercises need more than a DOM: JSX or SFC
+   * compilation and a render call. Claiming them would mean sending a component
+   * test to a runtime that cannot compile it, and reporting the result as the
+   * learner's syntax error — so refusing is the correct answer here.
    */
   for (const runtime of ["react", "vue"]) {
     if (runner.supports(runtime)) {
@@ -164,6 +165,108 @@ async function main(): Promise<void> {
       fail(
         `a loop that never ends ran for ${loopSeconds.toFixed(1)}s`,
         "Check that `--init` is in the docker arguments — without it the in-container timeout does nothing.",
+      );
+    }
+  }
+
+  // ---- 4. Does the jsdom runtime actually have a document? ---------------
+  /**
+   * **The measurement that decides whether the `jsdom` runtime works here**, in
+   * the same spirit as the loop check above: the unit tests prove the program is
+   * *generated* correctly, and only a container proves it *runs*. A missing
+   * `document`, or a `require("jsdom")` that cannot resolve because NODE_PATH
+   * was dropped, both look like a learner's broken code from the outside.
+   *
+   * The fixture is the shape of a real DOM exercise: markup given, a function
+   * that queries and changes it, cases that pass and one that fails on a
+   * visible difference.
+   */
+  if (failures === 0 && runner.supports("jsdom")) {
+    console.log("\n  A DOM exercise, against a real document:");
+
+    const learnerScript = [
+      "function addTask(text) {",
+      "  var li = document.createElement('li');",
+      "  li.textContent = text;",
+      "  document.getElementById('tasks').appendChild(li);",
+      "  return li;",
+      "}",
+    ].join("\n");
+
+    const dom = await runner.run({
+      runtime: "jsdom",
+      files: [{ path: "script.js", content: learnerScript }],
+      /*
+       * **The page is a fixture, not a file.** It is what the assertions measure
+       * against, so it comes from the exercise and never from the submission —
+       * `splitDomFiles` drops a learner's `.html` outright. Passing it in `files`
+       * here gave the probe an empty document and failed every case, which is
+       * the rule working rather than a fault.
+       */
+      fixtures: [
+        {
+          path: "index.html",
+          content: '<!doctype html><body><ul id="tasks"><li>Write tests</li></ul></body>',
+        },
+      ],
+      cases: [
+        {
+          id: "d1",
+          name: "The page is there",
+          code: "expect(document.querySelectorAll('#tasks li').length).toBe(1);",
+          visible: true,
+        },
+        {
+          id: "d2",
+          name: "Adds a task to the list",
+          code:
+            "addTask('Ship it');\n" +
+            "expect(document.querySelectorAll('#tasks li').length).toBe(2);",
+          visible: true,
+        },
+        {
+          id: "d3",
+          name: "Reports a wrong answer as a difference",
+          code: "expect(document.getElementById('tasks').children.length).toBe(99);",
+          visible: true,
+        },
+      ],
+    });
+
+    for (const outcome of dom.outcomes) {
+      const mark = outcome.passed ? "\x1b[32m+\x1b[0m" : "\x1b[31mx\x1b[0m";
+      const detail =
+        outcome.expected !== undefined
+          ? ` - expected ${outcome.expected}, got ${outcome.actual}`
+          : "";
+      console.log(`    ${mark} ${outcome.name}${detail}`);
+    }
+
+    const domUnavailable = runner instanceof DockerRunner ? runner.lastUnavailable : null;
+
+    if (dom.error) {
+      fail("the DOM run reported an error", domUnavailable?.operatorHint ?? dom.error);
+    } else if (dom.outcomes[0]?.passed && dom.outcomes[1]?.passed && !dom.outcomes[2]?.passed) {
+      console.log(
+        ok("the document exists, the learner's code changed it, and a wrong answer failed"),
+      );
+      /**
+       * The third case matters most. A harness that threw on every assertion
+       * would also report "not passed", so this checks it came back as a
+       * *difference* - which only a running assertion can produce.
+       */
+      if (dom.outcomes[2].expected === "99") {
+        console.log(note("the failing case reported expected 99, so assertions really ran"));
+      } else {
+        fail(
+          "the failing DOM case did not report a difference",
+          "It failed, but not by comparing values - the assertion may be throwing instead of running.",
+        );
+      }
+    } else {
+      fail(
+        "the DOM probe did not behave as expected",
+        "Expected the first two cases to pass and the third to fail on a difference.",
       );
     }
   }

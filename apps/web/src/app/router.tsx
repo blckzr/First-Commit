@@ -19,6 +19,7 @@ import { Roadmap } from "../routes/learner/Roadmap";
 import { Roadmaps } from "../routes/learner/Roadmaps";
 import { Capstone } from "../routes/learner/Capstone";
 import { Certificates } from "../routes/learner/Certificates";
+import { Notifications } from "../routes/learner/Notifications";
 import { Resume } from "../routes/learner/Resume";
 import { Verify } from "../routes/public/Verify";
 import { RoadmapReview } from "../routes/learner/RoadmapReview";
@@ -126,7 +127,7 @@ const learnerRoutes = [
   { path: "capstone", element: <Capstone /> },
   { path: "certificates", element: <Certificates /> },
   { path: "resume", element: <Resume /> },
-  { path: "notifications", title: "Notifications", section: "section 5.17", purpose: "Module updates, roadmap changes, milestones, and certificates." },
+  { path: "notifications", element: <Notifications /> },
   { path: "settings", title: "Settings", section: "section 5.18", purpose: "Profile, password, GitHub connection, and deleting your data." },
 ].map((route) =>
   "element" in route

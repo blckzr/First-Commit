@@ -18,7 +18,11 @@ let ids: Record<string, string>;
 let submission: Submission;
 
 /** A runner that reports exactly what a test tells it to, and records its brief. */
-let lastRequest: { cases: { id: string; visible: boolean }[] } | null = null;
+let lastRequest: {
+  cases: { id: string; visible: boolean }[];
+  files: { path: string; content: string }[];
+  fixtures?: { path: string; content: string }[];
+} | null = null;
 const fake = (result: RunResult): Runner => ({
   name: "fake",
   supports: () => true,
@@ -181,6 +185,42 @@ describe("runSubmission", () => {
 
     expect(lastRequest!.cases.map((c) => c.id).sort()).toEqual([ids.visible, ids.hidden].sort());
     expect(lastRequest!.cases.filter((c) => !c.visible)).toHaveLength(1);
+  });
+
+  /**
+   * **The exercise's own files reach the runner, read from the server.**
+   *
+   * A DOM exercise asserts against given markup. Dropping this is silent and
+   * severe in both directions: the run would use an empty document, so a
+   * learner's correct code fails every case — and if the page were taken from
+   * the submission instead, a learner could type the answer into it. §6 rule 4:
+   * what a result is measured against is never something the browser sent.
+   *
+   * Nothing caught this when it was first written, which is why it is here.
+   */
+  it("supplies the exercise's own files as fixtures", async () => {
+    await db.pool.query(
+      `update assessments
+          set runtime = 'jsdom',
+              starter_files = '[{"path":"index.html","content":"<body><p id=\\"count\\"></p></body>"},
+                                {"path":"script.js","content":"// starter"}]'
+        where id = $1`,
+      [ids.exercise],
+    );
+
+    await runSubmission(db.pool, fake({ outcomes: [] }), submission);
+
+    expect(lastRequest!.fixtures).toBeDefined();
+    expect(lastRequest!.fixtures!.map((f) => f.path)).toContain("index.html");
+    // The learner's own file is still what gets run.
+    expect(lastRequest!.files).toEqual([{ path: "script.js", content: "mine" }]);
+  });
+
+  /** An exercise with no starter files is an empty list, never undefined. */
+  it("passes an empty fixture list rather than nothing", async () => {
+    await runSubmission(db.pool, fake({ outcomes: [] }), submission);
+
+    expect(lastRequest!.fixtures).toEqual([]);
   });
 
   /**

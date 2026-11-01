@@ -30,7 +30,21 @@ export interface TestOutcome {
 
 export interface RunRequest {
   runtime: string;
+  /** What the learner submitted. Never trusted for anything but being run. */
   files: { path: string; content: string }[];
+  /**
+   * Files the **exercise** supplies, which the learner cannot change.
+   *
+   * A DOM exercise asserts against given markup, so the markup cannot come from
+   * the submission: a learner who could edit `index.html` would pass
+   * "shows 2 tasks" by typing `<p id="count">2 tasks</p>` and writing no code
+   * at all. Same reasoning as AGENT.md §6 rule 4 — the thing the result is
+   * measured against is not something the browser gets to send.
+   *
+   * Read from `assessments.starter_files` by server code on every run, so it is
+   * current even for a submission made before the exercise was edited.
+   */
+  fixtures?: { path: string; content: string }[];
   cases: { id: string; name: string; code: string; visible: boolean }[];
 }
 

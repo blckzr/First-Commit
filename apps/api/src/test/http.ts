@@ -25,6 +25,10 @@ export function put(app: Express, path: string) {
   return request(app).put(path).set("Origin", config.appOrigin);
 }
 
+export function patch(app: Express, path: string) {
+  return request(app).patch(path).set("Origin", config.appOrigin);
+}
+
 export function get(app: Express, path: string) {
   return request(app).get(path).set("Origin", config.appOrigin);
 }

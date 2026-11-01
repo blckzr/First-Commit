@@ -1,0 +1,165 @@
+/*
+ * design.md §5.17 — Notifications.
+ *
+ * Tokens only (§8). One column at every width; the row goes two-up once there is
+ * room for the actions beside the text rather than under it.
+ */
+
+.page {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+}
+
+.header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+
+.title {
+  margin: 0;
+  font-size: var(--text-h2);
+  font-weight: 800;
+  letter-spacing: var(--ls-heading);
+  color: var(--text-strong);
+}
+
+.count {
+  margin: 0;
+  color: var(--text-muted);
+}
+
+.groupHeading {
+  margin: 0 0 var(--space-3);
+  font-size: var(--text-sm);
+  font-weight: 700;
+  letter-spacing: var(--ls-caps);
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+.list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  margin: 0 0 var(--space-5);
+  padding: 0;
+  list-style: none;
+}
+
+.row {
+  container-type: inline-size;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: var(--space-3);
+  align-items: start;
+  padding: var(--space-4);
+}
+
+@container (min-width: 560px) {
+  .row {
+    grid-template-columns: auto minmax(0, 1fr) auto;
+  }
+}
+
+/*
+ * Unread carries a left edge **and** the word "Read" is absent, so the state is
+ * never the tint alone (§8). The tint is `--info-tint`, not `--notice-tint`: an
+ * unread notification is information waiting, not a warning.
+ */
+.unread {
+  border-left: 3px solid var(--info);
+  background: var(--info-tint);
+}
+
+.read {
+  background: var(--surface-card);
+}
+
+.icon {
+  color: var(--text-muted);
+}
+
+.rowText {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  min-width: 0;
+}
+
+.rowTitle {
+  margin: 0;
+  font-size: var(--text-body);
+  font-weight: 700;
+  color: var(--text-strong);
+  overflow-wrap: anywhere;
+}
+
+.body {
+  margin: 0;
+  color: var(--text-body);
+  line-height: var(--leading-body);
+  overflow-wrap: anywhere;
+}
+
+.when {
+  font-size: var(--text-sm);
+  color: var(--text-muted);
+}
+
+.rowActions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-3);
+  /* The icon column is 1, the text 2, so on a narrow row these sit under both. */
+  grid-column: 2;
+}
+
+@container (min-width: 560px) {
+  .rowActions {
+    grid-column: 3;
+  }
+}
+
+.open {
+  /* §12: a 44px target even though it reads as a link. */
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  color: var(--text-accent);
+  font-weight: 600;
+  text-decoration: underline;
+}
+
+.open:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.readLabel {
+  font-size: var(--text-sm);
+  color: var(--text-muted);
+}
+
+.empty {
+  padding: var(--space-5);
+}
+
+.emptyText {
+  margin: 0;
+  color: var(--text-body);
+}
+
+.hint {
+  margin: 0;
+  color: var(--text-muted);
+}
+
+.error {
+  margin: 0;
+  color: var(--error);
+}

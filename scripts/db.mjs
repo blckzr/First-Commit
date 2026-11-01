@@ -99,6 +99,28 @@ async function migrate() {
  * Checks the objects the code actually calls, and exercises the two behaviours
  * pg-mem cannot: the append-only trigger and the job-claiming function.
  */
+/**
+ * A fresh address per run, for the accounts `verify()` creates.
+ *
+ * **The fixture admin cannot be deleted once it has logged an action, and that
+ * is the schema working.** `admin_activity_log.admin_id` is `on delete set
+ * null`, and `set null` is an *update* — which `prevent_log_changes` blocks,
+ * because an append-only log that lets a row be edited by deleting a user is
+ * not append-only. So the cleanup below always failed, silently, and the next
+ * run collided on `users_email_unique` and reported it as "the append-only
+ * trigger is broken": a check crying wolf about the audit log, which is exactly
+ * the check nobody can afford to start ignoring.
+ *
+ * A unique address sidesteps it. The leftover rows are two users on a domain
+ * reserved by RFC 2606, which can never be a real address.
+ *
+ * The underlying consequence is real and is recorded in AGENT.md §11: an
+ * account that has ever logged an admin action cannot be deleted, which §5.18's
+ * "Delete my account" will meet.
+ */
+const RUN_ID = Date.now().toString(36);
+const fixtureEmail = (who) => `verify-${who}-${RUN_ID}@example.invalid`;
+
 async function verify() {
   let failures = 0;
   const check = async (label, fn) => {
@@ -153,9 +175,23 @@ async function verify() {
   console.log("\nBehaviour pg-mem cannot test");
 
   await check("admin_activity_log is append-only", async () => {
+    /*
+     * **Clear the fixture before inserting it.**
+     *
+     * The cleanup below cannot be relied on: it swallows its own failure, and a
+     * run that dies between the insert and the `finally` leaves the row behind
+     * either way. The next run then failed on `users_email_unique` and reported
+     * it as "the append-only trigger is broken" — a check crying wolf about the
+     * audit log, which is exactly the check nobody can afford to start ignoring.
+     *
+     * `admin_activity_log.admin_id` is `on delete set null`, so clearing the
+     * user leaves any log row from a previous run in place, as the table's whole
+     * design requires.
+     */
     const admin = await client.query(
       `insert into users (email, password_hash, full_name, role)
-       values ('verify-admin@example.invalid','x','Verify','admin') returning id`,
+       values ($1,'x','Verify','admin') returning id`,
+      [fixtureEmail("admin")],
     );
     const adminId = admin.rows[0].id;
     try {
@@ -186,8 +222,13 @@ async function verify() {
       if (!updateBlocked) throw new Error("an update succeeded — the trigger only blocks deletes");
       return "delete and update both refused";
     } finally {
-      // The row cannot be removed by design, so the user reference is cleared
-      // instead: admin_id is `on delete set null`.
+      /*
+       * **This is expected to fail, and that is the point.** The log row cannot
+       * be removed by design, and clearing its `admin_id` is an update, which
+       * the same trigger blocks. So the fixture admin stays — which is why each
+       * run uses a fresh address rather than relying on cleanup that cannot
+       * work.
+       */
       await client.query(`delete from users where id = $1`, [adminId]).catch(() => {});
     }
   });
@@ -195,7 +236,8 @@ async function verify() {
   await check("claim_next_ai_job claims exactly one job", async () => {
     const user = await client.query(
       `insert into users (email, password_hash, full_name)
-       values ('verify-learner@example.invalid','x','Verify') returning id`,
+       values ($1,'x','Verify') returning id`,
+      [fixtureEmail("learner")],
     );
     const userId = user.rows[0].id;
     try {

@@ -45,10 +45,11 @@ export async function runSubmission(
 ): Promise<{ passed: boolean; status: string }> {
   const assessment = await pool.query<{
     runtime: string | null;
+    starter_files: { path: string; content: string }[] | null;
     module_id: string;
     module_version_id: string;
   }>(
-    `select a.runtime, v.module_id, v.id as module_version_id
+    `select a.runtime, a.starter_files, v.module_id, v.id as module_version_id
        from assessments a
        join module_versions v on v.id = a.module_version_id
       where a.id = $1 and a.type = 'code'`,
@@ -58,7 +59,22 @@ export async function runSubmission(
     await fail(pool, submission.id, "That exercise no longer exists.");
     return { passed: false, status: "error" };
   }
-  const { runtime, module_id, module_version_id } = assessment.rows[0];
+  const { runtime, starter_files, module_id, module_version_id } = assessment.rows[0];
+
+  /**
+   * **The exercise's own files, read from the server on every run.**
+   *
+   * A DOM exercise asserts against given markup, and that markup must not come
+   * from the submission: a learner who could edit `index.html` would pass
+   * "shows 2 tasks" by typing `<p id="count">2 tasks</p>` and writing no code.
+   * Same reasoning as §6 rule 4 — what a result is measured against is never
+   * something the browser sent.
+   *
+   * Read now rather than stored with the submission, so a re-run uses the
+   * exercise as it currently stands. The harness takes the page from here and
+   * ignores any `.html` in `files`.
+   */
+  const fixtures = starter_files ?? [];
 
   /**
    * **Every case, hidden ones included.** The API filters `is_visible` because
@@ -79,6 +95,7 @@ export async function runSubmission(
   const result = await runner.run({
     runtime: runtime ?? "javascript",
     files: submission.files,
+    fixtures,
     cases: cases.rows.map((c) => ({
       id: c.id,
       name: c.name,

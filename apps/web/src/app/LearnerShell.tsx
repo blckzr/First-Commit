@@ -4,6 +4,8 @@ import { LogOutButton } from "../features/auth/LogOutButton";
 import type { IconName } from "../components/core/Icon";
 import { IconLink } from "../components/core/IconButton";
 import { useSession } from "../features/auth/useSession";
+import { useQuery } from "@tanstack/react-query";
+import { notificationsApi, notificationsKey } from "../api/notifications";
 import styles from "./LearnerShell.module.css";
 
 interface NavItem {
@@ -139,6 +141,26 @@ function NavItems({ items, className }: { items: NavItem[]; className: string })
 export function LearnerShell() {
   const { pathname } = useLocation();
   const { user } = useSession();
+
+  /*
+   * The unread count for the bell (§5.17).
+   *
+   * `enabled` on a resolved session, so the shell does not ask for
+   * notifications while the guard is still deciding who is asking — that
+   * request would 401 and the shell would show a zero it had not earned.
+   *
+   * No polling. A notification is written by an action the learner took
+   * elsewhere in the app, and TanStack Query refetches this on focus and on
+   * reconnect, which covers coming back to the tab. Pushing it over SSE needs
+   * the hub to carry a second row source, and its cursor is shaped for
+   * `ai_outputs` alone — recorded in docs/task-tracker.md rather than bolted on.
+   */
+  const { data: notifications } = useQuery({
+    queryKey: notificationsKey,
+    queryFn: ({ signal }) => notificationsApi.list(signal),
+    enabled: Boolean(user),
+  });
+  const unreadCount = notifications?.unreadCount ?? 0;
   const group = groupFor(pathname);
 
   return (
@@ -169,14 +191,31 @@ export function LearnerShell() {
         </nav>
 
         <div className={styles.topbarEnd}>
-          <IconLink
-            to="/app/notifications"
-            icon="bell"
-            label="Notifications"
-            variant="bare"
-            size="sm"
-            className={styles.bell}
-          />
+          {/*
+            The bell carries the unread count (§5.17). The label changes with it
+            rather than relying on the dot, because a coloured dot is invisible
+            to a screen reader and to anybody who cannot distinguish it from the
+            ink it sits on (§8: never colour alone).
+          */}
+          <span className={styles.bellWrap}>
+            <IconLink
+              to="/app/notifications"
+              icon="bell"
+              label={
+                unreadCount > 0
+                  ? `Notifications, ${unreadCount} unread`
+                  : "Notifications"
+              }
+              variant="bare"
+              size="sm"
+              className={styles.bell}
+            />
+            {unreadCount > 0 && (
+              <span aria-hidden className={styles.unreadDot}>
+                {unreadCount > 9 ? "9+" : unreadCount}
+              </span>
+            )}
+          </span>
           {/*
             §4.2's profile menu. A native disclosure, so it opens with the
             keyboard and needs no JavaScript.

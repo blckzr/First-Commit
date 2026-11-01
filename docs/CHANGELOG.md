@@ -11,6 +11,242 @@ lives under `[Unreleased]` until there is something to version.
 
 ## [Unreleased]
 
+### 2026-11-02 — `db:verify` had been crying wolf about the audit log
+
+Migration 0004 and the seed are applied: `code_runtime` carries `jsdom`, `js-dom` is seeded with
+its page and 7 cases, and the rebalanced track blurbs reached the database at last — Frontend no
+longer ends with the career argument Backend lacked, which is what the Roadmap AI fix depended on.
+
+`npm run db:verify` then failed on **"admin_activity_log is append-only"**, which reads as the audit
+log's own trigger being broken. It was the check itself.
+
+**The cause is the schema working correctly.** `admin_activity_log.admin_id` is `on delete set
+null`, and `set null` is an *update* — which `prevent_log_changes` blocks, because an append-only
+log that can be edited by deleting a user is not append-only. So the check's cleanup of its fixture
+admin could never succeed once that admin had logged anything. It was wrapped in `.catch(() => {})`,
+so the failure was silent, and **the script worked the first time and failed on every run after**,
+reporting `users_email_unique` as a broken append-only trigger.
+
+Fixed with a per-run fixture address, and the `finally` now says in writing that it is expected to
+fail and why. A check that cries wolf about the audit log is the one check nobody can afford to
+start ignoring.
+
+**The underlying consequence is real and is now AGENT.md §11 question 17:** an account that has ever
+logged an admin action cannot be deleted, and §5.18's "Delete my account" promises it is
+"permanently deleted". Only admins are affected today, because nothing else writes that table.
+
+### 2026-11-02 — A `jsdom` runtime, and a page a learner could have written
+
+`js-dom` had no exercise because bare Node has no `document`. It has one now: `code_runtime`
+gained `jsdom` (migration 0004), and `first-commit/jsdom:1` is built from `docker/jsdom` with jsdom
+baked in — the container runs `--network none`, so installing at run time is not slow, it is
+impossible.
+
+#### The contract is the existing one, deliberately
+
+One program on **stdin**, every case runs, one `RESULT_MARKER` line each, always exit 0. So
+`readOutcomes()` reads it, `failAll()` fails it, and the `hidden` flag travels the same path —
+**one copy of the rule that a case reporting nothing is a failure**, which AGENT.md requires and
+which was got wrong once before. A second results reader would be a second place to get it wrong.
+
+Only the preamble differs: it builds a jsdom window and puts `document` on the global object
+before the learner's file runs. Two details in it are load-bearing:
+
+- **The markup is injected as a JSON string literal**, not interpolated. A fixture containing a
+  quote could otherwise end the string and append statements to the program.
+- **`runScripts` is left off.** jsdom will execute `<script>` tags in supplied markup if asked. The
+  learner's file is the only script that runs, and it runs because the platform concatenated it.
+- **`NODE_PATH` is set.** A program read from stdin has no directory to resolve `node_modules`
+  against, so without it `require("jsdom")` is MODULE_NOT_FOUND and the learner reads a message
+  about their own code. Passed by the runner as well as set in the image, because the flag list is
+  the security boundary and reading it should not require reading a Dockerfile.
+
+#### Found by reading `check-exercises.ts`, before it could be run
+
+A `jsdom` exercise's page lives in `starterFiles`, and the reference solution replaces only the
+code. Running the reference against `referenceSolution` alone would give it an **empty document**,
+so every case would fail and the check would report a correct reference solution as broken.
+
+Chasing that surfaced the worse half. `runSubmission` ran `files: submission.files` — **only what
+the learner sent**. For a DOM exercise that is either no page at all, or a learner editing
+`index.html` to `<p id="count">2 tasks</p>` and passing "shows 2 tasks" with no code. The markup
+is part of the exercise, not part of the answer.
+
+So `RunRequest` gained `fixtures`: what the *exercise* supplies, read from
+`assessments.starter_files` on every run. The page comes from there and **a learner's `.html` is
+dropped** — not preferred-against, because an ordering rule would put the trust boundary somewhere
+a reader has to infer and a reorder would silently move it. §6 rule 4 and `database-schema.md` §8
+now say so.
+
+**Mutation-tested, and it found a gap in my own tests.** Letting a learner's page through as a
+fallback failed one test. Dropping `fixtures` from `runSubmission` failed **nothing** — a silent
+change that would fail every case of a learner's correct code. Two tests now cover it, and the
+mutation fails both.
+
+#### Also
+
+- `packages/test-db` **did not apply `alter type ... add value`**, so pg-mem's `code_runtime`
+  silently lacked `jsdom`. The extractor now folds a later migration's added values into the
+  `create type`. Mutation-tested: skipping the fold fails two tests.
+- `npm run sandbox:check` gained a DOM probe — markup given, a function that changes it, and a
+  deliberately wrong case. It asserts the wrong one came back as a **difference** (expected 99), not
+  merely "not passed", because a harness throwing on every assertion would look identical.
+- A missing image is now an operator message naming `docker build`, not Docker's own sentence about
+  pull access to a repository. `first-commit/jsdom:1` exists on no registry, so that failure always
+  means nobody ran the build.
+- `js-dom` is seeded: "Show the task count", 7 cases, 4 visible. The starter writes one plural label
+  for every count, so two visible cases fail with a readable difference. One hidden case catches a
+  solution reaching for `document.querySelectorAll("li")` instead of scoping to `#tasks`.
+
+#### Measured on this machine
+
+`npm run sandbox:check` and `npm run exercises:check` both pass against real containers. The DOM
+probe reports a real document, the learner's code changing it, and a wrong answer coming back as a
+**difference** (`expected 99, got 2`) rather than a throw — the one failure mode that would
+otherwise look identical to working. **4 exercises check out**: every reference solution passes and
+every starter fails something visible.
+
+Running them found two real faults that 251 passing unit tests had not.
+
+**1. A module cycle that only threw in one import order.** `harness.ts` imports `domSource` to
+dispatch on runtime; `dom-harness.ts` imported `RESULT_MARKER` back. Both build their shim as a
+module-level `const` interpolating the marker, so the half-evaluated module yields a hard
+`ReferenceError: Cannot access 'RESULT_MARKER' before initialization`.
+
+It was **order-dependent, which is what made it dangerous**. Entering through `dom-harness` — which
+every unit test did — resolves cleanly. Entering through `harness`, which `check.ts` does, threw
+before a line ran. The whole suite passed while the script could not start.
+
+This is the second time this cycle class has bitten the sandbox; `types.ts` exists because of the
+first, and its comment says "Nothing here imports anything, which is what guarantees the cycle
+cannot come back." The fix is the same shape: `protocol.ts`, a leaf holding the marker and
+importing nothing. `cycle.test.ts` imports `harness.js` **first**, on purpose, in a file of its own
+so a later import cannot quietly change the order under test. Restoring the cycle fails it.
+
+**2. Cases shared one document.** All cases run in one program, so a case that emptied the task
+list changed what every later case saw — a correct reference solution failed its last case because
+an earlier one had left one item behind. Fixed in the harness, not by asking authors to tidy up:
+the original markup is captured once and restored before each case. **A learner whose case 7 fails
+because of case 5 is reading a result that is not about their code**, which is the opposite of what
+§5.11 promises.
+
+(A third was mine in the check script: the probe passed its page in `files`, where a learner's
+`.html` is correctly dropped, so the document was empty. The rule working, not a fault.)
+
+#### Not done, and honestly not done
+
+**React and Vue are still refused.** A DOM is necessary and not sufficient: a component test also
+needs JSX or SFC compilation and a render call, which is a harness of its own against a content
+contract no seeded exercise exercises. The image is where their dependencies will go.
+`supports()` returns false so the worker records an honest error. **So this unlocked one module,
+not five** — the earlier estimate counted the DOM as the whole blocker, and it is about half.
+
+### 2026-11-02 — A test that passed for a week, then failed on the clock
+
+Three of §5.17's grouping tests failed on a run nine days after they were written, with no code
+change in between. **The fixtures were wrong, not the screen.**
+
+They built the "Today" notification as `at(HOUR)` — one hour ago. `group()` compares against local
+midnight, so an hour ago is *yesterday* for any run starting between 00:00 and 01:00, and the Today
+heading never rendered. A fixture written that way does not test the boundary; it **samples** it,
+and passes or fails on the hour the suite happens to run at.
+
+#### Fixing the fixture was not enough
+
+Changing them to "now" made the suite pass — which is exactly what it did for the week before it
+broke. So the boundary is now set deliberately:
+
+- `group()` takes `nowMs`, which the screen never passes and the tests always do.
+- It moved to `apps/web/src/features/notifications/group.ts`, with `group.test.ts` beside it: 10
+  cases pinning local midnight, one minute either side of it, the seven-day edge, and Sunday read
+  on a Monday — the case the seven-day window exists for.
+- **Faking the system clock was tried first and abandoned.** `vi.setSystemTime` broke MSW and
+  TanStack Query, which need real timers: six unrelated tests in the same file timed out at 5s
+  each. Injecting the time tests the same boundary without fighting the async stack.
+
+The move also cleared the `react-refresh/only-export-components` warning the export had introduced
+— a component file exporting a function breaks fast refresh, and the warning was pointing at a
+real design smell rather than a lint technicality.
+
+**The lesson, stated plainly:** a fixture built from a relative offset silently encodes an
+assumption about when the suite runs. `at(3 * DAY)` is safe because every hour of that day lands in
+the same group; `at(HOUR)` is not, because its group changes at midnight.
+
+### 2026-10-24 — Notifications: the table nothing wrote to
+
+`notifications` has existed since the first migration with **zero writers**. Four features had
+worked around it: §6.6 rejected a project without telling the learner, a certificate was earned in
+silence, §5.6's Updates panel derived its contents, and §5.17 had no data at all.
+
+#### The write path
+
+`apps/api/src/notifications/notify.ts` — one function that takes a `Pool | PoolClient` rather than
+owning a connection, so a notification joins the transaction of whatever caused it. A learner can
+then never be told about a certificate that was rolled back, or left silent about a rejection that
+went through.
+
+**Two functions, so the caller has to choose deliberately.** `notify()` throws; `notifyQuietly()`
+swallows. Inside a transaction throwing is right — the whole thing unwinds. Outside one swallowing
+is right. Reaching for the quiet one inside a transaction is the trap, and its doc comment says so:
+the swallowed error leaves the transaction aborted and the caller's commit fails anyway, with a far
+less obvious message.
+
+`NotificationType` is a union, not a string, so a typo is a compile error. It lists the three kinds
+§5.17 specifies that have **no writer yet** (versioning and roadmap adaptation are not built),
+because the type is the specification of what the screen must handle rather than a record of what
+happens to exist.
+
+#### The two writers that exist today
+
+- **§6.6's missing half.** "Rejecting a project revokes its Project Certificate **and notifies the
+  learner with the reason**" — the notification was the part the endpoint did not do when it was
+  built three weeks ago. The admin's reason is the body, because for this one outcome it is written
+  to be read by the learner. On the other three rulings nobody is told, and a test asserts that: the
+  reason on a cleared flag is an internal note.
+  - The learner id comes from the **project**, not from the revocation. A project can be rejected
+    before any certificate was issued, and then there is no row to revoke but §6.6 still says the
+    learner is told.
+- **A certificate earned.** In `syncCertificates()`, which runs on a read and is not in a
+  transaction — so `notifyQuietly`, and a missed nudge never becomes a failed page load for
+  somebody who just earned something.
+  - **Once, not per read.** `issued` holds only the rows that call newly inserted, so opening the
+    screen ten times writes one notification. Mutation-tested: notifying from every held
+    certificate instead failed exactly that test.
+
+#### §5.17's screen
+
+Grouped Today / This week / Earlier, **grouped in the browser**, because it depends on the reader's
+clock: something written at 23:50 is "Today" at 23:55 and "This week" next morning, and a server
+deciding would be wrong for one of them. "This week" is the last seven days rather than the calendar
+week, so Monday morning does not show an empty group with Sunday's notice under "Earlier".
+
+The bell in `LearnerShell` carries the count, **in its accessible label** as well as the dot — a
+coloured dot on ink is invisible to a screen reader and to anybody who cannot pick it out (§8: never
+colour alone). The query is `enabled` on a resolved session, so the shell does not ask while the
+guard is still deciding and then show a zero it had not earned.
+
+**Not built, deliberately:** §5.17's inline actions ("Add to roadmap"). The two live kinds are both
+"go and look"; the kinds that need a button arrive with versioning, and an inline action now would
+be an empty promise. **Not pushed over SSE** either — the hub's cursor is shaped for `ai_outputs`
+alone, and adding a second row source to it would entangle two replay streams. Both recorded in
+the tracker.
+
+#### Found on the way
+
+- **`packages/test-db` had no `notifications`**, so the first run failed with "relation does not
+  exist" — which is exactly the clear failure that list exists to produce.
+- **`security.test.ts` caught the three new endpoints itself**, by reading Express's own route
+  registry. The harness working as designed rather than a problem.
+- **`test/http.ts` had no `patch` helper**, so the first eight assertions landed on the CSRF guard's
+  403 instead of the handler. The same gap `put` had. Checked whether any existing test was
+  affected: none were, because the admin suites set `Origin` through their own `as()` helper.
+- **Four icon names that sound real and are not** (`alert-circle`, `check-circle`, `refresh`,
+  `plus-circle`). `ICON` is now typed `Record<string, IconName>`, so the next one is a compile error.
+
+12 endpoint tests, 14 screen tests. The ownership filter on mark-read is mutation-tested: dropping
+`user_id` lets any learner mark another's notification read, which is a **write** to someone else's
+row and leaks nothing — which is what makes it easy to miss.
+
 ### 2026-10-24 — The certificate QR code, and three assertions that proved nothing
 
 §5.15: the verification page is reached "via link or QR code". The link half was built; the code

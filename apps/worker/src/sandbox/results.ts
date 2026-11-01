@@ -1,6 +1,7 @@
 import { z } from "zod";
 import type { RunResult, TestOutcome } from "./types.js";
-import { RESULT_MARKER, type HarnessCase } from "./harness.js";
+import { RESULT_MARKER } from "./protocol.js";
+import { type HarnessCase } from "./harness.js";
 
 /**
  * Reading a sandbox's stdout back into per-case outcomes.

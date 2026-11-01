@@ -520,7 +520,20 @@ Most logic lives in the Express backend, where it is easier to read, test, and e
 ## 8.2 Coding Exercise
 
 1. `POST /submissions` inserts a `code_submissions` row with status `queued`. The endpoint accepts only the files.
-2. The worker picks it up and runs the tests on the server: Judge0 for JavaScript and Python, and a Node test runner (for example, Vitest with jsdom) for React and Vue. It writes `test_results` and `passed`. The in-browser sandbox is used for instant "Run tests" practice, but only server results count, since browser results could be tampered with.
+2. The worker picks it up and runs the tests on the server, in a throwaway container per submission. `assessments.runtime` picks the image:
+
+   | `code_runtime` | Image | What it is for |
+   |---|---|---|
+   | `javascript` | `node:20-alpine` | Plain functions. The program goes in on stdin |
+   | `python` | `python:3.12-alpine` | As above, via `python3 -` |
+   | `jsdom` | `first-commit/jsdom:1`, built from `docker/jsdom` | Exercises needing a `document`. jsdom is baked into the image, because the container has `--network none` and cannot install anything. Added by migration 0004 |
+   | `react`, `vue` | — | **Not built.** A DOM is necessary and not sufficient: a component test also needs JSX or SFC compilation and a render call. The worker refuses them, so the failure is honest rather than reported as the learner's syntax error |
+
+   It writes `test_results` and `passed`. The in-browser sandbox is used for instant "Run tests" practice, but only server results count, since browser results could be tampered with.
+
+   **The markup a DOM exercise asserts against is read from `assessments.starter_files` on every run, never from the submission.** If the page came from the browser, a learner could pass "shows 2 tasks" by typing `<p id="count">2 tasks</p>` into it and writing no code — the same reasoning as §6's rule that a result is never computed from what the browser sent. A `.html` file in a submission is ignored: not rendered, and not run as code.
+
+   Judge0 is what the original design named for JavaScript and Python. It does not run on Docker Desktop for Windows (`isolate` needs cgroup v1); `project-proposal.md` §8.3 records the measurement, and `Judge0Runner` is kept for a Linux host.
 3. The worker inserts a `code_feedback` job, generates feedback, and writes an `ai_outputs` row.
 4. If every assessment in the module is passed, the worker inserts `module_completions`.
 5. The backend pushes results and feedback to the exercise screen through **server-sent events** (§8.4).

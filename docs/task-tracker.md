@@ -14,13 +14,24 @@ What is planned and what is done, from an empty repository to a working platform
 
 The immediate queue. Everything here is unblocked and ready to pick up.
 
+- [x] **The jsdom runtime is proven on this machine.** `npm run sandbox:check` and `npm run exercises:check`
+  both pass against real containers — 4 exercises, every reference solution passing and every starter failing
+  something visible. Running them found a module cycle that threw only in one import order, and cases sharing
+  one document; both fixed and covered by tests.
+- [x] **Migration 0004 applied and re-seeded.** `code_runtime` carries `jsdom`, `js-dom` is seeded (2 files,
+  7 cases, 4 visible), and the rebalanced track blurbs finally reached the database — the pending half of the
+  Roadmap AI track fix. `npm run db:verify` passes.
+- [ ] **§11 question 17: an account that logged an admin action cannot be deleted.** `admin_id on delete set
+  null` is an update, which the append-only trigger blocks. §5.18's "Delete my account" promises otherwise.
+
 - [x] **The Roadmap AI can recommend Backend now.** Five evaluation runs across both model sizes gave Frontend to 25 of 25 profiles — onboarding asked nothing that bore on the choice, and the Frontend blurb carried a career argument Backend lacked. §5.4 gains a fourth question, the blurbs are symmetrical, and roadmap prompt v4 says the preference decides the track. Measured: the `logical` profile gets Backend, the five `visual` ones still get Frontend (AGENT.md open question 13, closed)
-  - [ ] **Re-run the seed** (`npm run db:seed`) so the rebalanced track blurb reaches the real database. The evaluation builds its own copy, so it saw the change immediately; the development database has not
+  - [x] **Seed re-run** — the rebalanced track blurbs are in the database. Verified: Frontend's description no
+    longer carries the career argument that made it fit everyone
   - [ ] **Existing accounts have no `workStyle`.** The prompt handles it ("were not asked") and the roadmap still generates, but their track was chosen without it. Re-onboarding or a one-off question would fix it
 
 - [x] **Supabase project created**, migrated and verified. `npm run db:seed` loads the curriculum and `npm run db:accounts` creates the sign-in accounts.
-- [ ] **Replace the placeholder `SESSION_SECRET` in `apps/api/.env`.** It is the literal instruction text rather than a value. `required()` only checks for non-empty, so the API boots and sessions work — but the signing secret is a publicly known string. Generate one with `node -e "console.log(crypto.randomBytes(32).toString('hex'))"`. (`apps/api/.env` also lists `APP_ORIGIN` twice; harmless, but worth tidying.)
-- [ ] **`config.ts` accepts a placeholder as a secret.** `SESSION_SECRET` passing validation as `<node -e "...">` is the kind of thing that reaches production. A length check, and a refusal on anything starting with `<`, would cost two lines.
+- [x] **`SESSION_SECRET` replaced.** Now enforced rather than trusted: `secret()` refuses a placeholder, so a bad value fails at boot instead of signing real cookies.
+- [x] **`config.ts` no longer accepts a placeholder as a secret** (AGENT.md open question 8, closed). `secret()` refuses a value under 32 characters, or one containing `<`, `$(` or `YOUR_`.
 
 - [x] **Security tests** — `apps/api/src/security.test.ts`, 62 tests driven by lists so a new endpoint without a guard fails there. Covers §9.2's five commitments: no session, no cross-learner read or write (404 not 403), no answer key in a learner response, no progress from a request body, and — for rate limiting and reset expiry — a pointer to the suites that already cover them. One test reads Express's own route registry, so forgetting to list an endpoint is itself caught
 
@@ -140,7 +151,8 @@ changelog for 2026-09-22.
   - [ ] "Run tests" is in §5.11 and absent here — the in-browser run is Sandpack practice for React and Vue, and Sandpack is not installed. Submit (the server run) is the only path, which is the only one that writes evidence anyway
   - [ ] The screen shows one file. §5.11's file-tabs row and live preview arrive with Sandpack and the React/Vue exercises
 - [x] The bell in the learner bar links to `/app/notifications` (v2); it was a button that did nothing, drawn in `--text-body` on ink at about 2:1
-- [ ] `/app/notifications` — **designed** in v2, not built. Needs `GET /notifications` and a mark-as-read endpoint, and nothing writes a `notifications` row yet
+- [x] `/app/notifications` — **applied**. §5.17: grouped Today / This week / Earlier, mark one or all read, and the
+  bell carries the unread count in its accessible label as well as the dot
 - [ ] Reconcile `/app/profile` against §4.3, which folds profile into Settings
 
 ### Admin
@@ -199,16 +211,43 @@ The main loop: sign up → roadmap → learn → pass.
     - [x] ~~`project-proposal.md` §8 still names Judge0~~ — **§8.3 "Exercise Execution: Why Not Judge0"** now records the measurement, the three reasons a Linux VM was a poor trade, and the container controls used instead. §8.1, §8.2 and §5 updated to match; the old §8.3 and §8.4 renumbered to §8.4 and §8.5
     - [ ] **React and Vue are not Judge0's job** — they need Vitest with jsdom and a node_modules tree. `supports()` returns false for them, so the worker records an honest error rather than blaming a syntax error on the learner. A separate runner
   - [ ] **No in-browser "Run tests".** §5.11's instant run is Sandpack practice for React and Vue; Sandpack is not installed, and the seeded exercises are plain JavaScript, which Sandpack is not the mechanism for anyway
-  - [ ] **The jsdom runner is the next sandbox piece.** A container image with Vitest and jsdom unlocks `js-dom` and the four React/Vue modules at once — five modules, versus writing more content for the three that already work
+  - [~] **The jsdom runtime is built, and unlocks one module rather than five.** Migration 0004 added `jsdom`
+    to `code_runtime`; `first-commit/jsdom:1` (`docker/jsdom`) bakes jsdom in, because `--network none` means
+    nothing installs at run time. Same contract as the JavaScript harness — one program on stdin, one marker
+    line per case — so `readOutcomes` and the `hidden` path stay the single copy. 39 worker tests
+    - **`js-dom` is seeded**: "Show the task count", 7 cases, 4 visible. The starter writes one plural label
+      for every count, so two visible cases fail with a readable difference
+    - **A DOM exercise's page is a `fixture`, never a submitted file.** `RunRequest.fixtures` is read from
+      `assessments.starter_files` on every run; a learner's `.html` is dropped. Without it a learner passes
+      "shows 2 tasks" by typing it into the markup (§6 rule 4). Mutation-tested — and dropping the fixtures
+      from `runSubmission` was caught by nothing until two tests were added for it
+    - [x] **Proven against real containers.** `sandbox:check`'s DOM probe and `exercises:check` both pass.
+      Running them found two faults 251 unit tests had not: a `harness` <-> `dom-harness` cycle that threw
+      only when `harness` was imported first (fixed with `protocol.ts`, a leaf like `types.ts`; `cycle.test.ts`
+      enters through that door), and **cases sharing one document** — the harness now restores the page before
+      each case, because a learner whose case 7 fails because of case 5 is reading a result about someone
+      else's code
+    - [ ] **React and Vue are still refused.** A DOM is necessary and not sufficient: they also need JSX or
+      SFC compilation and a render call, against a content contract no seeded exercise exercises yet. The
+      image is where their dependencies go; `supports()` returns false so the worker errors honestly
   - [x] `code_feedback` now has a user: a failing submission queues one, with every outcome attached, the rubric for the model, and no test code in the payload
   - [x] **Run against the real database.** 4 of 7 in 4s, correct expected-and-actual values. It found two bugs that every isolated test had missed: a failing hidden case would have leaked its values (§6 rule 2), and `code_feedback` crashed on a payload shape nothing consumed. Both fixed, both mutation-tested; `CodeFeedbackInput` is a Zod schema used by producer and consumer
 - [x] **Home on real data** — `GET /home`: the Continue panel, roadmap progress, and §5.6's Updates. It reuses `buildRoadmap`, so Home and the chart can never disagree about "You are here"
   - [ ] §5.6: "During the capstone, the Continue panel shows the current milestone instead of a lesson." `ContinuePanel` is a union with one member; the milestone variant arrives with Phase 4
-  - [ ] Updates are **derived**, not read from `notifications` — nothing writes that table yet. §5.17's screen is where an event history belongs
+  - [ ] Updates are still **derived** rather than read from `notifications`. The table has writers now (§5.17), so this
+    panel can move onto it — but §5.6 shows roadmap changes, and the kinds that produce those (versioning,
+    roadmap adaptation) are not built, so there would be nothing to show yet
   - [ ] §5.6's Updates panel offers "[Remove]" on an AI-added module. That changes the roadmap, so it needs the same endpoint the roadmap panel's Remove is waiting on
 - [x] **My roadmaps (§5.12)** — `GET /roadmaps` now carries per-roadmap progress, the shared count, and last studied; `PATCH` archives and restores. 15 API tests (4 mutations), 17 screen tests
 - [ ] Explore modules, Settings
-- [ ] **Build `/app/notifications`** — v2 draws it (see *Screen design coverage*); needs its endpoints first
+- [x] **`/app/notifications` built** (§5.17), with `GET /notifications`, `PATCH /notifications/:id/read` and
+  `POST /notifications/read-all`. 12 endpoint tests, 14 screen tests; the mark-read ownership filter is mutation-tested
+  - **Writers:** a certificate earned, and §6.6's project rejection. Three kinds §5.17 names have no writer because
+    versioning and roadmap adaptation are not built
+  - [ ] **No inline actions.** §5.17 wants "Add to roadmap" on an update; both live kinds are "go and look", and the
+    kinds needing a button arrive with versioning
+  - [ ] **Not pushed over SSE.** The hub's cursor is shaped for `ai_outputs` alone, so a second row source would
+    entangle two replay streams. The screen refetches on focus and reconnect instead
 - [ ] Reconcile `/app/profile` vs `design.md` §4.3, which folds profile into Settings
 
 ## Phase 3 — AI components
@@ -337,7 +376,8 @@ The main loop: sign up → roadmap → learn → pass.
     history and explanation answers, four rulings, and a reason required before any of them. 13 tests including axe
     - **§6.6 reversed an earlier decision**: rejecting a project now revokes its Project Certificate in the same
       transaction. The three other outcomes leave it standing
-    - [ ] **The learner is not notified.** §6.6 says they are told with the reason; nothing writes `notifications`
+    - [x] **The learner is notified**, with the admin's reason as the body, in the same transaction (§6.6). The other
+      three rulings tell nobody — a cleared flag's reason is an internal note
 - [~] **Certificates** — issuance, `public_code`, and the name-and-skills snapshot are built; the PDF is not
   - [x] **No endpoint issues one** (§6 rule 1). `syncCertificates()` reads completions and decides; the check runs on read, because the worker writes completions from another process and cannot call it. Idempotent. 32 API tests, mutation-tested with five defects
   - [x] **Two false positives guarded**: a roadmap with zero items (vacuously "complete"), and an unanswered technology decision (§3 counts technology modules). Both found in the real database
@@ -392,5 +432,9 @@ Not code, but the MVP is not demonstrable without it (`project-proposal.md` §2.
 - [~] **Coding exercises** — three, on the three core modules that can have one
   - [x] `js-arrays-objects` "Sum of even numbers", `js-basics` "Count the long words", `js-functions` "Build a greeting". Each starter carries the mistake its module teaches, and each has two hidden cases
   - [x] **`npm run exercises:check`** proves every reference solution passes and every starter fails something *visible*, through the real sandbox. It caught a wrong expected value on its first run — the seed loader checks shape and cannot check arithmetic
-  - [ ] **Seven modules cannot have one until the jsdom runner exists.** `js-dom` plus the four React/Vue modules need a `document` and a dependency tree; HTML, CSS and Git modules are not programs at all. The reasoning is a table in `supabase/seed/exercises.mjs`
+  - [x] **`js-dom` has one now** — the `jsdom` runtime (migration 0004). Four of ten core modules have an
+    exercise
+  - [ ] **The four React/Vue modules still cannot.** They need JSX or SFC compilation and a render call on
+    top of a `document`, which is a harness of its own. HTML, CSS and Git modules are not programs at all.
+    The reasoning is a table in `supabase/seed/exercises.mjs`
 - [ ] At least one capstone brief with milestones, checks, and starter templates for both technologies

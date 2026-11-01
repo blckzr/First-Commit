@@ -66,6 +66,23 @@ export interface DockerOptions {
  * shape of the message rather than an exit code, because the CLI uses the same
  * codes for a failed run.
  */
+/**
+ * What the CLI says when an image is not here and cannot be fetched.
+ *
+ * **`first-commit/jsdom:1` is built locally and exists on no registry**, so a
+ * missing image is not a transient pull failure — it means the operator never
+ * ran `docker build`. Docker's own wording for that is about pull access and
+ * repositories, which reads to a learner as though their submission was
+ * rejected. Matched here so it becomes an operator message instead.
+ */
+const IMAGE_MISSING =
+  /pull access denied|repository does not exist|manifest unknown|not found: manifest|unable to find image/i;
+
+/** Whether the run failed because the image is not built on this machine. */
+export function isImageMissing(stderr: string): boolean {
+  return IMAGE_MISSING.test(stderr);
+}
+
 const DAEMON_DOWN =
   /cannot connect to the docker daemon|failed to connect to the docker api|docker daemon is not running|is the docker daemon running/i;
 
@@ -81,10 +98,27 @@ export function isDaemonDown(stderr: string): boolean {
   return DAEMON_DOWN.test(stderr);
 }
 
+/**
+ * **`jsdom` is a locally built image, unlike the other two.**
+ *
+ * `node:20-alpine` and `python:3.12-alpine` are pulled from Docker Hub.
+ * `first-commit/jsdom:1` is built from `docker/jsdom`, because the runtime needs
+ * jsdom present inside a container that has `--network none` and cannot install
+ * anything. `npm run sandbox:check` says so by name when it is missing, rather
+ * than letting a learner read "Unable to find image" as a fault in their code.
+ *
+ * The tag is a version, not `latest`: rebuilding must not silently change what a
+ * submission ran against, for the same reason `ai_prompts` records a version on
+ * every job.
+ */
 const DEFAULT_IMAGES: Record<string, string> = {
   javascript: "node:20-alpine",
   python: "python:3.12-alpine",
+  jsdom: "first-commit/jsdom:1",
 };
+
+/** The runtimes `DockerRunner` has a harness and an image for. */
+export const DOCKER_RUNTIMES = ["javascript", "python", "jsdom"] as const;
 
 /** `docker` could not be started at all — an operator problem, not a learner's. */
 export class DockerUnavailable extends Error {
@@ -143,6 +177,16 @@ export function containerArgs(
       ? ["timeout", "-s", "KILL", String(seconds), "python3", "-"]
       : ["timeout", "-s", "KILL", String(seconds), "node"];
 
+  /**
+   * **A program on stdin has no directory, so it cannot resolve `node_modules`.**
+   * The `jsdom` image bakes the dependency in and sets `NODE_PATH`; this passes
+   * it again explicitly, because the flag list is the security boundary and
+   * reading it should not require reading a Dockerfile to know the program can
+   * find its dependency. Without it `require("jsdom")` is MODULE_NOT_FOUND and
+   * the learner reads a message about their own code.
+   */
+  const env = runtime === "jsdom" ? ["--env", "NODE_PATH=/app/node_modules"] : [];
+
   return [
     "run",
     "--rm",
@@ -171,6 +215,7 @@ export function containerArgs(
     "no-new-privileges",
     "--user",
     "1000:1000",
+    ...env,
     image,
     ...command,
   ];
@@ -189,13 +234,18 @@ export class DockerRunner implements Runner {
   constructor(private readonly options: DockerOptions = {}) {}
 
   /**
-   * §5.11's React and Vue exercises need a component test run — Vitest with
-   * jsdom and a `node_modules` tree. That is a different image and a different
-   * harness, so saying no here means the worker records an honest error rather
-   * than reporting the resulting syntax error as the learner's fault.
+   * **`react` and `vue` are still refused, and a DOM is why only half of that
+   * gap closed.** They need JSX or SFC compilation and a render call on top of a
+   * `document` — a harness of its own, against a content contract no seeded
+   * exercise exercises yet. The `jsdom` image already carries the dependency
+   * they will share.
+   *
+   * Saying no here is what makes the worker record an honest error instead of
+   * reporting the resulting compilation failure as the learner's mistake
+   * (AGENT.md §6 rule 4).
    */
   supports(runtime: string): boolean {
-    return runtime === "javascript" || runtime === "python";
+    return (DOCKER_RUNTIMES as readonly string[]).includes(runtime);
   }
 
   async run(request: RunRequest): Promise<RunResult> {
@@ -267,6 +317,28 @@ export class DockerRunner implements Runner {
         error:
           `The code runner isn't running right now, so your tests haven't run yet. ` +
           `Your work is saved — try again in a minute.`,
+      };
+    }
+
+    /**
+     * **The image is not built on this machine.** Checked before the generic
+     * non-zero branch below, which would otherwise hand the learner Docker's
+     * own sentence about pull access to a repository — operator language about
+     * a setup step, in a place the learner reads as feedback on their code.
+     */
+    if (result.code !== 0 && isImageMissing(result.stderr)) {
+      const image =
+        this.options.images?.[request.runtime] ?? DEFAULT_IMAGES[request.runtime];
+      this.lastUnavailable = new DockerUnavailable(
+        `The code runner isn't set up for this exercise yet, so your tests haven't run. ` +
+          `Your work is saved.`,
+        `The image "${image}" is not on this machine. Build it with: ` +
+          `docker build -t ${image} docker/jsdom`,
+        result.stderr.trim(),
+      );
+      return {
+        outcomes: failAll(harness.cases),
+        error: this.lastUnavailable.learnerMessage,
       };
     }
 

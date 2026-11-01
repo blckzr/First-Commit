@@ -286,6 +286,10 @@ const LEARNER_ROUTES: [method: "get" | "post" | "put" | "patch", path: string][]
   ["get", "/submissions/SUBMISSION"],
   ["post", "/ai-outputs/AI_OUTPUT/flags"],
   ["get", "/certificates"],
+  // §5.17
+  ["get", "/notifications"],
+  ["patch", "/notifications/NOTIFICATION/read"],
+  ["post", "/notifications/read-all"],
   ["get", "/resume"],
   ["put", "/resume/details"],
   ["put", "/resume/selection"],
@@ -426,6 +430,7 @@ describe("§9.2 — every learner endpoint resolves a session", () => {
           .replace("EXERCISE", ":id")
           .replace("ASSESSMENT", ":assessmentId")
           .replace("AI_OUTPUT", ":id")
+          .replace("NOTIFICATION", ":id")
           .replace("MILESTONE", ":milestoneId")
           .replace("CODE.pdf", ":code.pdf")}`,
       ),

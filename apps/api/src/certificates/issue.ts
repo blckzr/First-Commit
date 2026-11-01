@@ -1,5 +1,6 @@
 import type { Pool, PoolClient } from "pg";
 import { randomBytes } from "node:crypto";
+import { notifyQuietly } from "../notifications/notify.js";
 
 /**
  * Issuing a Certificate of Completion (design.md §5.15, proposal §3).
@@ -261,6 +262,33 @@ export async function syncCertificates(
   }
 
   issued.push(...(await issueProjectCertificates(db, userId)));
+
+  /*
+   * §5.17: a learner is told when they earn a certificate.
+   *
+   * **`notifyQuietly`, not `notify`.** This runs inside `GET /certificates`,
+   * which is a read and is not in a transaction — so there is nothing for a
+   * throw to unwind, and letting one escape would turn a missed nudge into a
+   * failed page load for a learner who just earned something.
+   *
+   * It is written here rather than in `issueCertificate()` because that
+   * function is the retry loop for a code collision: it can be entered three
+   * times for one certificate, and only the attempt that returns a row counts.
+   * `issued` holds exactly the certificates that were newly inserted, so one
+   * notification each, and the idempotent sync writes none on a later read.
+   */
+  for (const certificate of issued) {
+    await notifyQuietly(db, {
+      userId,
+      type: "certificate_earned",
+      title:
+        certificate.type === "project"
+          ? `You earned your Project Certificate for ${certificate.title}`
+          : `You earned your Certificate of Completion for ${certificate.title}`,
+      link: "/app/certificates",
+      data: { certificateId: certificate.id, publicCode: certificate.publicCode },
+    });
+  }
 
   return { issued, progress: states };
 }

@@ -1,4 +1,6 @@
 import type { RunRequest } from "./types.js";
+import { RESULT_MARKER } from "./protocol.js";
+import { domSource } from "./dom-harness.js";
 
 /**
  * Turning an exercise into one program Judge0 can run.
@@ -35,7 +37,7 @@ import type { RunRequest } from "./types.js";
  */
 
 /** Prefixes a result line, so a learner's own output is not mistaken for one. */
-export const RESULT_MARKER = "__fc_result__";
+export { RESULT_MARKER } from "./protocol.js";
 
 export interface HarnessCase {
   /** Index into the request's case list, not the database id — see below. */
@@ -70,7 +72,7 @@ export interface Harness {
 
 export class UnsupportedRuntime extends Error {
   constructor(runtime: string) {
-    super(`Judge0 has no harness for ${runtime} exercises.`);
+    super(`There is no harness for ${runtime} exercises yet.`);
   }
 }
 
@@ -87,11 +89,23 @@ export function buildHarness(request: RunRequest): Harness {
       return { source: javascriptSource(request), cases };
     case "python":
       return { source: pythonSource(request), cases };
+    /**
+     * `jsdom` is the same contract in a different image — one program on stdin,
+     * one `RESULT_MARKER` line per case — so it reads back through the same
+     * `readOutcomes`. Only the preamble differs: it builds a `document` first.
+     * Migration 0004 records why the runtime is declared rather than inferred.
+     */
+    case "jsdom":
+      return { source: domSource(request), cases };
     default:
       /**
-       * `react` and `vue` are deliberately not here. They need a component
-       * test run — Vitest with jsdom, and node_modules — which Judge0 does not
-       * provide. AGENT.md §6 rule 4 names them separately for that reason.
+       * `react` and `vue` are deliberately not here. A DOM is necessary for them
+       * and not sufficient: a component test also needs JSX or SFC compilation
+       * and a render call, which is a harness of its own and a content contract
+       * that no seeded exercise exercises yet. The `jsdom` image carries the
+       * dependency they will share; the harness is the remaining work, and
+       * saying no here is what makes the worker record an honest error instead
+       * of blaming a compilation failure on the learner (AGENT.md §6 rule 4).
        */
       throw new UnsupportedRuntime(request.runtime);
   }
