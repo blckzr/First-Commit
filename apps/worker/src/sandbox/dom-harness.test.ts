@@ -244,8 +244,13 @@ describe("buildHarness", () => {
     expect(harness.cases.map((c) => c.id)).toEqual(["a", "b"]);
   });
 
-  it("still refuses react and vue", () => {
-    for (const runtime of ["react", "vue"]) {
+  /**
+   * `react` and `vue` have their own harness now (§13.4, `component-harness.ts`).
+   * A runtime with no harness still throws, which is what makes the worker
+   * record an honest error rather than blaming the result on the learner.
+   */
+  it("still refuses a runtime with no harness", () => {
+    for (const runtime of ["ruby", "svelte"]) {
       expect(() => buildHarness({ runtime, files: [], cases: [] })).toThrow(UnsupportedRuntime);
     }
   });
@@ -255,7 +260,8 @@ describe("the container", () => {
   it("runs the locally built image for jsdom", () => {
     const args = containerArgs("jsdom", "fc-run-test", 5);
 
-    expect(args).toContain("first-commit/jsdom:1");
+    // Tag 2 adds React and Vue, which §13.4's component runtimes share.
+    expect(args).toContain("first-commit/jsdom:2");
   });
 
   /**
@@ -310,7 +316,7 @@ describe("the container", () => {
     const args = containerArgs("jsdom", "fc-run-test", 7);
 
     expect(args.slice(-6)).toEqual([
-      "first-commit/jsdom:1",
+      "first-commit/jsdom:2",
       "timeout",
       "-s",
       "KILL",
@@ -328,21 +334,21 @@ describe("supports()", () => {
   });
 
   /** An honest refusal, so the worker does not blame a learner for it. */
-  it.each(["react", "vue", "ruby"])("refuses %s", (runtime) => {
+  it.each(["ruby", "svelte"])("refuses %s", (runtime) => {
     expect(runner.supports(runtime)).toBe(false);
   });
 });
 
 describe("a missing image is an operator problem", () => {
   /**
-   * `first-commit/jsdom:1` exists on no registry, so Docker's failure is about
+   * `first-commit/jsdom:2` exists on no registry, so Docker's failure is about
    * pull access to a repository — operator language, in a place the learner
    * reads as feedback on their code.
    */
   it.each([
     "Error response from daemon: pull access denied for first-commit/jsdom",
     "repository does not exist or may require 'docker login'",
-    "Unable to find image 'first-commit/jsdom:1' locally",
+    "Unable to find image 'first-commit/jsdom:2' locally",
     "manifest unknown",
   ])("recognises %s", (stderr) => {
     expect(isImageMissing(stderr)).toBe(true);

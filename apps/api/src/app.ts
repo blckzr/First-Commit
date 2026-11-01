@@ -26,6 +26,7 @@ import { flagRoutes } from "./flags/routes.js";
 import { adminFlagRoutes } from "./admin/flags.js";
 import { adminIntegrityRoutes } from "./admin/integrity.js";
 import { adminCertificateRoutes } from "./admin/certificates.js";
+import { adminOverviewRoutes } from "./admin/overview.js";
 import { certificateRoutes } from "./certificates/routes.js";
 import { notificationRoutes } from "./notifications/routes.js";
 import { resumeRoutes } from "./resume/routes.js";
@@ -177,6 +178,7 @@ export function createApp(deps: AppDeps = {}) {
   app.use(adminFlagRoutes(pool));
   app.use(adminIntegrityRoutes(pool));
   app.use(adminCertificateRoutes(pool));
+  app.use(adminOverviewRoutes(pool));
   app.use(certificateRoutes(pool));
   app.use(notificationRoutes(pool));
   app.use(resumeRoutes(pool));

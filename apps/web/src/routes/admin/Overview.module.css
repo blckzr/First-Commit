@@ -61,3 +61,26 @@
   .grid { grid-template-columns: repeat(4, 1fr); }
   .wide { grid-column: span 2; }
 }
+
+/* The actions row on a panel, and §6.1's footer line. */
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin-top: var(--space-3);
+}
+
+.totals {
+  margin: var(--space-5) 0 0;
+  color: var(--text-muted);
+}
+
+.totals strong {
+  color: var(--text-strong);
+  font-variant-numeric: tabular-nums;
+}
+
+.error {
+  margin: 0;
+  color: var(--error);
+}

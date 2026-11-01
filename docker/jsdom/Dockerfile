@@ -1,5 +1,6 @@
 # =============================================================================
-# The sandbox image for exercises that need a `document` (code_runtime = jsdom).
+# The sandbox image for exercises that need a browser environment:
+# `code_runtime` of `jsdom`, `react` or `vue`.
 #
 # One image, built once, with its dependency baked in. **Nothing can be
 # installed at run time**: the container runs with `--network none`, a
@@ -13,12 +14,18 @@
 # resolve. Without it the program fails with MODULE_NOT_FOUND and the learner
 # reads a message about their own code.
 #
-# Build:   docker build -t first-commit/jsdom:1 docker/jsdom
+# Build:   docker build -t first-commit/jsdom:2 docker/jsdom
 # Verify:  npm run sandbox:check          (from apps/worker)
 #
-# The tag is pinned in the image, not latest, so rebuilding the image cannot
-# silently change what a learner's submission ran against — the same reason
-# `ai_prompts` records a version on every job.
+# **The tag is a version, not `latest`.** React and Vue are baked in here, so the
+# tag is what says which versions a submission ran against — the same reason
+# `ai_prompts` records a version on every job. Upgrading either framework means
+# tag 3, not a rebuild of tag 2.
+#
+# **sucrase compiles JSX, not esbuild.** esbuild is a native binary that spawns a
+# child process for its API; sucrase is plain JavaScript. Under `--cap-drop ALL`,
+# `--read-only` and a `noexec` tmpfs that is one less thing that has to be
+# allowed to work. `@vue/compiler-sfc` is plain JavaScript for the same reason.
 # =============================================================================
 FROM node:20-alpine
 

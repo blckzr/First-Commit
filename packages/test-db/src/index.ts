@@ -138,6 +138,35 @@ function readMigration(): string {
  * something the tests genuinely cannot cover, and is covered by
  * `npm run db:verify` against real PostgreSQL instead.
  */
+/**
+ * **pg-mem silently ignores `filter (where ...)` on an aggregate.**
+ *
+ * Not an error — a wrong number. `count(distinct user_id) filter (where passed)`
+ * answered "4" for one pass and three failures, so a test over it would have
+ * agreed with a production query that behaved differently. Write
+ * `count(distinct case when passed then user_id end)` instead; it means the
+ * same thing in PostgreSQL and pg-mem computes it correctly.
+ *
+ * Other divergences found so far, each with the same shape — something that
+ * looks like it worked:
+ *
+ * - **`having` is not supported at all** (it throws, at least). The admin
+ *   overview applies its thresholds in TypeScript instead.
+ * - **A correlated subquery cannot see an outer alias** (`column "bv.id" does
+ *   not exist`). Use a left join and test for null.
+ * - **`on conflict` will not match a table-level unique constraint**, and
+ *   `do nothing ... returning` returns the existing row where PostgreSQL returns
+ *   none. Catch `23505` instead.
+ * - **A text parameter is not implicitly cast to an enum** in `insert ... select`.
+ *   Cast it explicitly.
+ * - **`alter type ... add value` is not applied**, which is why `extractStatements`
+ *   folds those values into the `create type`.
+ * - **No `date_trunc`**, registered above.
+ *
+ * Anything on this list is covered against real PostgreSQL by `npm run db:verify`
+ * or by the query being written in a form both engines agree on.
+ */
+
 function forPgMem(statement: string): string {
   return (
     statement
@@ -220,6 +249,35 @@ export function createTestDb(): TestDb {
     returns: DataType.uuid,
     implementation: () => randomUUID(),
     impure: true,
+  });
+
+  /**
+   * pg-mem has no `date_trunc`, which the admin overview uses to count this
+   * month's certificates (design.md §6.1).
+   *
+   * Only the units the code actually passes are implemented, and an unknown one
+   * **throws** rather than falling back to something plausible. A silent
+   * approximation here would make a test agree with a production query that
+   * behaves differently — the exact failure this whole package exists to
+   * prevent.
+   */
+  db.public.registerFunction({
+    name: "date_trunc",
+    args: [DataType.text, DataType.timestamptz],
+    returns: DataType.timestamptz,
+    implementation: (unit: string, at: Date) => {
+      const d = new Date(at);
+      switch (unit) {
+        case "month":
+          return new Date(d.getFullYear(), d.getMonth(), 1);
+        case "day":
+          return new Date(d.getFullYear(), d.getMonth(), d.getDate());
+        case "year":
+          return new Date(d.getFullYear(), 0, 1);
+        default:
+          throw new Error(`test-db's date_trunc does not implement "${unit}" yet.`);
+      }
+    },
   });
 
   for (const statement of extractStatements(readMigration())) {

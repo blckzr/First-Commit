@@ -146,7 +146,7 @@ changelog for 2026-09-22.
 - [x] `/app/capstone` — **built, all three stages**. §5.14's step indicator; the brief cards with milestone count, length and the skills they draw on; the connect-repository steps and repository picker; and the milestone tracker with checks, criteria, the explanation question and push history
   - [ ] **Not applied to v2.** Built from §5.14 and the tokens; the prototype's capstone screen has not been diffed against it (see the note at the top of this table)
 - [ ] `/app/explore` · `/app/settings` — **designed**, not built. Each has a screen in the prototype
-- [x] **Log out** — in the learner profile menu and the admin bar, one shared control. Ends the session server-side, clears the query cache (§13.6), then navigates; signs out anyway if the request fails
+- [x] **Log out** — in the learner profile menu and the admin bar, one shared control. Ends the session server-side, clears the query cache (§13.7), then navigates; signs out anyway if the request fails
 - [x] `/app/exercise/:id` — **applied from v2**: one-row header, the editor as the ink code block with syntax tones, pill tabs, tinted failing cases. No Hint button (no hint data) — design-source.md §7.1. §5.11: CodeMirror 6, Instructions/Results tabs, the results panel, and the AI feedback panel under it
   - [ ] "Run tests" is in §5.11 and absent here — the in-browser run is Sandpack practice for React and Vue, and Sandpack is not installed. Submit (the server run) is the only path, which is the only one that writes evidence anyway
   - [ ] The screen shows one file. §5.11's file-tabs row and live preview arrive with Sandpack and the React/Vue exercises
@@ -157,8 +157,10 @@ changelog for 2026-09-22.
 
 ### Admin
 
-- [ ] `/admin` — **not applied**. Overview is built, on mock data, and has no panel treatment
-  - [ ] Its "flagged AI feedback" count is now real data behind `GET /admin/flags`; the panel still reads a hard-coded array
+- [~] `/admin` — **on real data** (§6.1), still without the v2 panel treatment. All four panels read
+  `GET /admin/overview`: flags awaiting a decision, drafts and missing starter templates, struggling modules and
+  milestones, and the month's certificates. Zero is shown as zero and says what it means; a failed load shows no
+  numbers at all
 - [x] `/admin/flags` — **applied**. §6.8: the learner's reason beside the full output, source and status filters, and a logged ruling. The first admin screen on real data
 - [ ] `/admin/paths` · `/modules` · `/briefs` · `/reviews` · `/analytics` · `/users` · `/settings` · `/log` — **designed**, not built
 - [ ] `/admin/certificates` — **designed** in v2, not built. Needs admin lookup, revoke and reissue endpoints — each changes a learner's outcome, so each is logged (§6.1 step 5) and takes a reason
@@ -212,7 +214,7 @@ The main loop: sign up → roadmap → learn → pass.
     - [ ] **React and Vue are not Judge0's job** — they need Vitest with jsdom and a node_modules tree. `supports()` returns false for them, so the worker records an honest error rather than blaming a syntax error on the learner. A separate runner
   - [ ] **No in-browser "Run tests".** §5.11's instant run is Sandpack practice for React and Vue; Sandpack is not installed, and the seeded exercises are plain JavaScript, which Sandpack is not the mechanism for anyway
   - [~] **The jsdom runtime is built, and unlocks one module rather than five.** Migration 0004 added `jsdom`
-    to `code_runtime`; `first-commit/jsdom:1` (`docker/jsdom`) bakes jsdom in, because `--network none` means
+    to `code_runtime`; `first-commit/jsdom:2` (`docker/jsdom`) bakes jsdom in, because `--network none` means
     nothing installs at run time. Same contract as the JavaScript harness — one program on stdin, one marker
     line per case — so `readOutcomes` and the `hidden` path stay the single copy. 39 worker tests
     - **`js-dom` is seeded**: "Show the task count", 7 cases, 4 visible. The starter writes one plural label
@@ -227,9 +229,9 @@ The main loop: sign up → roadmap → learn → pass.
       enters through that door), and **cases sharing one document** — the harness now restores the page before
       each case, because a learner whose case 7 fails because of case 5 is reading a result about someone
       else's code
-    - [ ] **React and Vue are still refused.** A DOM is necessary and not sufficient: they also need JSX or
-      SFC compilation and a render call, against a content contract no seeded exercise exercises yet. The
-      image is where their dependencies go; `supports()` returns false so the worker errors honestly
+    - [x] **React and Vue are built** (design.md §13.4). `component-harness.ts`, `first-commit/jsdom:2` with
+      React 19.2, Vue 3.5 and sucrase, and two exercise pairs. All five runtimes proved by `sandbox:check`;
+      `exercises:check` passes 8 of 8
   - [x] `code_feedback` now has a user: a failing submission queues one, with every outcome attached, the rubric for the model, and no test code in the payload
   - [x] **Run against the real database.** 4 of 7 in 4s, correct expected-and-actual values. It found two bugs that every isolated test had missed: a failing hidden case would have leaked its values (§6 rule 2), and `code_feedback` crashed on a payload shape nothing consumed. Both fixed, both mutation-tested; `CodeFeedbackInput` is a Zod schema used by producer and consumer
 - [x] **Home on real data** — `GET /home`: the Continue panel, roadmap progress, and §5.6's Updates. It reuses `buildRoadmap`, so Home and the chart can never disagree about "You are here"
@@ -405,7 +407,8 @@ The main loop: sign up → roadmap → learn → pass.
 ## Phase 5 — Resume and admin
 
 - [ ] Resume builder — evidence selection, personal details, tailoring, edit, PDF download, ATS parse check
-- [ ] Admin overview
+- [x] **Admin overview** — `GET /admin/overview` and the screen (§6.1). 11 endpoint tests, 15 screen tests;
+  the per-learner pass rate is mutation-tested
 - [ ] Career path editor — skills, tracks, technology options, prerequisites, certificate requirements
 - [ ] Module editor — lessons, quizzes, exercises, test cases, rubrics; preview
 - [ ] **Versioning** — minor edit vs major revision, impact preview, learner update notices
@@ -434,7 +437,8 @@ Not code, but the MVP is not demonstrable without it (`project-proposal.md` §2.
   - [x] **`npm run exercises:check`** proves every reference solution passes and every starter fails something *visible*, through the real sandbox. It caught a wrong expected value on its first run — the seed loader checks shape and cannot check arithmetic
   - [x] **`js-dom` has one now** — the `jsdom` runtime (migration 0004). Four of ten core modules have an
     exercise
-  - [ ] **The four React/Vue modules still cannot.** They need JSX or SFC compilation and a render call on
-    top of a `document`, which is a harness of its own. HTML, CSS and Git modules are not programs at all.
+  - [x] **The four React/Vue modules have one each**, as two pairs sharing their assertions character for
+    character (§13.4). **Eight of nineteen modules now have an exercise**
+  - [ ] HTML, CSS and Git modules are not programs at all, and the concept modules would be a contrivance.
     The reasoning is a table in `supabase/seed/exercises.mjs`
 - [ ] At least one capstone brief with milestones, checks, and starter templates for both technologies

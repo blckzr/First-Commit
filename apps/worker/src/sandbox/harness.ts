@@ -1,6 +1,7 @@
 import type { RunRequest } from "./types.js";
 import { RESULT_MARKER } from "./protocol.js";
 import { domSource } from "./dom-harness.js";
+import { componentSource } from "./component-harness.js";
 
 /**
  * Turning an exercise into one program Judge0 can run.
@@ -97,15 +98,19 @@ export function buildHarness(request: RunRequest): Harness {
      */
     case "jsdom":
       return { source: domSource(request), cases };
+    /**
+     * §13.4's component contract. Same results seam again — what differs is that
+     * the learner's files are compiled and linked rather than concatenated, and
+     * the cases are awaited, because React batches and Vue defers to `nextTick`.
+     */
+    case "react":
+    case "vue":
+      return { source: componentSource({ ...request, runtime: request.runtime }), cases };
     default:
       /**
-       * `react` and `vue` are deliberately not here. A DOM is necessary for them
-       * and not sufficient: a component test also needs JSX or SFC compilation
-       * and a render call, which is a harness of its own and a content contract
-       * that no seeded exercise exercises yet. The `jsdom` image carries the
-       * dependency they will share; the harness is the remaining work, and
-       * saying no here is what makes the worker record an honest error instead
-       * of blaming a compilation failure on the learner (AGENT.md §6 rule 4).
+       * Anything else has no harness, and saying so is what makes the worker
+       * record an honest error rather than blaming the result on the learner
+       * (AGENT.md §6 rule 4).
        */
       throw new UnsupportedRuntime(request.runtime);
   }

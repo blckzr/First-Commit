@@ -122,36 +122,47 @@ describe("which runtimes it takes", () => {
   });
 
   /**
-   * React and Vue need a component test run — Vitest with jsdom and a
-   * node_modules tree — so this is a different image and a different harness.
-   * Claiming them would mean sending a component test to a bare runtime and
-   * reporting the resulting syntax error as the learner's fault.
+   * React and Vue are supported now, through §13.4's component harness and the
+   * `jsdom` image. A runtime with **no** harness is still refused, which is what
+   * makes the worker record an honest error rather than sending a submission to
+   * a runtime that cannot compile it and reporting the result as the learner's
+   * syntax error.
    */
-  it.each(["react", "vue"])("does not claim to support %s", (runtime) => {
+  it.each(["react", "vue"])("claims %s", (runtime) => {
+    expect(runner.supports(runtime)).toBe(true);
+  });
+
+  it.each(["ruby", "svelte"])("does not claim to support %s", (runtime) => {
     expect(runner.supports(runtime)).toBe(false);
   });
 
-  it("refuses a react submission without pretending to run it", async () => {
+  it("refuses a runtime it has no harness for, without pretending to run it", async () => {
     const result = await runner.run({
-      runtime: "react",
-      files: [{ path: "App.jsx", content: "export default function App() {}" }],
+      runtime: "svelte",
+      files: [{ path: "App.svelte", content: "<p>hi</p>" }],
       cases: [{ id: "c1", name: "renders", code: "expect(true).toBe(true);", visible: true }],
     });
 
     expect(result.outcomes[0].passed).toBe(false);
-    expect(result.error).toContain("component test runner");
+    expect(result.error).toContain("cannot be run here yet");
     expect(result.error).toContain("Your work is saved");
   });
 
   /** A hidden case stays hidden even in a refusal. */
+  /**
+   * `redact()` keys on `hidden`, so it has to survive a path that never reached
+   * a container. The runtime here is one with no harness on purpose — with
+   * `vue` this would start a real container and stop testing the refusal.
+   */
   it("keeps a hidden case hidden when refusing", async () => {
     const result = await runner.run({
-      runtime: "vue",
-      files: [{ path: "App.vue", content: "" }],
+      runtime: "svelte",
+      files: [{ path: "App.svelte", content: "" }],
       cases: [{ id: "h1", name: "hidden one", code: "expect(1).toBe(1);", visible: false }],
     });
 
     expect(result.outcomes[0].hidden).toBe(true);
+    expect(result.error).toContain("cannot be run here yet");
   });
 });
 

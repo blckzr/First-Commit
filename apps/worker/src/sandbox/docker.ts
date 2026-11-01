@@ -69,7 +69,7 @@ export interface DockerOptions {
 /**
  * What the CLI says when an image is not here and cannot be fetched.
  *
- * **`first-commit/jsdom:1` is built locally and exists on no registry**, so a
+ * **`first-commit/jsdom:2` is built locally and exists on no registry**, so a
  * missing image is not a transient pull failure — it means the operator never
  * ran `docker build`. Docker's own wording for that is about pull access and
  * repositories, which reads to a learner as though their submission was
@@ -102,7 +102,7 @@ export function isDaemonDown(stderr: string): boolean {
  * **`jsdom` is a locally built image, unlike the other two.**
  *
  * `node:20-alpine` and `python:3.12-alpine` are pulled from Docker Hub.
- * `first-commit/jsdom:1` is built from `docker/jsdom`, because the runtime needs
+ * `first-commit/jsdom:2` is built from `docker/jsdom`, because the runtime needs
  * jsdom present inside a container that has `--network none` and cannot install
  * anything. `npm run sandbox:check` says so by name when it is missing, rather
  * than letting a learner read "Unable to find image" as a fault in their code.
@@ -114,11 +114,20 @@ export function isDaemonDown(stderr: string): boolean {
 const DEFAULT_IMAGES: Record<string, string> = {
   javascript: "node:20-alpine",
   python: "python:3.12-alpine",
-  jsdom: "first-commit/jsdom:1",
+  jsdom: "first-commit/jsdom:2",
+  react: "first-commit/jsdom:2",
+  vue: "first-commit/jsdom:2",
 };
 
+/**
+ * The runtimes that run out of `first-commit/jsdom:2` and therefore need
+ * `NODE_PATH`: a program on stdin has no directory to resolve `node_modules`
+ * against. `javascript` and `python` run from public images and require nothing.
+ */
+const NEEDS_NODE_PATH = new Set(["jsdom", "react", "vue"]);
+
 /** The runtimes `DockerRunner` has a harness and an image for. */
-export const DOCKER_RUNTIMES = ["javascript", "python", "jsdom"] as const;
+export const DOCKER_RUNTIMES = ["javascript", "python", "jsdom", "react", "vue"] as const;
 
 /** `docker` could not be started at all — an operator problem, not a learner's. */
 export class DockerUnavailable extends Error {
@@ -185,7 +194,7 @@ export function containerArgs(
    * find its dependency. Without it `require("jsdom")` is MODULE_NOT_FOUND and
    * the learner reads a message about their own code.
    */
-  const env = runtime === "jsdom" ? ["--env", "NODE_PATH=/app/node_modules"] : [];
+  const env = NEEDS_NODE_PATH.has(runtime) ? ["--env", "NODE_PATH=/app/node_modules"] : [];
 
   return [
     "run",
@@ -234,15 +243,10 @@ export class DockerRunner implements Runner {
   constructor(private readonly options: DockerOptions = {}) {}
 
   /**
-   * **`react` and `vue` are still refused, and a DOM is why only half of that
-   * gap closed.** They need JSX or SFC compilation and a render call on top of a
-   * `document` — a harness of its own, against a content contract no seeded
-   * exercise exercises yet. The `jsdom` image already carries the dependency
-   * they will share.
-   *
-   * Saying no here is what makes the worker record an honest error instead of
-   * reporting the resulting compilation failure as the learner's mistake
-   * (AGENT.md §6 rule 4).
+   * All five runtimes the platform has. `react` and `vue` share the `jsdom`
+   * image and §13.4's component harness; a runtime with no harness still gets
+   * an honest refusal rather than a result blamed on the learner (AGENT.md §6
+   * rule 4).
    */
   supports(runtime: string): boolean {
     return (DOCKER_RUNTIMES as readonly string[]).includes(runtime);
@@ -252,8 +256,7 @@ export class DockerRunner implements Runner {
     if (!this.supports(request.runtime)) {
       return this.refuse(
         request,
-        `${request.runtime} exercises need a component test runner, which is not set up yet. ` +
-          `Your work is saved.`,
+        `${request.runtime} exercises cannot be run here yet. Your work is saved.`,
       );
     }
 

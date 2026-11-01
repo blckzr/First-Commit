@@ -76,19 +76,18 @@ async function main(): Promise<void> {
   console.log(`\nSandbox: ${runner.name}\n`);
 
   // ---- 1. Does it take the runtimes the platform has? ---------------------
-  for (const runtime of ["javascript", "python", "jsdom"]) {
+  for (const runtime of ["javascript", "python", "jsdom", "react", "vue"]) {
     if (runner.supports(runtime)) console.log(ok(`accepts ${runtime}`));
     else console.log(note(`does not accept ${runtime} — exercises in it will refuse honestly`));
   }
   /**
-   * §5.11's React and Vue exercises need more than a DOM: JSX or SFC
-   * compilation and a render call. Claiming them would mean sending a component
-   * test to a runtime that cannot compile it, and reporting the result as the
-   * learner's syntax error — so refusing is the correct answer here.
+   * A runtime with no harness must still be refused. Claiming one would mean
+   * sending a submission to a runtime that cannot compile it, and reporting the
+   * result as the learner's syntax error.
    */
-  for (const runtime of ["react", "vue"]) {
+  for (const runtime of ["svelte", "ruby"]) {
     if (runner.supports(runtime)) {
-      fail(`claims to support ${runtime}, which needs a component test runner`);
+      fail(`claims to support ${runtime}, which has no harness`);
     }
   }
 
@@ -270,6 +269,125 @@ async function main(): Promise<void> {
       );
     }
   }
+
+  // ---- 5. Do the component runtimes render and update? -------------------
+  /**
+   * **The measurement for §13.4**, and the reason it is a container check rather
+   * than a unit test: generating the program is a pure function, but whether
+   * React renders, whether a click reaches state, and whether `nextTick` has
+   * settled before the assertion are all questions only a real run answers.
+   *
+   * The same component is written twice, once per framework, and checked by
+   * **character-identical** test code — which is §13.4's parity rule, proved
+   * rather than promised.
+   */
+  const COMPONENT_CASES = [
+    {
+      id: "p1",
+      name: "Renders the count it was given",
+      code: 'const { find } = render(Counter, { start: 3 });\nexpect(find("[data-count]")).toHaveTextContent("3");',
+      visible: true,
+    },
+    {
+      id: "p2",
+      name: "Counts up when clicked",
+      code: 'const { find, click } = render(Counter);\nawait click(find("button"));\nexpect(find("[data-count]")).toHaveTextContent("1");',
+      visible: true,
+    },
+    {
+      id: "p3",
+      name: "Reports a wrong answer as a difference",
+      code: 'const { find } = render(Counter);\nexpect(find("[data-count]")).toHaveTextContent("99");',
+      visible: true,
+    },
+  ];
+
+  const COMPONENTS: Record<string, { path: string; content: string }> = {
+    react: {
+      path: "Counter.jsx",
+      content: [
+        'import { useState } from "react";',
+        "",
+        "export default function Counter({ start = 0 }) {",
+        "  const [count, setCount] = useState(start);",
+        "  return (",
+        "    <div>",
+        "      <p data-count>{count}</p>",
+        "      <button onClick={() => setCount(count + 1)}>Add one</button>",
+        "    </div>",
+        "  );",
+        "}",
+      ].join("\n"),
+    },
+    vue: {
+      path: "Counter.vue",
+      content: [
+        "<script setup>",
+        'import { ref } from "vue";',
+        "const props = defineProps({ start: { type: Number, default: 0 } });",
+        "const count = ref(props.start);",
+        "</script>",
+        "",
+        "<template>",
+        "  <div>",
+        "    <p data-count>{{ count }}</p>",
+        '    <button @click="count++">Add one</button>',
+        "  </div>",
+        "</template>",
+      ].join("\n"),
+    },
+  };
+
+  for (const runtime of ["react", "vue"]) {
+    if (failures > 0 || !runner.supports(runtime)) break;
+
+    console.log(`\n  A ${runtime} component, rendered and clicked:`);
+
+    const result = await runner.run({
+      runtime,
+      files: [COMPONENTS[runtime]],
+      cases: COMPONENT_CASES,
+    });
+
+    for (const outcome of result.outcomes) {
+      const mark = outcome.passed ? "\x1b[32m+\x1b[0m" : "\x1b[31mx\x1b[0m";
+      const detail =
+        outcome.expected !== undefined
+          ? ` - expected ${outcome.expected}, got ${outcome.actual}`
+          : "";
+      console.log(`    ${mark} ${outcome.name}${detail}`);
+    }
+
+    const unavailable = runner instanceof DockerRunner ? runner.lastUnavailable : null;
+
+    if (result.error) {
+      fail(`the ${runtime} run reported an error`, unavailable?.operatorHint ?? result.error);
+    } else if (
+      result.outcomes[0]?.passed &&
+      result.outcomes[1]?.passed &&
+      !result.outcomes[2]?.passed
+    ) {
+      /**
+       * The second case is the one that proves the awaiting works: React batches
+       * state updates and Vue defers to nextTick, so a harness that did not
+       * flush would read the old DOM and report 0 where 1 is expected.
+       */
+      if (result.outcomes[2].expected === '"99"') {
+        console.log(ok(`props render, a click reaches state, and a wrong answer failed`));
+      } else {
+        fail(
+          `the failing ${runtime} case did not report a difference`,
+          "It failed, but not by comparing values - the assertion may be throwing instead of running.",
+        );
+      }
+    } else {
+      fail(
+        `the ${runtime} probe did not behave as expected`,
+        "Expected the first two cases to pass and the third to fail on a difference.",
+      );
+    }
+  }
+
 
   console.log(
     failures === 0

@@ -11,6 +11,138 @@ lives under `[Unreleased]` until there is something to version.
 
 ## [Unreleased]
 
+### 2026-11-02 — React and Vue exercises, and a contract a pair cannot drift from
+
+The four technology modules had no exercise. A learner on the Frontend track — which is where the
+Roadmap AI now sends most of them — worked through four core JavaScript exercises, reached
+**React components**, and found nothing to practise on.
+
+All five runtimes now work, proved by `npm run sandbox:check` and `npm run exercises:check`:
+**8 exercises, every reference solution passing and every starter failing something visible.**
+
+#### The contract came first (design.md §13.4)
+
+```js
+const { container, find, findAll, click, type } = render(TaskList, { tasks: ["a", "b"] });
+
+await click(find("button"));
+expect(find("[data-count]")).toHaveTextContent("1");
+```
+
+**The helpers are scoped to the render that returned them**, not global. Cases share one program
+and one document, so a global `screen` left pointing at a previous render is the same cross-case
+bug a shared document already caused in the DOM harness. Scoping makes it impossible rather than a
+rule to remember.
+
+**A case may be `async`, and after an event it must be.** React batches state updates; Vue defers
+to `nextTick`. A bare assertion after a click reads the old DOM in **both**, so `click` and `type`
+return promises and `run()` awaits. This was the biggest change to the existing harness.
+
+Everything else is unchanged: one program on stdin, one `RESULT_MARKER` line per case, always exit
+0, `readOutcomes` reading it, the `hidden` flag travelling the same path. One copy of the rule that
+a case reporting nothing is a failure.
+
+#### Three things the container taught that no unit test would have
+
+- **`react-dom` reads `navigator.userAgent` at module load**, and Node 20 has no global
+  `navigator`. It threw `ReferenceError: navigator is not defined` before the learner's code was
+  even compiled — which they would read as a fault in their component. Every jsdom global is now
+  installed before any framework is required, and a test asserts that ordering.
+- **Vue's runtime-dom reads `SVGElement`** the same way, found the same way. The globals are a
+  **named list**, not a copy of `window`: copying wholesale would shadow Node's `console`,
+  `process` and `setTimeout` with jsdom's, and a learner's `console.log` would print into a window
+  nobody reads.
+- **`type()` cannot just set `element.value`.** React tracks the value on the DOM node and skips an
+  input event whose value it thinks it already set, so a plain assignment updates the box and never
+  reaches the component. Going through the prototype's setter is what makes it look like typing.
+  Harmless for Vue, necessary for React, so both get it.
+
+**sucrase compiles JSX, not esbuild.** esbuild is a native binary that spawns a child process for
+its API; sucrase is plain JavaScript — one less thing that has to be allowed to work under
+`--cap-drop ALL`, `--read-only` and a `noexec` tmpfs. The **automatic** JSX runtime, so a learner
+writes a component without `import React`, as they would in any project they join.
+
+#### The pairs cannot drift apart
+
+§13.4 says a React and Vue pair shares a brief and its assertions. The seed writes each pair's
+cases **once** and both halves use the array, which makes the guarantee mechanical rather than a
+promise — and `exercise-parity.test.ts` asserts the sharing is still happening, because somebody
+inlining one half's cases would look like a tidy-up and would quietly end it. Mutation-tested:
+dropping one case from the Vue half fails two tests.
+
+The two halves are alternatives to each other, decided by a technology choice §5.8 says a learner
+can change. One being quietly harder is a fairness problem **the platform cannot detect and a
+learner cannot report**, because they have nothing to compare against. In the check's output the
+pairs now fail identically — same case names, same expected and actual.
+
+#### Also
+
+- `first-commit/jsdom:2` adds React 19.2, Vue 3.5 and sucrase. **The tag is the version record**:
+  upgrading a framework means tag 3, because a submission has to run against a known version for
+  the same reason `ai_prompts` records one per job.
+- Three tests that asserted react and vue were *refused* now assert they are supported, and one
+  that "kept a hidden case hidden when refusing" was quietly spinning a real Vue container — it
+  names an unsupported runtime again, so it tests the refusal its name claims.
+- §13.4 displaced three §13 sections; they and their five cross-references were renumbered.
+
+### 2026-11-02 — The admin overview, and a wrong number pg-mem was happy to return
+
+`/admin` was **the last screen in the app on hard-coded data**, which mattered more there than
+anywhere else: a page whose entire job is to say what needs doing is worse than blank when its
+numbers are invented. It had been showing "3 flagged AI feedback" beside a working `/admin/flags`
+endpoint for weeks.
+
+`GET /admin/overview` now answers all four of §6.1's panels. 11 endpoint tests, 15 screen tests.
+
+#### Two counting rules, both pinned by tests
+
+- **A module's pass rate is per learner, not per attempt.** Somebody who failed six times and
+  passed on the seventh got there; counting attempts reads that as 14% and sends an admin to
+  rewrite a module that works. Mutation-tested — switching to per-attempt fails exactly the test
+  that describes it.
+- **A milestone's stuck rate counts only projects that reached it.** A project that has not got
+  there yet is not stuck on it, or every milestone would look worse as more learners joined.
+
+A module needs three learners before its rate is shown at all: one learner failing once is a 0%
+pass rate, and putting that at the top of the page would bury the module fifteen people are
+actually stuck on.
+
+#### pg-mem returned a wrong number, not an error
+
+`count(distinct user_id) filter (where passed)` answered **4** for one pass and three failures.
+**pg-mem silently ignores the `filter` clause.** Not a crash — a wrong answer, which is the worst
+kind: every test over that query would have agreed with a production query that behaved
+differently.
+
+Worse, my own probe for it had reported "ok", because it only checked the query did not throw.
+That is the same trap this repo has now hit seven times: **asserting an outcome that failure also
+produces.** The fix is `count(distinct case when passed then user_id end)`, which means the same
+thing in PostgreSQL and which pg-mem computes correctly. Nothing else in the codebase used
+`filter`.
+
+Two more divergences surfaced in the same hour, and `packages/test-db` now carries the whole list
+with its symptoms: **`having` is not supported at all**, and **a correlated subquery cannot see an
+outer alias**. `date_trunc` is registered there now, implementing only the units the code passes
+and **throwing on any other** rather than guessing.
+
+The `having` one changed the code for the better. The thresholds moved into TypeScript, where
+`ENOUGH_LEARNERS` and `STRUGGLING_BELOW` sit beside the reasoning for them instead of being
+numbers buried in a clause. The grouping — the expensive part — still happens in Postgres.
+
+#### On the screen
+
+**Zero is shown as zero, and says what it means.** "Nothing is waiting for a decision" is the
+answer an admin most wants to be able to trust, so it is stated rather than inferred from a blank
+panel. When the endpoint fails the screen says so and shows **no numbers at all** — better blank
+than invented, asserted by a test.
+
+A missing starter template is named with its technology: "Task tracker — no Vue starter template,
+learners cannot start it". It is a blocked learner, not untidiness, and nothing else in the
+platform surfaces it. "1 gap" would not be actionable.
+
+The active-learner window comes from the API rather than being written into the caption, so
+"active" cannot come to mean 30 days in one place and 7 in another.
+
 ### 2026-11-02 — `db:verify` had been crying wolf about the audit log
 
 Migration 0004 and the seed are applied: `code_runtime` carries `jsdom`, `js-dom` is seeded with

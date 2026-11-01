@@ -408,6 +408,7 @@ describe("§9.2 — every learner endpoint resolves a session", () => {
       "/admin/integrity/:id",
       "/admin/certificates",
       "/admin/certificates/:id/revoke",
+      "/admin/overview",
       /**
        * §5.15's verification page is reachable without logging in, by link or QR
        * code — that is the whole point of a "publicly verifiable" certificate.

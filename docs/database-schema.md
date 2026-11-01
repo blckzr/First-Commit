@@ -526,8 +526,10 @@ Most logic lives in the Express backend, where it is easier to read, test, and e
    |---|---|---|
    | `javascript` | `node:20-alpine` | Plain functions. The program goes in on stdin |
    | `python` | `python:3.12-alpine` | As above, via `python3 -` |
-   | `jsdom` | `first-commit/jsdom:1`, built from `docker/jsdom` | Exercises needing a `document`. jsdom is baked into the image, because the container has `--network none` and cannot install anything. Added by migration 0004 |
-   | `react`, `vue` | — | **Not built.** A DOM is necessary and not sufficient: a component test also needs JSX or SFC compilation and a render call. The worker refuses them, so the failure is honest rather than reported as the learner's syntax error |
+   | `jsdom` | `first-commit/jsdom:2`, built from `docker/jsdom` | Exercises needing a `document`. Added by migration 0004 |
+   | `react`, `vue` | `first-commit/jsdom:2` | Component exercises. The learner writes `.jsx` or `.vue`; sucrase and `@vue/compiler-sfc` compile it inside the container. The test contract is design.md §13.4 |
+
+   jsdom, React, Vue and the compilers are **baked into the image**, because the container has `--network none` and cannot install anything. The tag is a version rather than `latest`: it is what says which framework versions a submission ran against, for the same reason `ai_prompts` records a version on every job.
 
    It writes `test_results` and `passed`. The in-browser sandbox is used for instant "Run tests" practice, but only server results count, since browser results could be tampered with.
 

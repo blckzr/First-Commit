@@ -26,17 +26,146 @@
  * | `html-basics`, `forms-and-semantics`, `css-basics`, `css-layout` | Markup and styling. A quiz checks these; a program cannot |
  * | `git-basics`, `git-branching` | Git operations, not a program. The capstone is where Git is actually exercised |
  *  * | `what-are-components`, `http-basics`, `fetching-data` | Concept modules. An exercise here would be a contrivance dressed as practice |
- * | React, Vue | Component tests. A DOM is necessary and not sufficient — they also need JSX or SFC compilation and a render call, which is a harness of its own |
  * | Express, Django | Would need the framework installed in the image, and testing a hand-rolled imitation of a router teaches the imitation |
  *
- * So four of ten core modules have one: `js-basics`, `js-functions`,
- * `js-arrays-objects` on the `javascript` runtime, and **`js-dom` on `jsdom`**
- * (migration 0004) — the runtime that gives the program a real `document`
- * before the learner's code runs.
+ * So eight modules have one: `js-basics`, `js-functions`, `js-arrays-objects`
+ * on `javascript`; `js-dom` on `jsdom` (migration 0004); and the four
+ * technology modules as **two React/Vue pairs** on `react` and `vue`
+ * (design.md §13.4).
  *
- * The four technology modules are still waiting. They share the `jsdom` image,
- * so the dependency is there; what they need is the component harness.
+ * **A pair shares its brief and its assertions**, character for character —
+ * `TASK_LIST_CASES` and `COUNTER_CASES` below are each written once and used by
+ * both halves. The two are alternatives to each other, so one being quietly
+ * harder is a fairness problem nothing else would catch;
+ * `apps/worker/src/sandbox/exercise-parity.test.ts` asserts the sharing is
+ * still happening.
  */
+
+/*
+ * The React and Vue pairs (design.md §13.4).
+ *
+ * **Each pair shares a brief and its assertions**, character for character.
+ * Only the starter file's language differs. The two halves are alternatives to
+ * each other — a learner takes one — so one being quietly harder is a fairness
+ * problem the platform cannot detect and a learner cannot report.
+ *
+ * The test code is written once below and used by both, which is what makes
+ * that guarantee mechanical rather than a promise.
+ */
+
+/** Components: render a list, show a count, use the props you were given. */
+const TASK_LIST_CASES = [
+  {
+    name: "Renders one item per task",
+    visible: true,
+    code: `const { findAll } = render(TaskList, { tasks: ["Write", "Read", "Ship"] });
+expect(findAll("li").length).toBe(3);`,
+  },
+  {
+    name: "Shows each task's text",
+    visible: true,
+    code: `const { findAll } = render(TaskList, { tasks: ["Write", "Read"] });
+expect(findAll("li")[0]).toHaveTextContent("Write");
+expect(findAll("li")[1]).toHaveTextContent("Read");`,
+  },
+  {
+    name: "Counts the tasks in the heading",
+    visible: true,
+    code: `const { find } = render(TaskList, { tasks: ["Write", "Read", "Ship"] });
+expect(find("h2")).toHaveTextContent("3 tasks");`,
+  },
+  {
+    name: "Says \"1 task\" for a single task",
+    visible: true,
+    code: `const { find } = render(TaskList, { tasks: ["Write"] });
+expect(find("h2")).toHaveTextContent("1 task");`,
+  },
+  {
+    name: "Says \"No tasks yet\" for an empty list",
+    visible: true,
+    code: `const { find } = render(TaskList, { tasks: [] });
+expect(find("h2")).toHaveTextContent("No tasks yet");`,
+  },
+  /*
+   * Hidden, for the reason every hidden case here exists: a component that
+   * writes the visible answers as literals passes everything above.
+   */
+  {
+    name: "Counts a longer list",
+    visible: false,
+    code: `const { find, findAll } = render(TaskList, {
+  tasks: ["a", "b", "c", "d", "e", "f", "g"],
+});
+expect(findAll("li").length).toBe(7);
+expect(find("h2")).toHaveTextContent("7 tasks");`,
+  },
+  {
+    name: "Renders nothing in the list when there are no tasks",
+    visible: false,
+    code: `const { findAll } = render(TaskList, { tasks: [] });
+expect(findAll("li").length).toBe(0);`,
+  },
+];
+
+/** State: remember something, change it on an event, keep props separate. */
+const COUNTER_CASES = [
+  {
+    name: "Starts at the count it was given",
+    visible: true,
+    code: `const { find } = render(TaskCounter, { start: 3 });
+expect(find("[data-count]")).toHaveTextContent("3");`,
+  },
+  {
+    name: "Starts at zero when given no count",
+    visible: true,
+    code: `const { find } = render(TaskCounter);
+expect(find("[data-count]")).toHaveTextContent("0");`,
+  },
+  {
+    name: "Counts up when the button is pressed",
+    visible: true,
+    code: `const { find, click } = render(TaskCounter);
+await click(find("[data-add]"));
+expect(find("[data-count]")).toHaveTextContent("1");`,
+  },
+  {
+    name: "Keeps counting on each press",
+    visible: true,
+    code: `const { find, click } = render(TaskCounter);
+await click(find("[data-add]"));
+await click(find("[data-add]"));
+await click(find("[data-add]"));
+expect(find("[data-count]")).toHaveTextContent("3");`,
+  },
+  {
+    name: "Will not go below zero",
+    visible: true,
+    code: `const { find, click } = render(TaskCounter);
+await click(find("[data-remove]"));
+expect(find("[data-count]")).toHaveTextContent("0");`,
+  },
+  /*
+   * Hidden. The first catches a component that counts from a literal rather
+   * than from the prop it was given; the second catches one that lets the
+   * count go negative only when it did not start at zero.
+   */
+  {
+    name: "Counts up from the given start",
+    visible: false,
+    code: `const { find, click } = render(TaskCounter, { start: 10 });
+await click(find("[data-add]"));
+expect(find("[data-count]")).toHaveTextContent("11");`,
+  },
+  {
+    name: "Stops at zero coming down from a higher start",
+    visible: false,
+    code: `const { find, click } = render(TaskCounter, { start: 2 });
+await click(find("[data-remove]"));
+await click(find("[data-remove]"));
+await click(find("[data-remove]"));
+expect(find("[data-count]")).toHaveTextContent("0");`,
+  },
+];
 
 export const exercises = {
   "js-arrays-objects": {
@@ -417,6 +546,213 @@ expect(document.getElementById("count")).toHaveTextContent("2 tasks");`,
 }
 
 module.exports = { updateCount };
+`,
+      },
+    ],
+  },
+
+  "components-in-react": {
+    title: "A task list component",
+    runtime: "react",
+    passingScore: 100,
+    instructions:
+      "`TaskList` is given a `tasks` array of strings. Render one `<li>` per task inside the `<ul>`, and put the count in the `<h2>`: \"3 tasks\", \"1 task\", or \"No tasks yet\" when the list is empty.",
+    starterFiles: [
+      {
+        path: "TaskList.jsx",
+        content: `export default function TaskList({ tasks }) {
+  return (
+    <section>
+      <h2>{tasks.length} tasks</h2>
+      <ul>
+        {tasks.map((task) => (
+          <li>{task}</li>
+        ))}
+      </ul>
+    </section>
+  );
+}
+`,
+      },
+    ],
+    testCases: TASK_LIST_CASES,
+    referenceSolution: [
+      {
+        path: "TaskList.jsx",
+        content: `function heading(count) {
+  if (count === 0) return "No tasks yet";
+  if (count === 1) return "1 task";
+  return count + " tasks";
+}
+
+export default function TaskList({ tasks }) {
+  return (
+    <section>
+      <h2>{heading(tasks.length)}</h2>
+      <ul>
+        {tasks.map((task) => (
+          <li key={task}>{task}</li>
+        ))}
+      </ul>
+    </section>
+  );
+}
+`,
+      },
+    ],
+  },
+
+  "components-in-vue": {
+    title: "A task list component",
+    runtime: "vue",
+    passingScore: 100,
+    instructions:
+      "`TaskList` is given a `tasks` array of strings. Render one `<li>` per task inside the `<ul>`, and put the count in the `<h2>`: \"3 tasks\", \"1 task\", or \"No tasks yet\" when the list is empty.",
+    starterFiles: [
+      {
+        path: "TaskList.vue",
+        content: `<script setup>
+const props = defineProps({ tasks: { type: Array, default: () => [] } })
+</script>
+
+<template>
+  <section>
+    <h2>{{ props.tasks.length }} tasks</h2>
+    <ul>
+      <li v-for="task in props.tasks">{{ task }}</li>
+    </ul>
+  </section>
+</template>
+`,
+      },
+    ],
+    testCases: TASK_LIST_CASES,
+    referenceSolution: [
+      {
+        path: "TaskList.vue",
+        content: `<script setup>
+import { computed } from "vue"
+
+const props = defineProps({ tasks: { type: Array, default: () => [] } })
+
+const heading = computed(() => {
+  const count = props.tasks.length
+  if (count === 0) return "No tasks yet"
+  if (count === 1) return "1 task"
+  return count + " tasks"
+})
+</script>
+
+<template>
+  <section>
+    <h2>{{ heading }}</h2>
+    <ul>
+      <li v-for="task in props.tasks" :key="task">{{ task }}</li>
+    </ul>
+  </section>
+</template>
+`,
+      },
+    ],
+  },
+
+  "state-and-props-react": {
+    title: "A counter that remembers",
+    runtime: "react",
+    passingScore: 100,
+    instructions:
+      "`TaskCounter` takes a `start` number, defaulting to 0. Show the count in the element marked `data-count`. The `data-add` button adds one; the `data-remove` button takes one away but never goes below zero.",
+    starterFiles: [
+      {
+        path: "TaskCounter.jsx",
+        content: `import { useState } from "react";
+
+export default function TaskCounter({ start = 0 }) {
+  const [count, setCount] = useState(0);
+
+  return (
+    <div>
+      <p data-count>{count}</p>
+      <button data-add onClick={() => setCount(count + 1)}>Add</button>
+      <button data-remove onClick={() => setCount(count - 1)}>Remove</button>
+    </div>
+  );
+}
+`,
+      },
+    ],
+    testCases: COUNTER_CASES,
+    referenceSolution: [
+      {
+        path: "TaskCounter.jsx",
+        content: `import { useState } from "react";
+
+export default function TaskCounter({ start = 0 }) {
+  const [count, setCount] = useState(start);
+
+  return (
+    <div>
+      <p data-count>{count}</p>
+      <button data-add onClick={() => setCount(count + 1)}>Add</button>
+      <button data-remove onClick={() => setCount(Math.max(0, count - 1))}>
+        Remove
+      </button>
+    </div>
+  );
+}
+`,
+      },
+    ],
+  },
+
+  "state-and-props-vue": {
+    title: "A counter that remembers",
+    runtime: "vue",
+    passingScore: 100,
+    instructions:
+      "`TaskCounter` takes a `start` number, defaulting to 0. Show the count in the element marked `data-count`. The `data-add` button adds one; the `data-remove` button takes one away but never goes below zero.",
+    starterFiles: [
+      {
+        path: "TaskCounter.vue",
+        content: `<script setup>
+import { ref } from "vue"
+
+const props = defineProps({ start: { type: Number, default: 0 } })
+const count = ref(0)
+</script>
+
+<template>
+  <div>
+    <p data-count>{{ count }}</p>
+    <button data-add @click="count++">Add</button>
+    <button data-remove @click="count--">Remove</button>
+  </div>
+</template>
+`,
+      },
+    ],
+    testCases: COUNTER_CASES,
+    referenceSolution: [
+      {
+        path: "TaskCounter.vue",
+        content: `<script setup>
+import { ref } from "vue"
+
+const props = defineProps({ start: { type: Number, default: 0 } })
+const count = ref(props.start)
+
+function remove() {
+  count.value = Math.max(0, count.value - 1)
+}
+</script>
+
+<template>
+  <div>
+    <p data-count>{{ count }}</p>
+    <button data-add @click="count++">Add</button>
+    <button data-remove @click="remove">Remove</button>
+  </div>
+</template>
 `,
       },
     ],

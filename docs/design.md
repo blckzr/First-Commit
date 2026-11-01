@@ -135,7 +135,7 @@ The chart reflects First Commit's layered career paths (see the proposal, Sectio
 
 # 3. Design Tokens
 
-All tokens are defined as CSS custom properties and mirrored in a TypeScript tokens file (Section 13.4). The system comes from the First Commit design system; its provenance, substitutions, and the corrections applied to it are recorded in [design-source.md](design-source.md).
+All tokens are defined as CSS custom properties and mirrored in a TypeScript tokens file (Section 13.5). The system comes from the First Commit design system; its provenance, substitutions, and the corrections applied to it are recorded in [design-source.md](design-source.md).
 
 **The one-sentence version:** a light violet page carrying a mosaic of flat rounded panels — white, soft violet, and near-black — where a single acid lime is the only loud colour.
 
@@ -421,7 +421,7 @@ assessment, because a module version can carry more than one.
 
 - **No shared shell.** The learner shell and the admin shell are different components. Neither renders the other's navigation, so admin items cannot appear in a learner's sidebar.
 - **No cross links.** Learner pages contain no links to `/admin`, and admin pages contain no links to `/app`. An admin who also wants to learn uses a separate learner account.
-- **Admin code is loaded only for admins.** The admin area is a separate lazily loaded bundle, so a learner's browser never downloads admin screens (Section 13.6).
+- **Admin code is loaded only for admins.** The admin area is a separate lazily loaded bundle, so a learner's browser never downloads admin screens (Section 13.7).
 - **The interface is not the protection.** Hiding a page only tidies the experience. What actually protects data is the backend: the browser never reaches the database, and every API endpoint resolves the session to a user and filters by that user's id, so typing the address by hand or calling the API directly returns nothing the account is not allowed to read (see database-schema.md, Section 6).
 - **Role comes from the server.** The app reads the role from the signed-in user's profile, never from something the browser can set. On log out, cached data is cleared so the next person on the same computer sees nothing.
 - **One role per account.** An account is either a learner or an admin. There is no role switcher in the interface.
@@ -1561,7 +1561,7 @@ No entrance animations on page sections, and no hover animations on list rows. W
 
 First Commit uses **one responsive layout** that adapts automatically to the screen width. There are **no desktop/mobile toggle buttons, no "switch to mobile view" links, and no separate mobile pages**. Resizing a browser window or rotating a device reflows the same screen immediately.
 
-This is achieved with CSS media queries and container queries on shared components. Where a component must change shape — the roadmap chart becoming a single column — the change happens automatically from the space available (a container query on the chart), never from a user setting (Section 13.5).
+This is achieved with CSS media queries and container queries on shared components. Where a component must change shape — the roadmap chart becoming a single column — the change happens automatically from the space available (a container query on the chart), never from a user setting (Section 13.6).
 
 ## 11.2 Breakpoints
 
@@ -1864,7 +1864,82 @@ export interface MilestoneAttempt {
 
 One `Roadmap` object drives both the chart layout (`lg`, `md`) and the stacked layout (`sm`), so the two views can never show different data. Using a discriminated union for `RoadmapStep` lets each node component render exhaustively with a `switch` on `type`, and TypeScript reports an error if a new step type is added without a matching node.
 
-## 13.4 Tokens in Code
+## 13.4 The Exercise Test Contract
+
+What an author writes in `test_cases.test_code`, and what the sandbox gives them. One contract per
+`code_runtime`; the results seam is the same for all of them (one program, one line per case, a
+case that reports nothing is a failure).
+
+### Every runtime
+
+`expect(actual)` with `toBe`, `toEqual`, `toBeCloseTo`, `toThrow`. The DOM runtimes add
+`toHaveTextContent`, `toExist` and `toHaveClass`.
+
+Cases run **in order, in one program, against one document**, and the page is restored before each
+one. A case may not rely on a previous case's leftovers — and does not have to clean up after
+itself.
+
+### `javascript` and `python`
+
+The learner's files are concatenated; their top-level functions are in scope.
+
+```js
+expect(sumEven([2, 4, 6])).toBe(12);
+```
+
+### `jsdom`
+
+As above, plus a real `document` built from the exercise's own `.html` starter file. **The page is
+a fixture, never a submitted file** — a learner who could edit the markup would pass
+"shows 2 tasks" by typing it in.
+
+```js
+addTask("Ship it");
+expect(document.querySelectorAll("#tasks li").length).toBe(2);
+```
+
+### `react` and `vue`
+
+The learner writes `TaskList.jsx` or `TaskList.vue`. Its default export is available to the test
+code under the file's base name. `render` mounts it into a fresh container:
+
+```js
+const { find, findAll, click, type, container } = render(TaskList, { tasks: ["a", "b"] });
+```
+
+| Helper | Does |
+|---|---|
+| `find(selector)` | The first match inside this render, or `null` |
+| `findAll(selector)` | All matches, as an array |
+| `click(element)` | Clicks it **and waits** for the framework to settle |
+| `type(element, text)` | Sets an input's value the way the framework notices, and waits |
+| `container` | The element this component was mounted into |
+
+**The helpers are scoped to the render that returned them**, not global. Cases share one program
+and one document, so a global `screen` left pointing at a previous render is the same cross-case
+bug that a shared document already caused once.
+
+**A case may be `async`, and for anything after an event it must be.** React batches state
+updates and Vue defers to `nextTick`, so a bare assertion after a click reads the old DOM in both.
+`click` and `type` return promises for that reason; awaiting them is the whole discipline.
+
+```js
+const { find, click } = render(Counter);
+
+await click(find("button"));
+expect(find("[data-count]")).toHaveTextContent("1");
+```
+
+**A React and Vue pair share a brief and their assertions.** Only the starter file's language
+differs — same case count, same expectations, character-identical test code where possible. The
+two halves are alternatives to each other, so one being quietly harder is a fairness problem the
+platform cannot see and a learner cannot report.
+
+**Framework versions belong to the image tag.** React and Vue are baked into
+`first-commit/jsdom:2`; upgrading either means a new tag, because a submission has to run against
+a known version for the same reason `ai_prompts` records a version on every job.
+
+## 13.5 Tokens in Code
 
 ```css
 /* styles/tokens.css — abridged; the file is the full set */
@@ -1928,7 +2003,7 @@ One `Roadmap` object drives both the chart layout (`lg`, `md`) and the stacked l
 }
 ```
 
-## 13.5 Responsive Implementation Rules
+## 13.6 Responsive Implementation Rules
 
 - **Layout changes use CSS first.** Grids, sidebars, stacked panels, and typography sizes change through media queries and container queries, not JavaScript.
 - **Structural changes switch automatically.** Where a component must render a different structure at a breakpoint, a `useBreakpoint` hook based on `window.matchMedia` selects it from the viewport width and updates on resize — never a user toggle, stored preference, or user-agent detection. **Nothing needs it today:** the roadmap chart and its single column are now one list and a container query. The hook stays for the next case.
@@ -1973,7 +2048,7 @@ export function useBreakpoint(): Breakpoint {
 }
 ```
 
-## 13.6 Route Guards and Area Separation
+## 13.7 Route Guards and Area Separation
 
 The three areas in Section 4.3 are enforced by the router. Guards decide what renders; the database decides what data is returned.
 

@@ -6,7 +6,7 @@ The image for exercises whose `code_runtime` is `jsdom` — ones that need a rea
 ## Build it
 
 ```powershell
-docker build -t first-commit/jsdom:1 docker/jsdom
+docker build -t first-commit/jsdom:2 docker/jsdom
 ```
 
 Then prove it on this machine:
@@ -44,7 +44,7 @@ the program can find its dependency.
 
 ## Why the tag is a version
 
-`first-commit/jsdom:1`, not `latest`. Rebuilding must not silently change what a
+`first-commit/jsdom:2`, not `latest`. Rebuilding must not silently change what a
 learner's submission ran against — the same reason `ai_prompts` records a
 version on every job. A change that alters behaviour gets tag `2` and a note
 here.

@@ -3,6 +3,11 @@
   "private": true,
   "description": "Baked into the sandbox image. Nothing is installed at run time: the container has --network none.",
   "dependencies": {
-    "jsdom": "26.1.0"
+    "jsdom": "26.1.0",
+    "react": "19.2.0",
+    "react-dom": "19.2.0",
+    "vue": "3.5.22",
+    "@vue/compiler-sfc": "3.5.22",
+    "sucrase": "3.35.0"
   }
 }
