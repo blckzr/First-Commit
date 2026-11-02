@@ -1389,11 +1389,15 @@ A list of flags filtered by source (exercise, milestone review, roadmap explanat
 | **Journey funnel** | Per career path: started roadmap, finished core, chose technology, earned Certificate of Completion, started capstone, earned Project Certificate |
 | **Modules** | Pass rates and drop-off, sortable, filterable by technology |
 | **Milestones** | Where learners stop progressing in each brief |
-| **Technology choices** | Share of learners choosing each option, and switches between options |
+| **Technology choices** | Share of learners choosing each option, who was recommended it, and how many reached the decision without answering. **Switches between options are not recorded** — `roadmap_technology_choices` is keyed `(roadmap_id, decision_id)`, so changing a choice overwrites `technology_id` and leaves nothing behind. The screen says so; a count of zero would read as "nobody switches", which the platform cannot know. Counting them needs a history table, and the switch flow itself is not built (open question 15) |
 | **AI quality** | Flag rate per exercise and milestone; share of flags confirmed as wrong |
 | **Certificates** | Issued and revoked over time |
 
 Analytics use aggregated data. Charts use `ink` and `rule` with `action` highlighting the selected item.
+
+**A rate is withheld rather than guessed.** Below three learners there is no rate — the screen shows the counts and "too few to say". One learner failing once is a 0% pass rate, and a 0% at the top of this page would send an author to rewrite a module that works. Every figure is counted **per learner, not per attempt**, for the same reason: somebody who failed six times and passed on the seventh is a learner who got there.
+
+**Pass rate and drop-off are different questions, shown side by side.** Pass rate is of the learners who attempted an assessment; drop-off is of the learners who started the module and never finished it. A module can look fine on one and terrible on the other, which is the case an author most needs to see — the people it defeated never reached the quiz.
 
 ## 6.10 Users
 
@@ -1402,10 +1406,22 @@ Analytics use aggregated data. Charts use `ink` and `rule` with `action` highlig
 | Area | Actions |
 |---|---|
 | **Learners** | Search; view roadmaps, progress, projects, and certificates; suspend or reactivate with a reason |
-| **Data requests** | Process data download and deletion requests |
-| **Admins** | Invite, deactivate, and view admin accounts |
+| **Data requests** | **Not built.** Nothing in the schema records a data download or deletion request, so there is nothing to process. Account deletion also meets open question 17: an account that has logged an admin action cannot be deleted, because `admin_activity_log.admin_id` is `on delete set null` and `set null` is an update the append-only trigger blocks |
+| **Admins** | View and deactivate admin accounts. **There is no invite** — Section 6 rule 8 says no endpoint updates `users.role`, and open question 7 proposes a database trigger strengthening that ban. An invite flow is the one hole that would make the rule meaningless, so an admin is made by `npm run db:accounts` or by SQL, and the screen says so. Deactivating one is a `status` change, which rule 8 does not touch |
 
-No action on this page can mark modules as passed or change scores.
+No action on this page can mark modules as passed or change scores. Modules passed are shown split
+by method, because an `override` is a logged admin correction rather than work the learner did
+(rule 10), and one total would let a corrected record read as a clean one.
+
+**An admin cannot change their own account's status**, and that single refusal is what keeps the
+admin area reachable. The caller is always an active admin, so for any other target at least one
+active admin remains afterwards — a separate "last active admin" check would be a branch nothing
+could reach. The list says how many admins can still get in, which is what somebody wants to know
+before suspending a colleague.
+
+**Why an account was suspended is read back out of the activity log.** `users.status` holds the
+current state and no reason, so the log is the only place the question has an answer, and the
+learner's panel shows it where the decision is being made.
 
 ## 6.11 Settings
 
@@ -1413,17 +1429,38 @@ No action on this page can mark modules as passed or change scores.
 
 | Section | Actions |
 |---|---|
-| **AI** | View the model in use; edit the prompts for each AI component; set context limits; test a prompt against sample input |
-| **GitHub** | Manage the GitHub App connection; view event delivery status |
-| **Learning rules** | Set passing scores, attempts before a reinforcement module is added, and score thresholds for challenge modules |
+| **AI** | View the active prompt and version for each AI component, and the model each one **actually ran on**, read from `ai_jobs.model` rather than echoed from configuration. **Prompts are viewed, not edited**: prompt text lives in the worker's source and is registered in `ai_prompts` on start, and the worker *refuses to start* if a stored version's text differs from the code's — so an edit here would stop the worker, and the first symptom would be learners getting no feedback at all. **Context limits and testing a prompt against sample input are not built**: the context window is the worker's own configuration (`model-setup-guide.md` Section 7), and running a prompt needs Ollama, which only the worker can reach. `npm run try:feedback` and `npm run try:roadmap` are where a prompt is tried |
+| **GitHub** | Whether a real App is configured or the development client is in use, and how recent webhook deliveries went, with the error on each failure. **No credential is read or shown** — the App's id, client secret and private key are environment configuration on Render |
+| **Learning rules** | Set the pass mark a new quiz starts at, the failed attempts before a reinforcement module is added, and the score above which a challenge module is offered |
 
 Changing a setting shows what it affects and is recorded in the activity log.
+
+**Each rule says what reads it, and a rule nothing reads says so on the page.**
+`platform_settings` had no reader anywhere in the repo before this screen, and a settings page
+whose knobs control nothing is worse than no page: it tells an admin they changed something.
+`passing_score_default` is genuinely read — the quiz editor starts a *new* quiz at it, and never
+moves an existing one, because each quiz stores its own `passing_score` and a learner's attempt was
+graded against the quiz as it stood (Section 6 rule 6). The reinforcement and challenge rules are
+stored and marked **"Stored, not used yet"**, because no code adds either kind of module.
+
+The settings a change can be made to are a **closed list in code**. `platform_settings` has a text
+primary key, so without one an admin screen could write `passing_score` beside
+`passing_score_default` and neither would be wrong — the table would hold two plausible settings
+and a reader would use one of them.
 
 ## 6.12 Activity Log
 
 **Purpose:** Keep an unchangeable record of sensitive admin actions.
 
-A read-only table with date and time, admin, action (e.g., published module version, overrode check, revoked certificate, suspended account, changed setting), target, and reason. Filterable by admin, action type, and date. No admin can edit or delete entries, including their own.
+A read-only table with date and time, admin, action (e.g., published module version, overrode check, revoked certificate, suspended account, changed setting), target, and reason. Filterable by admin, action type, and date. No admin can edit or delete entries, including their own — there is no endpoint for it, the screen offers no control, and a database trigger raises on update and delete.
+
+**The target is named, never shown as an id.** A row stores `target_type` and `target_id`, which is right for storage and useless on a screen: "module_version / 3f2a8c91…" says nothing about what was published. The API resolves each id to the name a person would use, and the screen turns the dotted action into a sentence. A target type the API does not resolve falls back to what the type is called, and an action the screen has no sentence for is shown as it is — a log that quietly omits what it cannot label is not a log.
+
+**Paged on the row id, not the timestamp.** Two rows written in one transaction share a timestamp — ruling against an integrity flag revokes a certificate, which writes two — so a cursor on the timestamp would show one of them twice or neither across a page boundary.
+
+**An entry outlives the account that made it.** `admin_id` is `on delete set null`, so a removed admin leaves the row standing with no name, shown as "an account since deleted" rather than hidden. (Open question 17: that deletion is currently blocked by the append-only trigger itself.)
+
+The filter offers the actions and admins that are actually in the log, not a hand-kept list — a filter that cannot name an action is a filter that hides it.
 
 ---
 
@@ -1703,7 +1740,7 @@ Target: **WCAG 2.2 Level AA**.
 | QR codes | `qrcode` (Node), in **`apps/api`** — not `qrcode.react` | The QR on the certificate PDF. §5.15 puts no QR on a screen, and the PDF is rendered by pdfkit on the server, where a React component cannot run. Always drawn beside the written verification link (§12) |
 | Live capstone updates | Polling with TanStack Query, or server-sent events | Updates the milestone tracker when a push arrives |
 | Styling | CSS Modules with CSS custom properties | Tokens from Section 3. Hover, press, and focus are CSS state selectors, never React state. |
-| Analytics charts | Recharts | Admin analytics |
+| Analytics charts | HTML and CSS, **not Recharts** | Section 6.9's figures are ones an admin acts on exactly — "41% pass rate, 15 of 60 dropped off" — so every view is a table or a labelled list, and a bar is a CSS width beside a number already in the DOM. Nothing sits behind an `aria-hidden` copy, which is the same decision the roadmap chart reached for the same reason (Section 12). Recharts is still uninstalled; the note below this table says alternatives with the same capabilities are acceptable, and a chart library would be an addition here rather than the substance |
 | Testing | Vitest, React Testing Library, Playwright | Playwright runs viewport tests at the widths in Section 11.4 |
 | Accessibility checks | eslint-plugin-jsx-a11y, axe | Automated checks in development and CI |
 

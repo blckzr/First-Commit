@@ -157,16 +157,70 @@ changelog for 2026-09-22.
 
 ### Admin
 
+**Every route the admin sidebar offers is a real screen** as of 2026-11-02 — no `Placeholder`
+remains in the admin tree. What is unfinished *inside* a screen is listed under it and said on
+the screen itself, which is the rule this table exists to enforce: an absence with no explanation
+reads as unfinished rather than as decided.
+
 - [~] `/admin` — **on real data** (§6.1), still without the v2 panel treatment. All four panels read
   `GET /admin/overview`: flags awaiting a decision, drafts and missing starter templates, struggling modules and
   milestones, and the month's certificates. Zero is shown as zero and says what it means; a failed load shows no
   numbers at all
+  - [x] ~~**"Learners struggling" had no test, and showed the brief's title as the milestone's**~~
+    — fixed 2026-11-02. Two `title` columns in one grouped query, and pg-mem collapses aliases of
+    the same name under `group by` with an aggregate, so the label was wrong in tests and right in
+    production. Found while building §6.9; the panel now has four tests, mutation-tested against
+    the original query
 - [x] `/admin/flags` — **applied**. §6.8: the learner's reason beside the full output, source and status filters, and a logged ruling. The first admin screen on real data
 - [~] `/admin/modules` — **applied** (§6.3): the list, the editor, History, and §6.4's impact dialog
 - [~] `/admin/paths` · `/admin/briefs` — **applied** (§6.2, §6.5), without the drag-and-drop placement and the
   check editor
-- [ ] `/admin/analytics` · `/users` · `/settings` · `/log` — **designed**, not built
-- [ ] `/admin/certificates` — **designed** in v2, not built. Needs admin lookup, revoke and reissue endpoints — each changes a learner's outcome, so each is logged (§6.1 step 5) and takes a reason
+- [x] `/admin/analytics` — **built** (§6.9). The journey funnel, modules, milestones, technology
+  choices, AI quality and certificates over time, all on real data. **A rate below three learners
+  is withheld**, not shown as 0% — the screen says "too few to say" and shows the counts. Tables
+  and CSS bars rather than Recharts: the bar is a width beside a number already in the DOM, which
+  is the roadmap chart's decision for the roadmap chart's reason
+  - [ ] **Switches between technology options cannot be counted** (open question 18).
+    `roadmap_technology_choices` is keyed `(roadmap_id, decision_id)`, so a switch overwrites the
+    previous answer and leaves nothing behind. The screen says so rather than reporting zero.
+    Needs a history table, and the switch flow itself is not built
+- [x] `/admin/users` — **built** (§6.10). Search by name or email, filter by role and status, read
+  a learner's roadmaps, progress, projects and certificates, and suspend or reactivate with a
+  required reason. Modules passed are split by method, so an `override` cannot read as the
+  learner's own work (§6 rule 10). Why an account was suspended is read back out of the activity
+  log, because `users.status` holds no reason
+  - [x] ~~**§6.10 asks for an admin invite**~~ — **dropped, not built.** It is an endpoint that
+    sets `users.role`, which §6 rule 8 forbids; the doc moved and the screen names
+    `npm run db:accounts`. Deactivating an admin is a `status` change and is built
+  - [ ] **Data requests have nowhere to read from.** No table records a download or deletion
+    request, and §5.18's deletion meets open question 17. The screen says so
+- [x] `/admin/settings` — **built** (§6.11). Learning rules write; AI and GitHub are read-only
+  **by decision**, with the reason carried in the API's own response so a second client cannot
+  offer a control the API would refuse
+  - [x] **`platform_settings` has a reader at last.** It was in the schema with nothing in the
+    repo reading it. The quiz editor starts a *new* quiz at `passing_score_default`, so the
+    setting is not a knob attached to nothing — mutation-tested by hardcoding the old 70 back
+  - [ ] **Two rules nothing enforces** (open question 19): `reinforcement_after_attempts` and
+    `challenge_above_score` are stored and marked "Stored, not used yet", because no code adds
+    either kind of module. Either build the rule that reads them or take them out of §6.11
+  - [x] ~~**§6.11 asks for prompt editing**~~ — **viewing instead.** The worker refuses to start
+    if a stored prompt's text differs from its source, so an edit box would stop it and learners
+    would get no feedback. The model shown comes from `ai_jobs.model` — what ran, not what the
+    worker was configured with
+  - [ ] **Context limits and "test a prompt against sample input" are not built.** Both belong to
+    the worker: the context window is its configuration, and running a prompt needs Ollama, which
+    only the worker can reach. `npm run try:feedback` is where a prompt is tried today
+- [x] `/admin/log` — **built** (§6.12). Read-only, filterable by action, admin and date, paged on
+  the row id. Each target is resolved to a name and each action to a sentence, so no bare uuid
+  reaches the screen; an action or target type the screen has not met falls back rather than
+  being hidden. **No endpoint edits or deletes an entry** — not a guarded one, none
+- [~] `/admin/certificates` — **built** (§6.7): the lookup list and a logged revoke with a required
+  reason (`GET /admin/certificates`, `PATCH /admin/certificates/:id/revoke`)
+  - [ ] **Reissue is not built.** Revoking is the half that stops a false claim; reissuing is the half
+    that fixes one, and §6.7 asks for both. There is no endpoint, and it needs deciding before it is
+    written: a reissue after a name change is a new snapshot of the same evidence, while a reissue
+    after a revoke is a reversal, and §6 rule 1 says only `syncCertificates()` may decide a
+    certificate is earned
 
 ---
 
@@ -205,7 +259,9 @@ The main loop: sign up → roadmap → learn → pass.
   - [x] ~~Only 3 of 19 modules have a quiz~~ — **all 10 core modules** now have three lessons and a five-question quiz. The 9 still empty are concept and technology modules, which come after the technology choice
   - [x] ~~The correct answer was option 0 in all 51 questions~~ — the seed loader rotates each question's options by an amount derived from its prompt, so clicking the top option no longer passes every quiz on the platform
   - [x] ~~No module has a coding exercise~~ — Arrays and objects has one, and §5.11's screen is built
-- [~] **Coding exercise (§5.11)** — content, API, worker pipeline and screen are built; **the sandbox is not**
+- [x] **Coding exercise (§5.11)** — content, API, worker pipeline, screen and **the sandbox** are built. The
+  runner in use is `CODE_RUNNER=docker`, proven on this machine by `npm run sandbox:check`; Judge0 is built and
+  kept for a Linux host, where it is the only one of the two that can run
   - [x] **Content** — "Sum of even numbers" on Arrays and objects: starter files carrying §5.11's own bug, 5 visible test cases and 2 hidden, a reference solution. The seed loader validates it — an exercise with no hidden case is rejected, because a solution that hard-codes the visible answers would pass
   - [x] **API** — `GET /exercises/:id` (visible cases by name only; nothing selects from `reference_solutions`), `POST /exercises/:id/submissions` (files and nothing else, `.strict()`), `GET /submissions/:id`. 21 tests, mutation-tested with four defects
   - [x] **The worker pipeline** — `claim_next_code_submission()` (migration 0003), `runSubmission()` behind a one-file `Runner` interface, redaction of hidden cases, `module_completions` on a full pass, and `code_feedback` queued on a failure. 12 tests against the shared pg-mem harness, mutation-tested with four defects
@@ -409,7 +465,11 @@ The main loop: sign up → roadmap → learn → pass.
 
 ## Phase 5 — Resume and admin
 
-- [ ] Resume builder — evidence selection, personal details, tailoring, edit, PDF download, ATS parse check
+- [x] **Resume builder** — `/app/resume` (§5.16). Evidence selection, personal details, generate,
+  inline editing of the AI summary, and the PDF. Detail under *Phase 3* (`resume_generation`) and
+  *Phase 4* (the PDF); the grounding is what the tests are about
+  - [ ] **Tailoring to a job description is not built.** §5.16 offers it; nothing stores a target role
+    beyond onboarding's, and the resume is generated from evidence rather than aimed at a posting
 - [x] **Admin overview** — `GET /admin/overview` and the screen (§6.1). 11 endpoint tests, 15 screen tests;
   the per-learner pass rate is mutation-tested
 - [~] **Career path editor** (§6.2) — `/admin/paths`. Prerequisites with **cycle detection**, certificate
@@ -447,11 +507,17 @@ The main loop: sign up → roadmap → learn → pass.
 - [~] **Project reviews** — `/admin/reviews` built (§6.6): flags, commit history, explanation answers and
   rulings. **Check overrides are not built** — §6.6 offers overriding an incorrect check with a reason, and
   `check_overrides` has no endpoint
-- [ ] Flagged AI feedback review
-- [ ] **Design + build `/admin/certificates`** — not in the prototype (see *Screen design coverage*). Templates, lookup, revoke, reissue
-- [ ] Analytics — journey funnel, module pass rates, milestone drop-off, technology split, AI flag rate
-- [ ] Users — search, suspend, data requests, admin accounts
-- [ ] Settings and activity log
+- [x] **Flagged AI feedback review** — `/admin/flags` (§6.8), the first admin route in the API.
+  31 API tests, 19 screen tests
+- [~] **`/admin/certificates`** (§6.7) — lookup and a logged revoke are built; **reissue is not**, and
+  it needs a decision first. See *Screen design coverage*
+- [x] **Analytics** (§6.9), **Users** (§6.10), **Settings** (§6.11) and the **Activity log** (§6.12) —
+  built 2026-11-02, which left no `Placeholder` in the admin tree. Each screen names what is still
+  missing inside it. The three spec conflicts these raised — the admin invite, prompt editing, and
+  counting technology switches — were settled in the documents rather than worked around; the
+  reasoning is under *Screen design coverage* and in the changelog
+  - [ ] **Data requests** (§6.10), **prompt testing and context limits** (§6.11) and **the count of
+    technology switches** (§6.9, open question 18) are the named gaps, each stated on its screen
 
 ---
 

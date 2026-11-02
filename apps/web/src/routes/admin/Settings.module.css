@@ -1,0 +1,170 @@
+.page {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-8);
+}
+
+.title { font-size: var(--text-h1); margin-bottom: var(--space-2); }
+.lede { color: var(--text-muted); margin: 0; max-width: 68ch; }
+
+.sectionTitle {
+  font-size: var(--text-h3);
+  margin: 0 0 var(--space-4);
+  color: var(--text-strong);
+}
+
+.ruleList,
+.promptList {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.rule,
+.prompt,
+.github,
+.readOnly,
+.notBuilt,
+.empty {
+  padding: var(--space-5);
+}
+
+.readOnly,
+.github,
+.notBuilt { margin-bottom: var(--space-4); }
+
+.ruleHead {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+  align-items: flex-start;
+  justify-content: space-between;
+}
+
+.promptHead {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+  align-items: baseline;
+  justify-content: space-between;
+}
+
+.ruleTitle { font-size: var(--text-h4); margin: 0 0 2px; color: var(--text-strong); }
+
+.version {
+  font-family: var(--font-mono);
+  font-size: var(--text-caption);
+  color: var(--text-muted);
+}
+
+.affects {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: var(--text-body-sm);
+  max-width: 68ch;
+}
+
+.ruleForm {
+  display: flex;
+  gap: var(--space-3);
+  align-items: flex-end;
+  flex-wrap: wrap;
+  margin: var(--space-4) 0 var(--space-2);
+}
+
+.ruleField { display: flex; flex-direction: column; gap: var(--space-2); }
+
+.label {
+  font-size: var(--text-body-sm);
+  font-weight: var(--fw-semibold);
+  color: var(--text-strong);
+}
+
+.number {
+  min-height: 44px;
+  width: 8rem;
+  padding: var(--space-2) var(--space-3);
+  font: inherit;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-strong);
+  background: var(--surface-card);
+  border: 1px solid var(--border-control);
+  border-radius: var(--radius-sm);
+}
+
+.number:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.details { margin-top: var(--space-4); }
+
+.summary {
+  cursor: pointer;
+  min-height: 44px;
+  display: inline-flex;
+  align-items: center;
+  color: var(--text-accent);
+  font-weight: var(--fw-semibold);
+  font-size: var(--text-body-sm);
+}
+
+.summary:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+  border-radius: var(--radius-xs);
+}
+
+.promptText {
+  margin: var(--space-3) 0 0;
+  padding: var(--space-4);
+  background: var(--surface-inset);
+  border-radius: var(--radius-sm);
+  font-family: var(--font-mono);
+  font-size: var(--text-caption);
+  color: var(--text-body);
+  white-space: pre-wrap;
+  /* The prompt is long. 200% zoom and 320px still have to work (§12). */
+  overflow-wrap: anywhere;
+  max-height: 24rem;
+  overflow-y: auto;
+}
+
+.plainList {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  color: var(--text-body);
+  font-size: var(--text-body-sm);
+}
+
+.plainList strong { color: var(--text-strong); }
+
+.failures {
+  margin-top: var(--space-4);
+  padding-top: var(--space-4);
+  border-top: 1px solid var(--border-subtle);
+}
+
+/* `--error` marks what failed, never a learner's progress (§8). */
+.failureText { color: var(--error); }
+
+.notBuiltTitle {
+  font-size: var(--text-caption);
+  font-weight: var(--fw-bold);
+  letter-spacing: var(--ls-caps);
+  text-transform: uppercase;
+  color: var(--text-muted);
+  margin: 0 0 var(--space-3);
+}
+
+.hint { color: var(--text-muted); margin: 0; font-size: var(--text-body-sm); }
+.hint strong { color: var(--text-strong); }
+.error { color: var(--error); margin: var(--space-2) 0 0; }
+.saved { color: var(--verified); margin: var(--space-2) 0 0; font-size: var(--text-body-sm); }

@@ -64,8 +64,13 @@ const TABLES = [
   "ai_jobs",
   "ai_outputs",
   "ai_feedback_flags",
+  // §6.11's AI section reads the active prompt per component.
+  "ai_prompts",
   // The admin surface
   "admin_activity_log",
+  // §6.11's learning rules. The only reader outside the settings screen is the
+  // quiz editor, which starts a new quiz at `passing_score_default`.
+  "platform_settings",
   // Onboarding
   "career_paths",
   "tracks",        // roadmaps references it
@@ -169,6 +174,23 @@ function readMigration(): string {
  *   not exist"), as in `select (select count(*) ... where s.id = m.skill_id)`.
  *   Group separately and join the counts in TypeScript.
  * - **No `date_trunc`**, registered above.
+ * - **Two aliases of the same column name, under `group by` with an aggregate,
+ *   resolve to the same value.** `select ms.title, bv.title as brief_title,
+ *   count(*) ... group by ms.title, bv.title` returned the *brief's* title for
+ *   both. The aliases are right, the shape is right, the answer is wrong — and
+ *   the counts beside them are correct, so nothing looks broken. It took
+ *   §6.1's struggling-milestones panel being labelled "Task tracker" instead of
+ *   "Save tasks" to find it, and that panel had no test at all until then.
+ *   `group by` alone is fine; it needs an aggregate in the select list. Group
+ *   by ids, fetch the names in a second query, and join them in TypeScript.
+ * - **An optional filter written `($1::uuid is null or col = $1::uuid)` over a
+ *   join throws "lookups on joins"** — pg-mem will not evaluate an `or`-wrapped
+ *   predicate against a joined selection. Build the `where` clause from the
+ *   filters that were actually given, which is the better query anyway: an
+ *   `or null` predicate is not usable as an index predicate.
+ * - **`text || integer` is refused** ("operator does not exist"), where
+ *   PostgreSQL resolves it through `anynonarray`. Cast explicitly:
+ *   `v.version_no::text`.
  *
  * Anything on this list is covered against real PostgreSQL by `npm run db:verify`
  * or by the query being written in a form both engines agree on.

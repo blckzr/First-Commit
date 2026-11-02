@@ -8,16 +8,25 @@ import { Modules } from "./Modules";
 import { ModuleEditor } from "./ModuleEditor";
 import { CareerPaths } from "./CareerPath";
 import { Briefs } from "./Briefs";
-import { Placeholder } from "../Placeholder";
+import { Analytics } from "./Analytics";
+import { Users } from "./Users";
+import { Settings } from "./Settings";
+import { ActivityLog } from "./ActivityLog";
 
 /**
  * The admin area, in its own lazily-loaded chunk so a learner's browser never
  * downloads admin screens (design.md §4.3).
  *
- * Overview, Flagged AI feedback, Project reviews, Certificates, Modules, Career paths and Capstone projects are built.
- * The other four
- * are specified in design.md §6 and tracked in docs/task-tracker.md; each
- * renders a placeholder naming what belongs there, so the sidebar is walkable.
+ * **Every route the sidebar offers is now a real screen.** Overview, Career
+ * paths, Modules, Capstone projects, Project reviews, Flagged AI feedback,
+ * Analytics, Certificates, Users, Settings and the Activity log — no
+ * `Placeholder` is left in the admin tree.
+ *
+ * What is still missing inside these screens is named on the screens
+ * themselves and tracked in docs/task-tracker.md: §6.2's drag-and-drop
+ * placement, §6.5's check editor, §6.3's "Preview as learner", §6.10's data
+ * requests and §6.11's prompt testing. Each says so where an admin would look
+ * for it, rather than being absent without explanation.
  */
 export default function AdminArea() {
   return (
@@ -30,11 +39,11 @@ export default function AdminArea() {
         <Route path="briefs" element={<Briefs />} />
         <Route path="reviews" element={<Reviews />} />
         <Route path="flags" element={<Flags />} />
-        <Route path="analytics" element={<Placeholder title="Analytics" section="section 6.9" />} />
+        <Route path="analytics" element={<Analytics />} />
         <Route path="certificates" element={<Certificates />} />
-        <Route path="users" element={<Placeholder title="Users" section="section 6.10" />} />
-        <Route path="settings" element={<Placeholder title="Settings" section="section 6.11" />} />
-        <Route path="log" element={<Placeholder title="Activity log" section="section 6.12" />} />
+        <Route path="users" element={<Users />} />
+        <Route path="settings" element={<Settings />} />
+        <Route path="log" element={<ActivityLog />} />
       </Route>
     </Routes>
   );

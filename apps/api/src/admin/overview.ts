@@ -189,31 +189,56 @@ async function strugglingModules(pool: Pool) {
  * learners joined.
  */
 async function strugglingMilestones(pool: Pool) {
-  const { rows } = await pool.query<{
-    title: string;
-    brief_title: string;
-    sort_order: number;
+  /*
+   * **Grouped by milestone id, with the titles fetched separately.**
+   *
+   * `milestones.title` and `capstone_brief_versions.title` share a column name,
+   * and under `group by` pg-mem resolves two aliases of the same name to the
+   * same value — this panel used to select both in one grouped query, and in
+   * tests the milestone's title came back as the brief's. Real PostgreSQL
+   * answers correctly, which is why nothing caught it: the figure was right
+   * and the label was wrong, only under the test engine. Found while building
+   * §6.9, which asks the same question. `packages/test-db` lists the
+   * divergence; `overview.test.ts` now covers this panel, which it did not.
+   */
+  const counts = await pool.query<{
+    milestone_id: string;
     attempted: string;
     complete: string;
   }>(
-    `select ms.title, bv.title as brief_title, ms.sort_order,
+    `select at.milestone_id,
             count(distinct at.project_id) as attempted,
             count(distinct case when at.status = 'complete' then at.project_id end) as complete
        from milestone_attempts at
-       join milestones ms on ms.id = at.milestone_id
+      group by at.milestone_id`,
+  );
+
+  const titles = await pool.query<{
+    id: string;
+    milestone_title: string;
+    brief_title: string;
+    sort_order: number;
+  }>(
+    `select ms.id, ms.title as milestone_title, bv.title as brief_title, ms.sort_order
+       from milestones ms
        join capstone_brief_versions bv on bv.id = ms.brief_version_id
-      group by ms.title, bv.title, ms.sort_order
       order by ms.sort_order`,
   );
 
+  const countFor = new Map(counts.rows.map((row) => [row.milestone_id, row]));
+
   // Same reasoning as `strugglingModules` above: the thresholds are policy.
-  return rows
-    .map((row) => ({
-      title: row.title,
-      briefTitle: row.brief_title,
-      attempted: Number(row.attempted),
-      stuckRate: 1 - Number(row.complete) / Number(row.attempted),
-    }))
+  return titles.rows
+    .map((row) => {
+      const c = countFor.get(row.id);
+      const attempted = Number(c?.attempted ?? 0);
+      return {
+        title: row.milestone_title,
+        briefTitle: row.brief_title,
+        attempted,
+        stuckRate: attempted === 0 ? 0 : 1 - Number(c?.complete ?? 0) / attempted,
+      };
+    })
     .filter((m) => m.attempted >= ENOUGH_LEARNERS && m.stuckRate > 1 - STRUGGLING_BELOW)
     .slice(0, 5);
 }

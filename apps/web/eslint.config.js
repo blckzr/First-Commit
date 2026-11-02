@@ -44,6 +44,25 @@ export default tseslint.config(
       "jsx-a11y/no-redundant-roles": "error",
       "jsx-a11y/role-has-required-aria-props": "error",
 
+      /*
+       * **Still an error — the allowed-roles list is widened, not the rule
+       * turned off.**
+       *
+       * A container that scrolls sideways has to be reachable by keyboard, or
+       * the columns past the fold cannot be read without a pointer. The
+       * accepted markup for that is a labelled `role="region"` with
+       * `tabindex="0"` — which is what §6.9's and §6.12's wide admin tables
+       * use, both of them data tables that WCAG 1.4.10 exempts from reflow.
+       *
+       * The rule's default `roles: ["tabpanel"]` predates that pattern, so
+       * `region` joins it. Everything else the rule catches is still an error,
+       * and a `tabIndex` on a `div` with no role still fails.
+       */
+      "jsx-a11y/no-noninteractive-tabindex": [
+        "error",
+        { tags: [], roles: ["tabpanel", "region"] },
+      ],
+
       // §11.3 / §13.5: no user-agent sniffing, no view switchers.
       "no-restricted-properties": [
         "error",

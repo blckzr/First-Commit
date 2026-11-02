@@ -268,6 +268,148 @@ describe("the month's certificates", () => {
 });
 
 /**
+ * §6.1's "Learners struggling" second row — **a panel that had no test at all
+ * until §6.9 was built**, which is how its milestone title could come back as
+ * the brief's title under pg-mem without anything noticing.
+ *
+ * Two assertions, and the first one is the point: the **labels**, because the
+ * figure was never wrong. `milestones.title` and
+ * `capstone_brief_versions.title` share a column name, and under `group by`
+ * pg-mem resolves two aliases of the same name to the same value — so §6.1's
+ * "Milestone 4: Save tasks — 38% stuck" would have read "Task tracker — 38%
+ * stuck", correct in production and wrong in every test.
+ */
+describe("struggling milestones", () => {
+  let briefVersionId: string;
+  let technologyId: string;
+  let pathId: string;
+  let trackId: string;
+
+  beforeEach(async () => {
+    pathId = await one(
+      `insert into career_paths (slug, title, status) values ('jwd','JWD','published') returning id`,
+    );
+    trackId = await one(
+      `insert into tracks (career_path_id, title, status)
+       values ($1,'Frontend','published') returning id`,
+      [pathId],
+    );
+    technologyId = await one(
+      `insert into technologies (slug, name) values ('react','React') returning id`,
+    );
+    const briefId = await one(
+      `insert into capstone_briefs (track_id, slug, status)
+       values ($1,'task-tracker','published') returning id`,
+      [trackId],
+    );
+    briefVersionId = await one(
+      `insert into capstone_brief_versions (brief_id, version_no, title, status, published_at)
+       values ($1,1,'Task tracker','published', now()) returning id`,
+      [briefId],
+    );
+  });
+
+  const project = async (email: string) => {
+    const userId = await one(
+      `insert into users (email, password_hash, full_name) values ($1,'x',$1) returning id`,
+      [email],
+    );
+    const roadmapId = await one(
+      `insert into roadmaps (user_id, career_path_id, track_id, status)
+       values ($1,$2,$3,'active') returning id`,
+      [userId, pathId, trackId],
+    );
+    return one(
+      `insert into capstone_projects (user_id, roadmap_id, brief_version_id, technology_id, status)
+       values ($1,$2,$3,$4,'in_progress') returning id`,
+      [userId, roadmapId, briefVersionId, technologyId],
+    );
+  };
+
+  /** The milestone's own title, not the brief's. */
+  it("names the milestone and the brief separately", async () => {
+    const milestoneId = await one(
+      `insert into milestones (brief_version_id, sort_order, title)
+       values ($1,0,'Save tasks') returning id`,
+      [briefVersionId],
+    );
+    for (const n of ["a", "b", "c", "d"]) {
+      const projectId = await project(`${n}@example.com`);
+      await db.pool.query(
+        `insert into milestone_attempts (project_id, milestone_id, commit_sha, status)
+         values ($1,$2,$3,'failed')`,
+        [projectId, milestoneId, `sha-${n}`],
+      );
+    }
+
+    const res = await overview(adminCookie);
+
+    expect(res.body.strugglingMilestones[0].title).toBe("Save tasks");
+    expect(res.body.strugglingMilestones[0].briefTitle).toBe("Task tracker");
+  });
+
+  /**
+   * **Stuck means tried and not finished**, counted per project. A project
+   * that has not reached a milestone is not stuck on it — here five projects
+   * exist and four attempted, so a query counting every project would put the
+   * rate at 4/5 rather than 3/4.
+   */
+  it("counts only the projects that reached the milestone", async () => {
+    const milestoneId = await one(
+      `insert into milestones (brief_version_id, sort_order, title)
+       values ($1,0,'Save tasks') returning id`,
+      [briefVersionId],
+    );
+    for (const [i, n] of ["a", "b", "c", "d"].entries()) {
+      const projectId = await project(`${n}@example.com`);
+      await db.pool.query(
+        `insert into milestone_attempts (project_id, milestone_id, commit_sha, status)
+         values ($1,$2,$3,$4)`,
+        [projectId, milestoneId, `sha-${n}`, i === 0 ? "complete" : "failed"],
+      );
+    }
+    await project("never@example.com");
+
+    const res = await overview(adminCookie);
+
+    expect(res.body.strugglingMilestones[0].attempted).toBe(4);
+    expect(res.body.strugglingMilestones[0].stuckRate).toBeCloseTo(0.75);
+  });
+
+  /** One project is not a trend. The overview's threshold applies here too. */
+  it("says nothing about a milestone too few projects have reached", async () => {
+    const milestoneId = await one(
+      `insert into milestones (brief_version_id, sort_order, title)
+       values ($1,0,'Save tasks') returning id`,
+      [briefVersionId],
+    );
+    const projectId = await project("only@example.com");
+    await db.pool.query(
+      `insert into milestone_attempts (project_id, milestone_id, commit_sha, status)
+       values ($1,$2,'sha','failed')`,
+      [projectId, milestoneId],
+    );
+
+    const res = await overview(adminCookie);
+
+    expect(res.body.strugglingMilestones).toHaveLength(0);
+  });
+
+  /** And a milestone nobody has reached is not a milestone anybody is stuck on. */
+  it("does not report a milestone with no attempts", async () => {
+    await one(
+      `insert into milestones (brief_version_id, sort_order, title)
+       values ($1,0,'Save tasks') returning id`,
+      [briefVersionId],
+    );
+
+    const res = await overview(adminCookie);
+
+    expect(res.body.strugglingMilestones).toHaveLength(0);
+  });
+});
+
+/**
  * §6 rule 2: an admin surface reads more than a learner's, and still never
  * returns a secret. This page aggregates over `users` and `assessment_attempts`,
  * where a `select *` would be invisible in a JSON body nobody reads closely.

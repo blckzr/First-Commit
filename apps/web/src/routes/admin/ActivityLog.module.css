@@ -1,0 +1,135 @@
+.page {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-6);
+}
+
+.title { font-size: var(--text-h1); margin-bottom: var(--space-2); }
+.lede { color: var(--text-muted); margin: 0; }
+
+.filters { padding: var(--space-5); }
+
+.filtersTitle {
+  font-size: var(--text-caption);
+  font-weight: var(--fw-bold);
+  letter-spacing: var(--ls-caps);
+  text-transform: uppercase;
+  color: var(--text-muted);
+  margin: 0 0 var(--space-4);
+}
+
+.filterRow {
+  display: grid;
+  gap: var(--space-4);
+  grid-template-columns: 1fr;
+}
+
+.field { display: flex; flex-direction: column; gap: var(--space-2); }
+
+.label {
+  font-size: var(--text-body-sm);
+  font-weight: var(--fw-semibold);
+  color: var(--text-strong);
+}
+
+/*
+  `--border-control`, not `--border-subtle`: the border is the only thing
+  identifying the control, so WCAG 2.2 SC 1.4.11 wants 3:1 (design.md §8).
+*/
+.select,
+.input {
+  min-height: 44px;
+  padding: 0 var(--space-3);
+  font: inherit;
+  color: var(--text-strong);
+  background: var(--surface-card);
+  border: 1px solid var(--border-control);
+  border-radius: var(--radius-sm);
+}
+
+.select:focus-visible,
+.input:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.tableWrap {
+  /*
+    §11.1: one responsive layout. The table scrolls sideways below `md` rather
+    than becoming a second set of mobile markup — and `tabindex` makes the
+    scroll container reachable by keyboard, which a scrolling region needs.
+  */
+  overflow-x: auto;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  background: var(--surface-card);
+}
+
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--text-body-sm);
+}
+
+.caption {
+  padding: var(--space-4) var(--space-4) 0;
+  text-align: left;
+  color: var(--text-muted);
+  font-size: var(--text-caption);
+}
+
+.table th {
+  text-align: left;
+  padding: var(--space-3) var(--space-4);
+  font-size: var(--text-caption);
+  font-weight: var(--fw-bold);
+  letter-spacing: var(--ls-caps);
+  text-transform: uppercase;
+  color: var(--text-muted);
+  border-bottom: 1px solid var(--border-subtle);
+  white-space: nowrap;
+}
+
+.table td {
+  padding: var(--space-3) var(--space-4);
+  border-bottom: 1px solid var(--border-subtle);
+  color: var(--text-body);
+  vertical-align: top;
+}
+
+.table tbody tr:last-child td { border-bottom: none; }
+
+.when {
+  white-space: nowrap;
+  font-family: var(--font-mono);
+  font-size: var(--text-caption);
+  color: var(--text-muted);
+}
+
+.action { color: var(--text-strong); font-weight: var(--fw-semibold); }
+.reason { color: var(--text-body); max-width: 28ch; }
+.none { color: var(--text-faint); }
+.gone { color: var(--text-muted); font-style: italic; }
+
+.paging {
+  display: flex;
+  gap: var(--space-3);
+  justify-content: flex-end;
+}
+
+.hint { color: var(--text-muted); margin: 0; }
+.error { color: var(--error); margin: 0; }
+.empty { padding: var(--space-6); }
+
+@media (min-width: 640px) {
+  .filterRow { grid-template-columns: repeat(2, 1fr); }
+}
+
+@media (min-width: 1024px) {
+  .filterRow { grid-template-columns: repeat(4, 1fr); }
+}
+
+.tableWrap:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}

@@ -11,6 +11,134 @@ lives under `[Unreleased]` until there is something to version.
 
 ## [Unreleased]
 
+### 2026-11-02 — Phase 5: the last four admin screens, and no `Placeholder` left
+
+§6.9 Analytics, §6.10 Users, §6.11 Settings and §6.12 the Activity log. Every route the admin
+sidebar offers is now a real screen on real data.
+
+Three of the four asked for something the repo's own rules or tables would not support, and each
+was settled rather than fudged — the decisions are the substance of this entry.
+
+#### Added
+
+- **`/admin/log` (§6.12)** — the activity log, read-only, filterable by action, admin and date.
+  `GET /admin/log` and `GET /admin/log/filters`.
+  - **Targets are resolved to names.** A row stores `target_type` and `target_id`; "module_version
+    / 3f2a8c91…" says nothing about what was published, so the API looks each id up and the screen
+    turns the dotted action into a sentence. An unknown target type falls back to what the type is
+    called and an unknown action is printed as it is — a log that omits what it cannot label is
+    not a log.
+  - **Paged on the row id, not the timestamp.** Two rows written in one transaction share a
+    timestamp (ruling against an integrity flag revokes a certificate, which writes two), so a
+    timestamp cursor would show one of them twice or neither across a page boundary. The test
+    gives all 120 fixture rows the *same* `created_at`, because distinct times would pass either
+    way.
+  - **No write path at all** — no `PATCH`, no `DELETE`, not even guarded ones. Mutation-tested by
+    adding both and confirming the tests fail.
+- **`/admin/users` (§6.10)** — search accounts, read a learner's record, suspend or reactivate with
+  a required reason. `GET /admin/users`, `GET /admin/users/:id`,
+  `PATCH /admin/users/:id/status`.
+  - **A reason is required in both directions.** Letting someone back in is as much a decision as
+    locking them out, and §6.12 promises a record of what was decided *and why*.
+  - **Why an account was suspended is read back out of the activity log.** `users.status` holds the
+    current state and no reason, so the log is the only place the question has an answer — shown on
+    the learner's panel, where the next decision is being made.
+  - Suspending deletes the account's sessions. §6.1 step 2 is what enforces the lock-out; this is
+    `sessions` not holding live rows for an account that cannot use them.
+  - Already in that state? Nothing is written. A log row for a change that did not happen could
+    never be taken back out.
+- **`/admin/settings` (§6.11)** — learning rules (writes), AI and GitHub (read-only).
+  `GET /admin/settings/{ai,github,learning}` and `PUT /admin/settings/learning/:key`.
+- **`/admin/analytics` (§6.9)** — journey funnel, modules, milestones, technology choices, AI
+  quality, certificates over time. Seven read endpoints under `/admin/analytics/`.
+- **`platform_settings` has a reader.** It is in the schema and nothing in the repo read it. The
+  quiz editor now starts a **new** quiz at `passing_score_default`, so the setting is not inert —
+  tested end to end, and mutation-tested by hardcoding 70 back.
+
+#### Changed
+
+- **§6.10 drops the admin invite.** It asked for "Invite, deactivate, and view admin accounts";
+  an invite endpoint sets `users.role`, which §6 rule 8 forbids outright and open question 7 wants
+  a database trigger to forbid harder. The doc moved, not the rule: an admin is made by
+  `npm run db:accounts` or by SQL, and the screen says so where the button would have been.
+  `users.test.ts` asserts no body can set a role **and** that the statement does not appear in the
+  module — the second because the first only covers the bodies a test thought to send.
+- **§6.11's prompts are viewed, not edited.** It asked for editing; AGENT.md §7 keeps prompt text
+  in the worker's source and the worker **refuses to start** if a stored version's text differs.
+  An edit box would have stopped the worker, and the first symptom would be learners getting no
+  feedback at all. The model shown comes from `ai_jobs.model` — what ran, not what the worker was
+  configured with, because the API cannot see the worker's environment.
+- **§6.9's technology switches are reported as unrecorded.** `roadmap_technology_choices` is keyed
+  `(roadmap_id, decision_id)`, so changing a choice overwrites the previous answer and leaves
+  nothing behind. The endpoint returns `switchesRecorded: false` with the reason, and the screen
+  prints it. `switches: 0` would read as "nobody switches", which the platform cannot know. New
+  open question 18.
+- **Recharts was not installed after all**, and `design.md` §13.1 now records why. §6.9's figures
+  are ones an admin acts on exactly, so every view is a table or a labelled list and a bar is a
+  CSS width beside a number already in the DOM. Nothing sits behind an `aria-hidden` copy — the
+  same decision the roadmap chart reached. §13.1's own note already allowed it: "alternatives with
+  the same capabilities are acceptable".
+- **`jsx-a11y/no-noninteractive-tabindex` now allows `role="region"`** as well as `tabpanel`. The
+  two wide admin tables scroll sideways, and a scroll container has to be reachable by keyboard or
+  the columns past the fold need a pointer. The rule's allowed-roles **option** was widened, not
+  the rule disabled — verified by confirming a `tabIndex` on a roleless `div` still errors.
+- **A rate is withheld rather than guessed.** Below three learners the API returns `null` and the
+  screen says "too few to say". A `z.number()` in the client schema would have forced the API to
+  send `0`, which looks like a measurement.
+
+#### Fixed
+
+- **§6.1's struggling-milestones panel showed the brief's title as the milestone's**, in tests.
+  `milestones.title` and `capstone_brief_versions.title` share a column name, and **under `group
+  by` with an aggregate in the select list, pg-mem resolves two aliases of the same name to the
+  same value** — so "Milestone 4: Save tasks" read "Task tracker", correct in production and wrong
+  under the test engine. The counts beside it were right, so nothing looked broken. Found while
+  building §6.9, which asks the same question; that panel **had no test at all** until now, which
+  is how it survived. Both queries now group by id and fetch names separately, and the new
+  `overview.test.ts` block was mutation-tested against the original query.
+
+- **The task tracker contradicted itself in four places**, found while reading it for what came next.
+  Phase 5's own summary list still had Analytics, Users, Settings, the activity log and the flagged-feedback
+  review as unstarted, and `/admin/certificates` and the resume builder as unbuilt, while the detailed
+  entries for all seven recorded them as done — a second copy of the same facts, drifted. The duplicates
+  now point at the detail rather than repeating it. §5.11's headline also still read "the sandbox is not"
+  built, against both its own children and the *Now* section. **Reissue is the part of §6.7 that genuinely
+  is not built**, and it is now listed as such, with the question it needs answered first: a reissue after
+  a name change is a fresh snapshot of the same evidence, but a reissue after a revoke is a reversal, and
+  §6 rule 1 leaves that judgement to `syncCertificates()`.
+
+#### Divergences found in pg-mem
+
+All four added to `packages/test-db`'s list. Two are silent, which is the dangerous kind.
+
+- **Two aliases of the same column name under `group by` with an aggregate collapse to one value**
+  (silent). Above.
+- **An optional filter written `($1::uuid is null or col = $1::uuid)` over a join throws "lookups
+  on joins".** The activity log now builds its `where` clause from the filters actually given,
+  which is the better query anyway: an `or null` predicate cannot use an index.
+- **`text || integer` is refused**, where PostgreSQL resolves it through `anynonarray`. Cast
+  explicitly.
+- `ai_prompts` and `platform_settings` were **missing from `test-db`'s table list**, so §6.11's
+  queries failed against a schema that lacked them.
+
+#### Tests
+
+API 873 → **966**. Web 558 → **596**. Worker unchanged at 312.
+
+Nine mutations introduced and confirmed caught: a `users.role` write; an optional suspension
+reason; self-suspension allowed; `PATCH` and `DELETE` on the log; `requireAdmin` dropped from
+`/admin/users`; `passing_score_default` ignored; an open settings key list; a pass rate counted per
+attempt; and "finished core" counting *any* completion instead of all of them.
+
+#### Removed
+
+- **An unreachable "last active admin" guard.** Writing it was the obvious move and it turned out
+  to be dead code: the caller is always an active admin, so for any target but themselves at least
+  one active admin remains afterwards and the count can never reach zero. Refusing
+  self-suspension **is** the last-admin guard. A branch no test can reach looks like protection and
+  proves nothing, so it went, and the reasoning is recorded beside the test that stands in for it.
+
+
 ### 2026-11-02 — Career paths and capstone briefs: the content spine is complete
 
 §6.2 and §6.5, the last two editors. An admin can now define a career path's prerequisites and

@@ -432,6 +432,22 @@ describe("§9.2 — every learner endpoint resolves a session", () => {
       "/admin/briefs/:id/versions/:versionId/milestones",
       "/admin/briefs/:id/versions/:versionId/templates",
       "/admin/briefs/:id/versions/:versionId/publish",
+      "/admin/analytics/paths",
+      "/admin/analytics/funnel",
+      "/admin/analytics/modules",
+      "/admin/analytics/milestones",
+      "/admin/analytics/technologies",
+      "/admin/analytics/ai",
+      "/admin/analytics/certificates",
+      "/admin/users",
+      "/admin/users/:id",
+      "/admin/users/:id/status",
+      "/admin/settings/ai",
+      "/admin/settings/github",
+      "/admin/settings/learning",
+      "/admin/settings/learning/:key",
+      "/admin/log",
+      "/admin/log/filters",
       /**
        * §5.15's verification page is reachable without logging in, by link or QR
        * code — that is the whole point of a "publicly verifiable" certificate.

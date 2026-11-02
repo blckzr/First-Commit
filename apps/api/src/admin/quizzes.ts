@@ -3,6 +3,7 @@ import { z } from "zod";
 import type { Pool } from "pg";
 import { HttpError } from "../middleware/errors.js";
 import { requireAdmin, requireAuth } from "../middleware/session.js";
+import { defaultPassingScore } from "./settings.js";
 
 /**
  * The quiz editor (design.md §6.3's Assessment tab).
@@ -85,7 +86,19 @@ export function adminQuizRoutes(pool: Pool): Router {
     );
 
     if (!assessment.rows[0]) {
-      res.json({ quiz: null, editable: version.rows[0].status === "draft" });
+      /**
+       * No quiz on this version yet, so the editor starts a new one — and
+       * **this is what makes §6.11's `passing_score_default` a setting rather
+       * than a stored number nothing reads.** It is the pass mark a *new* quiz
+       * begins at; it never moves an existing one, because each quiz stores its
+       * own `passing_score` and a learner's attempt was graded against the quiz
+       * as it stood (§6 rule 6).
+       */
+      res.json({
+        quiz: null,
+        editable: version.rows[0].status === "draft",
+        defaultPassingScore: await defaultPassingScore(pool),
+      });
       return;
     }
 
@@ -109,6 +122,8 @@ export function adminQuizRoutes(pool: Pool): Router {
 
     res.json({
       editable: version.rows[0].status === "draft",
+      /** Sent either way so the client has one shape to parse. */
+      defaultPassingScore: await defaultPassingScore(pool),
       quiz: {
         id: assessment.rows[0].id,
         title: assessment.rows[0].title,
