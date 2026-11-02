@@ -21,6 +21,8 @@ import { Capstone } from "../routes/learner/Capstone";
 import { Certificates } from "../routes/learner/Certificates";
 import { Notifications } from "../routes/learner/Notifications";
 import { Resume } from "../routes/learner/Resume";
+import { Settings } from "../routes/learner/Settings";
+import { Explore } from "../routes/learner/Explore";
 import { Verify } from "../routes/public/Verify";
 import { RoadmapReview } from "../routes/learner/RoadmapReview";
 import { Module } from "../routes/learner/Module";
@@ -30,7 +32,6 @@ import { About } from "../routes/onboarding/About";
 import { Target } from "../routes/onboarding/Target";
 import { Placement } from "../routes/onboarding/Placement";
 import { Generating } from "../routes/onboarding/Generating";
-import { Placeholder } from "../routes/Placeholder";
 import { Gallery } from "../routes/dev/Gallery";
 
 /**
@@ -38,9 +39,12 @@ import { Gallery } from "../routes/dev/Gallery";
  * The admin area is lazily loaded so a learner's browser never downloads
  * admin screens.
  *
- * Screens that are specified but not built render a named `Placeholder`, so
- * every route the navigation offers resolves to something. What is built and
- * what is a placeholder is tracked in docs/task-tracker.md.
+ * **Every route below is a built screen.** `Placeholder` — a named stand-in
+ * that told the reader which `design.md` section specified a screen and that it
+ * was not built yet — was removed with §5.13, the last route that needed one.
+ * The practice is worth remembering if a new screen is specified: a dead link
+ * is a worse review experience than an honest "not built yet". What is built is
+ * tracked in docs/task-tracker.md.
  */
 const AdminArea = lazy(() => import("../routes/admin/AdminArea"));
 
@@ -111,7 +115,7 @@ const learnerRoutes = [
   // roadmap because the answer belongs to a roadmap, not to the track — the
   // same decision on two roadmaps is two separate choices.
   { path: "roadmap/:id/technology/:decisionId", element: <TechnologyChoice /> },
-  { path: "explore", title: "Explore modules", section: "section 5.13", purpose: "Search and take any published module, inside a roadmap or not." },
+  { path: "explore", element: <Explore /> },
   { path: "module/:id", element: <Module /> },
   // §4.3 has no address for the quiz; §5.10 specifies the screen. Recorded in
   // docs/task-tracker.md alongside the technology choice, which has the same gap.
@@ -128,17 +132,8 @@ const learnerRoutes = [
   { path: "certificates", element: <Certificates /> },
   { path: "resume", element: <Resume /> },
   { path: "notifications", element: <Notifications /> },
-  { path: "settings", title: "Settings", section: "section 5.18", purpose: "Profile, password, GitHub connection, and deleting your data." },
-].map((route) =>
-  "element" in route
-    ? route
-    : {
-        path: route.path,
-        element: (
-          <Placeholder title={route.title} section={route.section} purpose={route.purpose} />
-        ),
-      },
-);
+  { path: "settings", element: <Settings /> },
+];
 
 export const router = createBrowserRouter([
   ...publicRoutes,

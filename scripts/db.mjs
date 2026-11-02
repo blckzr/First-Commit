@@ -264,6 +264,83 @@ async function verify() {
     }
   });
 
+  /**
+   * §5.18's "Delete my account", against the real engine.
+   *
+   * Three `on delete restrict` edges run *between* tables that both cascade
+   * from `users`: `certificates.roadmap_id -> roadmaps`,
+   * `certificates.project_id -> capstone_projects`, and
+   * `capstone_projects.roadmap_id -> roadmaps`. pg-mem refuses a single
+   * `delete from users` because of them, so the suite cannot say what the real
+   * engine does — which is the only reason this check exists.
+   *
+   * It reports **both** forms. The ordered delete the API performs must work;
+   * the single statement is reported either way, because the answer is the
+   * thing worth knowing. PostgreSQL does not document an order when one delete
+   * cascades into several tables, so if it ever stops working, the ordering in
+   * `account/routes.ts` is what will have kept the endpoint alive.
+   */
+  await check("deleting a learner who holds a certificate", async () => {
+    const user = await client.query(
+      `insert into users (email, password_hash, full_name)
+       values ($1,'x','Verify') returning id`,
+      [fixtureEmail("delete")],
+    );
+    const userId = user.rows[0].id;
+    try {
+      const path = await client.query(
+        `insert into career_paths (slug, title, status)
+         values ($1,'Verify path','draft') returning id`,
+        [`verify-del-${RUN_ID}`],
+      );
+      const roadmap = await client.query(
+        `insert into roadmaps (user_id, career_path_id) values ($1,$2) returning id`,
+        [userId, path.rows[0].id],
+      );
+      const certificate = async (code) =>
+        client.query(
+          `insert into certificates (public_code, user_id, type, roadmap_id, recipient_name, title)
+           values ($1,$2,'completion',$3,'Verify','Verify') returning id`,
+          [code, userId, roadmap.rows[0].id],
+        );
+
+      await certificate(`FC-DEL1-${RUN_ID.slice(0, 4)}`);
+
+      // Half one: what does the single statement actually do here? Not an
+      // assertion — the finding is the output.
+      let naiveFailed = false;
+      await client.query("begin");
+      try {
+        await client.query(`delete from users where id = $1`, [userId]);
+      } catch {
+        naiveFailed = true;
+      }
+      // Rolled back either way: a success here must not actually delete the
+      // fixture, because half two still needs it.
+      await client.query("rollback");
+
+      // Half two: the order the API uses must succeed.
+      await client.query(`delete from certificates where user_id = $1`, [userId]);
+      await client.query(`delete from capstone_projects where user_id = $1`, [userId]);
+      await client.query(`delete from users where id = $1`, [userId]);
+
+      const left = await client.query(`select id from users where id = $1`, [userId]);
+      if (left.rowCount !== 0) throw new Error("the ordered delete left the account behind");
+
+      await client.query(`delete from career_paths where id = $1`, [path.rows[0].id]).catch(() => {});
+
+      return naiveFailed
+        ? "ordered delete works; a single `delete from users` is REFUSED here too, " +
+            "so the ordering in account/routes.ts is load-bearing on this engine"
+        : "ordered delete works; a single `delete from users` also works on this " +
+            "engine (pg-mem refuses it — see packages/test-db)";
+    } finally {
+      await client.query(`delete from certificates where user_id = $1`, [userId]).catch(() => {});
+      await client.query(`delete from capstone_projects where user_id = $1`, [userId]).catch(() => {});
+      await client.query(`delete from users where id = $1`, [userId]).catch(() => {});
+    }
+  });
+
   await check("set_updated_at maintains the column", async () => {
     const user = await client.query(
       `insert into users (email, password_hash, full_name)

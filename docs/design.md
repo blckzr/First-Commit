@@ -945,6 +945,56 @@ A searchable, filterable list. Filters: skill area, technology, status, and care
 
 **Actions:** Search, filter, open a module, add a module to a roadmap.
 
+### What "any published module" means
+
+Both halves of published: `modules.status` **and** `module_versions.status`. A published
+module whose only version is a draft carries a title nobody signed off, so it does not
+appear and cannot be added — the module-status filter alone would let it through.
+
+### A locked module is shown, not hidden
+
+A module whose prerequisites are unmet appears, says what to pass first, and **can still be
+added to a roadmap**. §5.9's module page is where the lock is enforced; hiding it here would
+mean a learner cannot see what is ahead of them, and would make "any published module" false.
+
+The row carries the *titles* of the unmet prerequisites rather than a locked flag, because
+§9's copy names them: "Pass JavaScript basics to unlock this module." A boolean would force
+the screen to say "Locked", which tells the learner nothing they can act on. A prerequisite
+they already hold is not listed, so the list is empty exactly when the module is open. §6
+rule 7 applies: a *tested-out* prerequisite counts, and it counts across every roadmap.
+
+### Status is the learner's progress, and "locked" is not one of its values
+
+The filter offers **Not started**, **In progress** and **Passed** — mutually exclusive and
+exhaustive, and applied in the query so a page of twenty is twenty matching rows rather than
+twenty fetched and some dropped. A locked module is still *not started*; the lock is a
+reason, not a stage, so it is reported on the row beside the status rather than instead of it.
+
+### Adding to a roadmap
+
+`POST /roadmaps/:id/items` writes `roadmap_items` with `source = 'learner_added'` and nothing
+else. It is the first endpoint that lets a learner change the shape of their own roadmap, so
+what it cannot do is worth stating: no completion, no score, no `passed` flag (§6 rule 1).
+Planning a module is a statement of intent, which is why a learner may do it at all.
+
+- **The target roadmap must be active.** Adding to an archived one would quietly revive it;
+  adding to a completed one would reopen the basis of a certificate.
+- **Already there is a success, not an error.** The learner wanted the module on the roadmap
+  and it is, so the response says `added: false` with a reason and the screen reports it as
+  information.
+- **A module that was removed goes back where it was.** §5.8 takes the other technologies'
+  modules off with `status = 'removed'`; re-adding restores that row and keeps its
+  `sort_order`, rather than appending it to the end as something new.
+- **With more than one active roadmap the learner is asked which.** §5.12 draws two Active
+  cards, so "your roadmap" is not always a single thing — and silently choosing the newest is
+  open question 16's complaint about Home and Capstone, which this screen does not repeat.
+
+### The filters live in the URL
+
+Not in component state. §11 requires state to survive a breakpoint change, and a filtered
+catalogue is the one screen here worth bookmarking or sending to yourself. Changing a filter
+resets the page, because page four of a new filter is nothing.
+
 ## 5.14 Capstone Project
 
 **Purpose:** Guide the learner from an empty folder to a finished, tracked project.
@@ -1163,13 +1213,56 @@ A list grouped by Today, This week, and Earlier. Types include module updates, n
 
 | Section | Actions |
 |---|---|
-| Profile | Edit full name (with note that it appears on new certificates), email, and education details used on the resume |
+| Profile | Edit full name (with note that it appears on new certificates) and email. **Education details are edited on the Resume (§5.16)**, not here |
 | Password | Change password |
 | GitHub | View connected account and repositories, disconnect |
-| Notifications | Choose which notifications to receive by email |
+| Notifications | **No controls — the screen says why.** See below |
 | Data and account | Download my data, delete my account |
 
 **Delete account dialog:** "Delete your account? Your roadmaps, progress, resumes, and certificates will be permanently deleted, and your certificate verification links will stop working. This can't be undone." Buttons: "Cancel" and "Delete my account".
+
+The dialog has no password field, deliberately. Two buttons is what this section
+specifies, and the session plus the CSRF guard is what authorises the request; adding
+a re-authentication step would be a change to the copy above, not an implementation
+detail. Focus moves into the dialog, Escape closes it, Tab is held inside it, and the
+control that opened it gets focus back (§12).
+
+### Notifications by email: asked for, not built
+
+This section originally read "choose which notifications to receive by email". **Nothing
+in the platform sends a notification by email.** There are two mail templates — address
+verification and password reset — and the only writer of `notifications` inserts an in-app
+row. A preference stored here would therefore control nothing, which is the state §6.11's
+two unenforced rules are already in (AGENT.md open question 19); one such knob is a
+regrettable inheritance, two would be a habit.
+
+So the section states what is true instead: everything arrives in §5.17, no email is sent,
+and the only emails the platform sends are the two the learner asks for. Building it
+properly means a preference column, a template per notification kind, and a send path —
+worth doing when a notification is worth emailing, and not before.
+
+### What "permanently deleted" actually does
+
+Every table a learner owns is `on delete cascade` from `users`, so the dialog's promise is
+literal: the roadmaps, attempts, submissions, resume and certificates all go, and
+`GET /verify/:code` answers "not found" afterwards.
+
+**An admin account is the exception, and the screen says so rather than offering a button
+that fails.** `check_overrides.admin_id` is `on delete restrict` and
+`admin_activity_log.admin_id` is `on delete set null`, which the append-only trigger blocks
+— deleting such an account would mean editing the record of what it did. The API answers
+`canDelete` so the browser never has to work this out for itself. Learners are unaffected:
+nothing gives them a row in either table. AGENT.md open question 17 is therefore narrower
+than it looked — it blocks an *admin* leaving, which has no screen, not §5.18.
+
+**Changing the email un-verifies it.** `email_verified_at` means somebody proved they can
+read that address; carrying it to an address nobody has proved makes every later decision
+that trusts the column inherit the lie. So it is cleared and a fresh link goes out, and the
+screen reports whether the link actually sent rather than assuming it did.
+
+**Changing the password signs the learner out everywhere else and keeps them signed in
+here.** §6.3 requires the first; the second is why the replacement session is issued after
+the sweep rather than before.
 
 ---
 

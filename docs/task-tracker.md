@@ -21,8 +21,12 @@ The immediate queue. Everything here is unblocked and ready to pick up.
 - [x] **Migration 0004 applied and re-seeded.** `code_runtime` carries `jsdom`, `js-dom` is seeded (2 files,
   7 cases, 4 visible), and the rebalanced track blurbs finally reached the database — the pending half of the
   Roadmap AI track fix. `npm run db:verify` passes.
-- [ ] **§11 question 17: an account that logged an admin action cannot be deleted.** `admin_id on delete set
-  null` is an update, which the append-only trigger blocks. §5.18's "Delete my account" promises otherwise.
+- [ ] **§11 question 17: an *admin* account that logged an action cannot be deleted.** `admin_id on
+  delete set null` is an update, which the append-only trigger blocks; `check_overrides.admin_id` is
+  `restrict` and blocks it a second way. **Narrowed 2026-11-02:** §5.18 is built and does not meet
+  this — learner tables all cascade, nothing gives a learner a row in either admin table, and
+  `/app/settings` is a learner area. What is left is an admin who wants to leave, which has no
+  screen. The API refuses it with the reason rather than a trigger's error.
 
 - [x] **The Roadmap AI can recommend Backend now.** Five evaluation runs across both model sizes gave Frontend to 25 of 25 profiles — onboarding asked nothing that bore on the choice, and the Frontend blurb carried a career argument Backend lacked. §5.4 gains a fourth question, the blurbs are symmetrical, and roadmap prompt v4 says the preference decides the track. Measured: the `logical` profile gets Backend, the five `visual` ones still get Frontend (AGENT.md open question 13, closed)
   - [x] **Seed re-run** — the rebalanced track blurbs are in the database. Verified: Frontend's description no
@@ -118,6 +122,10 @@ changelog for 2026-09-22.
 | **designed** | The prototype covers it; the route still renders a `Placeholder` |
 | **to design** | The prototype does not cover it — design it against §5's rules first |
 
+**Every route in the app is a built screen** as of 2026-11-02, learner and admin alike. The
+`Placeholder` component is deleted; §5.13 was the last route that used one. What is unfinished
+*inside* a screen is listed under it and said on the screen itself.
+
 ### Public and onboarding
 
 - [x] `/` · `/signup` · `/login` — **applied** (Phase 1.5 reference screens). Re-checked against v2: the wordmark had drifted inside the card; the four auth screens now share `AuthFrame`, the wordmark above a 460px panel
@@ -145,7 +153,33 @@ changelog for 2026-09-22.
 - [x] `/app/resume` — **applied**. §5.16: the evidence panel, the ATS-friendly preview, generate, and inline editing of the AI summary
 - [x] `/app/capstone` — **built, all three stages**. §5.14's step indicator; the brief cards with milestone count, length and the skills they draw on; the connect-repository steps and repository picker; and the milestone tracker with checks, criteria, the explanation question and push history
   - [ ] **Not applied to v2.** Built from §5.14 and the tokens; the prototype's capstone screen has not been diffed against it (see the note at the top of this table)
-- [ ] `/app/explore` · `/app/settings` — **designed**, not built. Each has a screen in the prototype
+- [x] `/app/settings` — **built** (§5.18). Profile, password, GitHub and the data section, on real
+  endpoints. The delete dialog carries §5.18's copy word for word and wires §12's focus promises
+  by hand — focus in, Escape out, Tab held, focus returned — because jsdom 30 cannot open a
+  native `<dialog>`, so `showModal()` would be untestable
+  - [x] ~~**§5.18 asks for email notification preferences**~~ — **dropped, and said on the
+    screen.** Nothing in the platform emails a notification: two templates exist (verification,
+    reset) and the only `notifications` writer inserts an in-app row. A stored preference would
+    control nothing — the state open question 19's two rules are already in
+  - [x] **Education details stay on the Resume**, where `PUT /resume/details` already owns them
+    and they sit beside the evidence. The section links there rather than growing a second editor
+  - [x] **"Download my data" is an allowlist, not a sweep.** Four things a learner's own rows
+    carry are §6 rule 2 secrets — the AI job payload's rubric, integrity flags, an admin's notes
+    on a flag, and the GitHub installation id — so the export names what it includes, column by
+    column, and states inside the file what it leaves out
+- [x] `/app/explore` — **built** (§5.13). Search across title, description and skill name;
+  filters for skill area, technology, career path and status; paging on a total that counts the
+  filtered set. **It was the last `Placeholder` in the app, and the component is now deleted**
+  - [x] **A locked module is shown and can still be planned.** The row names the unmet
+    prerequisites rather than carrying a flag, because §9's copy names them. §5.9's module page
+    is where the lock is enforced; hiding the module here would make "any published module" false
+  - [x] **`POST /roadmaps/:id/items`** — the first endpoint that lets a learner change their own
+    roadmap. `source = 'learner_added'`, active roadmaps only, and a source-grep test asserting
+    the module inserts into none of the four evidence tables (§6 rule 1)
+  - [ ] **Removing a module from a roadmap is still not built.** §5.6's Updates panel offers
+    "[Remove]" on an AI-added module and §5.7's roadmap panel wants the same. Adding exists now;
+    removing is the other half, and needs deciding what it means for an item with evidence behind
+    it — `status = 'removed'` is the mechanism §5.8 already uses
 - [x] **Log out** — in the learner profile menu and the admin bar, one shared control. Ends the session server-side, clears the query cache (§13.7), then navigates; signs out anyway if the request fails
 - [x] `/app/exercise/:id` — **applied from v2**: one-row header, the editor as the ink code block with syntax tones, pill tabs, tinted failing cases. No Hint button (no hint data) — design-source.md §7.1. §5.11: CodeMirror 6, Instructions/Results tabs, the results panel, and the AI feedback panel under it
   - [ ] "Run tests" is in §5.11 and absent here — the in-browser run is Sandpack practice for React and Vue, and Sandpack is not installed. Submit (the server run) is the only path, which is the only one that writes evidence anyway
@@ -300,7 +334,9 @@ The main loop: sign up → roadmap → learn → pass.
     roadmap adaptation) are not built, so there would be nothing to show yet
   - [ ] §5.6's Updates panel offers "[Remove]" on an AI-added module. That changes the roadmap, so it needs the same endpoint the roadmap panel's Remove is waiting on
 - [x] **My roadmaps (§5.12)** — `GET /roadmaps` now carries per-roadmap progress, the shared count, and last studied; `PATCH` archives and restores. 15 API tests (4 mutations), 17 screen tests
-- [ ] Explore modules, Settings
+- [x] **Settings (§5.18)** — see *Screen design coverage* for the three decisions it forced
+- [x] **Explore modules (§5.13)** — see *Screen design coverage*. Includes the first endpoint
+  that lets a learner add to their own roadmap
 - [x] **`/app/notifications` built** (§5.17), with `GET /notifications`, `PATCH /notifications/:id/read` and
   `POST /notifications/read-all`. 12 endpoint tests, 14 screen tests; the mark-read ownership filter is mutation-tested
   - **Writers:** a certificate earned, and §6.6's project rejection. Three kinds §5.17 names have no writer because

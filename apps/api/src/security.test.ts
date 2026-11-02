@@ -254,7 +254,7 @@ beforeEach(async () => {
  * **This list is the test.** A learner endpoint added without one is a line
  * missing from here, and adding the line is what surfaces it.
  */
-const LEARNER_ROUTES: [method: "get" | "post" | "put" | "patch", path: string][] = [
+const LEARNER_ROUTES: [method: "get" | "post" | "put" | "patch" | "delete", path: string][] = [
   ["get", "/auth/me"],
   ["get", "/career-paths"],
   ["get", "/onboarding"],
@@ -299,6 +299,17 @@ const LEARNER_ROUTES: [method: "get" | "post" | "put" | "patch", path: string][]
   ["patch", "/resume"],
   ["get", "/resume.pdf"],
   ["get", "/certificates/CODE.pdf"],
+  // §5.13
+  ["get", "/explore"],
+  ["get", "/explore/filters"],
+  ["post", "/roadmaps/ROADMAP/items"],
+  // §5.18. None of these take an id: the account they act on is the session's.
+  ["get", "/account"],
+  ["put", "/account/profile"],
+  ["put", "/account/password"],
+  ["get", "/account/export"],
+  ["delete", "/account"],
+  ["delete", "/github/connection"],
 ];
 
 /**

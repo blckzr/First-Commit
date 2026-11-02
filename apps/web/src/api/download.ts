@@ -12,6 +12,16 @@
 
 const BASE = import.meta.env.VITE_API_URL ?? "http://localhost:4000";
 
+/**
+ * §5.18's "Download my data" is a JSON file rather than a PDF, and everything
+ * below applies to it unchanged — the credentials, the `content-disposition`
+ * filename, the blob. So the mechanism is one function and `downloadPdf` is a
+ * name for the common case, rather than this being copied with a new extension.
+ */
+export function downloadFile(path: string, fallbackName: string): Promise<void> {
+  return downloadPdf(path, fallbackName);
+}
+
 export async function downloadPdf(path: string, fallbackName: string): Promise<void> {
   const res = await fetch(`${BASE}${path}`, { credentials: "include" });
   if (!res.ok) {

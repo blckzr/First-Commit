@@ -46,4 +46,15 @@ export const githubApi = {
    */
   connectUrl: (signal?: AbortSignal) =>
     apiRequest("/github/connect", { schema: ConnectUrl, signal }),
+
+  /**
+   * §5.18's disconnect. Ends the platform's access to the repository and
+   * nothing else — the capstone project and every milestone already passed stay
+   * exactly as they are (§6 rule 5).
+   */
+  disconnect: () =>
+    apiRequest("/github/connection", {
+      method: "DELETE",
+      schema: z.object({ connected: z.boolean(), wasConnected: z.boolean() }),
+    }),
 };

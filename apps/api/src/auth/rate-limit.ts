@@ -22,7 +22,7 @@ import { clientIp } from "./client-ip.js";
  * oracle that §6.3 is trying to close.
  */
 
-export type AttemptKind = "login" | "reset_request";
+export type AttemptKind = "login" | "reset_request" | "password_change";
 
 export interface LimitRule {
   /** How far back to count. */
@@ -41,6 +41,20 @@ export interface LimitRule {
 export const RULES: Record<AttemptKind, LimitRule> = {
   login: { windowMs: 15 * 60_000, perEmail: 5, perIp: 20, failuresOnly: true },
   reset_request: { windowMs: 60 * 60_000, perEmail: 3, perIp: 10, failuresOnly: false },
+  /**
+   * §5.18's change-password form, which sits behind a session.
+   *
+   * It is limited anyway because a session is not proof of the password: with a
+   * borrowed or stolen one, an unlimited guess at the *current* password is a
+   * way to take the account over for good. Counting failures only, so a learner
+   * who changes their password twice in an afternoon is not stopped.
+   *
+   * **Its own bucket, deliberately.** Reusing `login` would let these failures
+   * fill the limit that protects logging in — locking the real owner out of
+   * their account is the outcome the attacker wanted, so a shared bucket turns
+   * this defence into the attack.
+   */
+  password_change: { windowMs: 15 * 60_000, perEmail: 5, perIp: 20, failuresOnly: true },
 };
 
 /** design.md §9: say what happened and what to do, without blaming the reader. */

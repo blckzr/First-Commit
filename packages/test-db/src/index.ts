@@ -158,7 +158,13 @@ function readMigration(): string {
  * - **`having` is not supported at all** (it throws, at least). The admin
  *   overview applies its thresholds in TypeScript instead.
  * - **A correlated subquery cannot see an outer alias** (`column "bv.id" does
- *   not exist`). Use a left join and test for null.
+ *   not exist`). Use a left join and test for null. **It is not only the select
+ *   list**: a `where ... exists (select 1 ... where psm.module_id = m.id)`
+ *   throws the same way (`column "m.id" does not exist`), which §5.13's career
+ *   path filter met. Resolve the inner set in its own query and filter with
+ *   `in (...)` — and note that joining the inner table into the outer `from`
+ *   is usually the wrong alternative, because a one-to-many relationship then
+ *   duplicates the outer row and inflates any count over it.
  * - **`on conflict` will not match a table-level unique constraint**, and
  *   `do nothing ... returning` returns the existing row where PostgreSQL returns
  *   none. Catch `23505` instead.
@@ -188,6 +194,17 @@ function readMigration(): string {
  *   predicate against a joined selection. Build the `where` clause from the
  *   filters that were actually given, which is the better query anyway: an
  *   `or null` predicate is not usable as an index predicate.
+ * - **One `delete` that cascades into two tables, where one of them
+ *   `restrict`s the other, is refused.** `delete from users` for a learner
+ *   holding a certificate throws `update or delete on table "roadmaps"
+ *   violates foreign key constraint on table "certificates_roadmap_id_fk"`,
+ *   because pg-mem evaluates the restrict against rows the same statement is
+ *   about to delete. **Real PostgreSQL completes the cascade and the delete
+ *   succeeds** — measured by `npm run db:verify`. Cascade and restrict are each
+ *   implemented correctly on their own; it is only this combination. Note the
+ *   polarity: pg-mem is *stricter* here, so the divergence makes a test fail
+ *   where production works, rather than the other way round. `account/routes.ts`
+ *   deletes the referencing rows first, which both engines accept.
  * - **`text || integer` is refused** ("operator does not exist"), where
  *   PostgreSQL resolves it through `anynonarray`. Cast explicitly:
  *   `v.version_no::text`.

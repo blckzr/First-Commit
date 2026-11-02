@@ -19,8 +19,9 @@ import { ActivityLog } from "./ActivityLog";
  *
  * **Every route the sidebar offers is now a real screen.** Overview, Career
  * paths, Modules, Capstone projects, Project reviews, Flagged AI feedback,
- * Analytics, Certificates, Users, Settings and the Activity log — no
- * `Placeholder` is left in the admin tree.
+ * Analytics, Certificates, Users, Settings and the Activity log — none of them
+ * is a stand-in. (The `Placeholder` component they replaced no longer exists:
+ * §5.13 was the last route in the app that needed one.)
  *
  * What is still missing inside these screens is named on the screens
  * themselves and tracked in docs/task-tracker.md: §6.2's drag-and-drop

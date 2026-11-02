@@ -11,6 +11,201 @@ lives under `[Unreleased]` until there is something to version.
 
 ## [Unreleased]
 
+### 2026-11-02 — §5.13 Explore modules, and the last `Placeholder` is gone
+
+`/app/explore` is built, which was the only route in the app still rendering a stand-in. The
+`Placeholder` component and its stylesheet are **deleted** — every route in every area is now a
+real screen.
+
+#### Added
+
+- **`/app/explore` (§5.13)** with `GET /explore`, `GET /explore/filters`, and
+  `POST /roadmaps/:id/items`. Search across title, description **and skill name**, so a learner
+  searching "react" finds a React module whose title does not say so; filters for skill area,
+  technology, career path and status; paging with a total that counts the filtered set.
+- **A learner can change the shape of their own roadmap**, for the first time.
+  `POST /roadmaps/:id/items` writes `roadmap_items` with `source = 'learner_added'` — the enum
+  value that has existed unused since the first migration. What it cannot write is the point, and
+  a test greps the module for an insert into any of the four evidence tables: planning a module is
+  a statement of intent, which is exactly why a learner is allowed to do it (§6 rule 1).
+  - **Already there is a success.** `added: false` with a reason, not a 409 — the learner wanted
+    the module on the roadmap and it is.
+  - **A removed module goes back where it was.** §5.8 takes the other technologies' modules off
+    with `status = 'removed'`; re-adding restores that row and keeps its `sort_order`.
+  - **Archived and completed roadmaps are refused**, each with its own next step. Adding to an
+    archived roadmap would quietly revive it; to a completed one, reopen a certificate's basis.
+  - **With two active roadmaps the learner is asked which.** §5.12 draws two Active cards, so
+    "your roadmap" is not always one thing — and quietly picking the newest is open question 16's
+    complaint about Home and Capstone, not worth repeating.
+- **A locked module is shown and can still be planned.** The row carries the *titles* of the
+  unmet prerequisites rather than a flag, because §9's copy names them — "Pass JavaScript basics
+  to unlock this module." A boolean would force the screen to say "Locked", which a learner
+  cannot act on. §6 rule 7 holds: a tested-out prerequisite counts, across every roadmap.
+- **Filters live in the URL**, so a filtered catalogue survives a breakpoint change (§11) and can
+  be bookmarked. Changing a filter resets the page.
+
+#### Removed
+
+- **`Placeholder` and `Placeholder.module.css`.** They existed so every route the navigation
+  offered resolved to something while the shells were reviewed, each naming the `design.md`
+  section that specified it. §5.13 was the last route using one, and the router's `.map()` that
+  turned a describe-only entry into a placeholder is gone with it — a branch nothing takes. The
+  practice is recorded in `router.tsx` in case a new screen is ever specified.
+
+#### Fixed
+
+- **`SearchField` had no accessible name, and said in its own comment that it did.** The label
+  was `<label hidden>` — `hidden` is `display: none`, which removes the element from the
+  accessibility tree entirely, so "visually hidden but read by screen readers" was the one thing
+  it was not. It now uses the clipping pattern four other files in the repo already use. Nothing
+  caught this: `jsx-a11y` only checks that a `<label>` exists, and axe under jsdom does not flag
+  a missing name on an input that has an associated label element. The first test to ask for the
+  field *by its name* did. It had only ever been used in the component gallery, so no shipped
+  screen was affected — §5.13 is the first real use.
+- **An unreachable guard, removed rather than tested around.** `score` was reported as
+  `row.method && row.score !== null ? ... : null`. `module_completions.method` is `not null` and
+  both columns come from the same left-joined row, so `method` is non-null exactly when a
+  completion exists — and when it does not, `score` is null anyway. Mutation testing showed no
+  test could tell the two versions apart, because there is no state that distinguishes them. The
+  same call as Phase 5's "last active admin" check: a branch no test can reach looks like care
+  and proves nothing.
+
+#### Divergence found in pg-mem
+
+- **A correlated subquery fails in `where ... exists`, not only in the select list.** The entry
+  for this divergence described `select (select ... )`; §5.13's career path filter met it as
+  `where exists (select 1 ... where psm.module_id = m.id)`, which throws
+  `column "m.id" does not exist` the same way. The note now covers both, and records that joining
+  the inner table into the outer `from` is usually the wrong fix — a one-to-many relationship
+  duplicates the outer row and inflates any count over it, which is precisely what the career
+  path filter would have done to the paginator's total.
+
+#### Tests
+
+API 1076 (was 1014), web 712 (was 676), worker unchanged at 312.
+
+**Twenty-five mutations introduced and confirmed caught**, after two rounds. API: draft modules
+and draft versions listed; progress read without the session filter; the total ignoring the
+filters; a met prerequisite still reported as locked; an archived roadmap or a removed item
+counting as "on your roadmap"; filter options including draft content; ownership unchecked on
+add; an archived roadmap accepting an add; a draft module added; the item not marked
+`learner_added`; the body no longer `.strict()`; and a re-added module sent to the end. Web: a
+locked module hidden; testing out reported as a plain pass; the prerequisite unnamed; extra
+prerequisites dropped; filters not read from the URL; the page kept across a filter change; an
+archived roadmap offered; two roadmaps collapsed to a silent pick; already-added reported as a
+failure; paging rendered for one page; an already-added module still offered; and the empty state
+failing to distinguish filters from an empty catalogue.
+
+**Three of those exposed real test gaps rather than confirming cover**, which is the whole reason
+for the practice:
+
+1. `alreadyOnARoadmap`'s two status checks had no test at all — its docblock made two claims
+   (archived roadmaps do not count, removed items do not count) and neither was covered.
+2. The score guard was dead code (above).
+3. `/on your roadmap/i` also matched this page's own lede — "modules that are **not on your
+   roadmap**" — so the badge's test passed with the badge deleted. The recurring lesson:
+   asserting an outcome that failure also produces proves nothing. The assertion is now scoped
+   to the row.
+
+
+### 2026-11-02 — §5.18 Settings, and one `Placeholder` left in the app
+
+`/app/settings` is built: profile, password, GitHub, and the data section. `/app/explore`
+(§5.13) is now the only named `Placeholder` anywhere in the app.
+
+#### Added
+
+- **`/app/settings` (§5.18)** and five endpoints: `GET /account`, `PUT /account/profile`,
+  `PUT /account/password`, `GET /account/export`, `DELETE /account`, plus
+  `DELETE /github/connection`. **None of them takes a user id** — the account acted on is the
+  session's, so there is no `:id` in any path and no body that can name an account.
+- **"Download my data" is an allowlist, not a sweep** (`account/export.ts`). The obvious
+  implementation — every row whose `user_id` matches — leaks: `ai_jobs.payload` carries the
+  milestone review checklist and the rubric, `integrity_flags` are about the learner and still
+  not theirs to read, and `ai_feedback_flags.admin_notes` is an admin's working notes on the
+  learner's own complaint. Each is excluded by name with the reason beside it, and the file
+  itself carries a `notIncluded` list, because an export that is silent about its own gaps reads
+  as the whole record. Two things that *look* like leaks and are not are documented too:
+  `assessment_attempts.answers` is the learner's own choices, and
+  `code_submissions.test_results` is stored **already redacted** by the worker — which is worth
+  knowing before anyone moves that redaction to read time.
+- **Changing the password ends every other session and keeps this one** (§6.3). The replacement
+  session is issued *after* the sweep; issuing it before deletes it with the rest, which is
+  mutation-tested by reordering the two lines.
+- **A `password_change` rate-limit kind.** `auth_attempts.kind` is text, so no migration. It gets
+  its own bucket rather than reusing `login`: a session is not proof of the password, so an
+  unlimited guess at the current one is a way to take an account over permanently — but counting
+  those failures as logins would lock the real owner out of signing in, which is the outcome the
+  attacker wanted. The test asserts the kind written *and* that the login limit is untouched.
+- **Changing the email un-verifies it** and sends a fresh link, in one transaction. The screen
+  reports whether the mail actually sent rather than assuming a saved profile means a sent email.
+
+#### Changed
+
+- **§5.18's notification preferences were dropped, and the screen says why.** It asked learners to
+  "choose which notifications to receive by email"; nothing in the platform emails a notification
+  — two templates exist, verification and reset, and the only `notifications` writer inserts an
+  in-app row. A stored preference would control nothing, which is exactly the state §6.11's two
+  unenforced rules are in (open question 19): one such knob is an inheritance, two would be a
+  habit. `design.md` §5.18 records the decision and what building it properly would take.
+- **Education details stay on the Resume.** §5.18 listed them under Profile; they are already
+  edited in §5.16 next to the evidence they sit beside, and `PUT /resume/details` owns them. The
+  section links there instead of growing a second editor for one column.
+- **Open question 17 is narrower than it was written.** It said §5.18's delete "will meet this".
+  It does not: every learner-owned FK to `users` is `on delete cascade`, and the two that are not
+  — `check_overrides.admin_id` (`restrict`) and `admin_activity_log.admin_id` (`set null`, blocked
+  by the append-only trigger) — are only ever set for an **admin**, while `/app/settings` is a
+  learner area. So the delete works and the dialog's promise is literal, including the certificate
+  verification links going dead. The API answers `canDelete` and refuses an admin with the reason
+  rather than with a trigger's error. What the question still blocks is an admin who wants to
+  leave, which has no screen.
+
+#### Fixed
+
+- **`downloadPdf` was the only file-download path** and §5.18 needed a JSON one. The mechanism was
+  already generic — credentials, `content-disposition`, blob — so it is now `downloadFile` with
+  `downloadPdf` as a name for the common case, rather than copied with a new extension.
+
+#### Divergence found in pg-mem
+
+- **One `delete` that cascades into two tables, where one `restrict`s the other, is refused.**
+  `delete from users` for a learner holding a certificate throws `update or delete on table
+  "roadmaps" violates foreign key constraint on table "certificates_roadmap_id_fk"`, because
+  pg-mem evaluates the restrict against rows the same statement is about to delete.
+  **Real PostgreSQL completes the cascade and the delete succeeds** — measured, after the pg-mem
+  result had been written up as a production bug it is not. Cascade and restrict are each
+  implemented correctly on their own; only the combination diverges. Note the polarity: pg-mem is
+  *stricter*, so this makes a test fail where production works rather than the reverse.
+  `account/routes.ts` deletes the referencing rows first, which both engines accept — kept because
+  without it the most destructive endpoint in the learner API could not be tested at all, and
+  because PostgreSQL does not *document* an order when one delete cascades into several tables.
+
+#### Tests
+
+API 1014 (was 966), web 676 (was 637), worker unchanged at 312. `npm run db:verify` gains a check
+that reports what both delete forms do against the live database.
+
+**Eighteen mutations introduced and confirmed caught.** API: the delete collapsed to one
+statement; the new session issued before the sweep; an email change keeping `email_verified_at`;
+password failures counted as logins; the current password not checked; the duplicate-address check
+removed; an admin allowed to delete; the export sweeping `ai_jobs` in; the export dropping its
+session filter; and a GitHub disconnect that also deleted the capstone project. Web: `canDelete`
+ignored; "check your new address" claimed when no mail was sent; an unreachable connection
+rendered as disconnected; delete firing without the dialog; focus not returned on close; Escape
+not closing; Tab allowed to leave the dialog; and a notifications toggle that stores nothing.
+
+#### Accessibility
+
+- **`jsx-a11y/no-noninteractive-element-interactions` was right and the markup changed.** The
+  delete dialog had `onKeyDown` on a `role="dialog"` div. The handler now attaches at the
+  document in an effect, which is also what a modal's Escape is supposed to do — a keydown prop
+  only fires while focus is inside the element, which stops being true the moment anything
+  renders through a portal. **No rule was disabled or widened.** `showModal()` would hand focus
+  trapping, Escape and background inertness to the browser and is the better answer the day it
+  can be tested; jsdom 30 still does not implement it, so a native modal would be a dialog no
+  test in this suite could open.
+
+
 ### 2026-11-02 — Phase 5: the last four admin screens, and no `Placeholder` left
 
 §6.9 Analytics, §6.10 Users, §6.11 Settings and §6.12 the Activity log. Every route the admin

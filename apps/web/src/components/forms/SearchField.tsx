@@ -9,7 +9,13 @@ export interface SearchFieldProps
   label: string;
 }
 
-/** The search pill. The only input the system allows a pill shape. */
+/**
+ * The search pill. The only input the system allows a pill shape.
+ *
+ * The label is clipped rather than `hidden`: `hidden` is `display: none`, which
+ * takes the label out of the accessibility tree and leaves the field with no
+ * accessible name. See the note in the stylesheet.
+ */
 export function SearchField({ label, className, id, ...rest }: SearchFieldProps) {
   const autoId = useId();
   const inputId = id ?? autoId;
@@ -17,7 +23,7 @@ export function SearchField({ label, className, id, ...rest }: SearchFieldProps)
   return (
     <span className={[styles.shell, className ?? ""].filter(Boolean).join(" ")}>
       <Icon name="search" size={16} />
-      <label htmlFor={inputId} hidden>{label}</label>
+      <label htmlFor={inputId} className={styles.label}>{label}</label>
       <input {...rest} id={inputId} type="search" className={styles.control} />
     </span>
   );

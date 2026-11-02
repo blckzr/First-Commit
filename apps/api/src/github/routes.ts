@@ -173,6 +173,28 @@ export function githubRoutes(pool: Pool, github: GitHubClient): Router {
     });
   });
 
+  /**
+   * Disconnect (design.md §5.18, the GitHub section).
+   *
+   * **Only the connection goes.** `capstone_projects` keeps `repo_full_name`
+   * and `repo_github_id`, and every `milestone_attempts` row keeps its commit
+   * sha and check results — those are evidence, and §6 rule 5 does not let a
+   * settings toggle delete them. What the learner loses is the platform's
+   * ability to *read* the repository, which is why the screen warns before
+   * calling this rather than after.
+   *
+   * Deleting a row that is not there is not an error. The learner asked to end
+   * up disconnected and they are; a 404 would describe the platform's state
+   * rather than answer the request.
+   */
+  router.delete("/github/connection", requireAuth, async (req, res) => {
+    const user = sessionUser(req);
+    const result = await pool.query(`delete from github_connections where user_id = $1`, [
+      user.id,
+    ]);
+    res.json({ connected: false, wasConnected: (result.rowCount ?? 0) > 0 });
+  });
+
   return router;
 }
 
