@@ -11,6 +11,250 @@ lives under `[Unreleased]` until there is something to version.
 
 ## [Unreleased]
 
+### 2026-11-02 — Career paths and capstone briefs: the content spine is complete
+
+§6.2 and §6.5, the last two editors. An admin can now define a career path's prerequisites and
+certificate rules, and write a capstone brief with its milestones and starter templates.
+
+23 endpoint tests and 10 screen tests for paths; 14 and 14 for briefs.
+
+#### §6.2: two validations that are not polish
+
+This is the structure the Roadmap AI selects from, so both of the things §6.2 names are the
+difference between a roadmap that can be finished and one that cannot.
+
+**A circular prerequisite makes a module unreachable.** The schema's only guard is
+`module_id <> requires_module_id` — a one-step loop and nothing longer. "A needs B, B needs C, C
+needs A" is accepted, and `roadmap/validate.ts` would then reject every roadmap the model produced,
+**with an error about the model rather than about the content**. `findCycle` is tested directly
+rather than only through HTTP, because the interesting cases are the long loops and building a
+six-module cycle over the wire is noise around one question. A diamond is explicitly allowed: two
+paths to the same ancestor are legitimate.
+
+The refusal names the loop in slugs — "js-functions → js-basics → js-functions" — because §9 says
+to say what happened in the author's terms.
+
+**A technology option with no module for a concept skill** leaves a learner who picked Vue with a
+gap where the React learner has a lesson, and the roadmap is still valid: the module is not
+missing, it was never there to miss. Nothing else in the platform notices, so it is a banner.
+
+Certificate rules are logged (§6.1 step 5): marking a module optional releases everybody, including
+learners already part-way through.
+
+#### §6.5: briefs version like modules, and one gate of their own
+
+Same shape throughout — draft copied from published, only a draft editable, publish demotes, and
+`capstone_projects` references a version so a learner part-way through finishes the one they
+started. Asserted directly, as for modules.
+
+The particular gate is §6.5's: **a brief cannot be published for a technology option without a
+starter template.** A learner who picks Vue and finds none cannot start their capstone *at all*.
+The admin overview already counts that gap; this refuses to create it, and the screen names the
+missing option before Publish rather than letting an author discover it from a refusal.
+Mutation-tested.
+
+#### Four more pg-mem divergences, two of them silent
+
+Found building this, and now all in `packages/test-db`'s list:
+
+- **`= any($1::uuid[])` returns an empty result** rather than erroring. The loop message silently
+  fell back to raw uuids — exactly the sentence that has to be readable. Expanded `in ($1, $2, …)`.
+- **`update <table> <alias> ... from ...` is not parsed** ("Unknown alias"). Checked with a select,
+  then updated without the alias.
+- **A correlated scalar subquery in the select list fails.** Grouped separately and joined in
+  TypeScript.
+- And `having`, which I had documented an hour earlier and used anyway.
+
+Two of those four are **wrong answers rather than errors**, which is the kind this list exists for.
+
+#### What is still seed-file content, said plainly
+
+- **§6.2's drag-and-drop placement.** Which skills sit on a path and which modules hang off them
+  still comes from `supabase/seed/`. What is built is the part that silently breaks a roadmap.
+- **§6.5's check editor.** A milestone's automatic checks are shown as a count; editing them is not
+  built.
+- **§6.3's "Preview as learner".**
+
+### 2026-11-02 — The exercise editor, and a gate that cannot be talked around
+
+§6.3's Test cases and Rubric tabs, and the thing they were waiting on:
+
+> "Publishing is blocked if the reference solution fails any test."
+
+**The API cannot check that**, because the sandbox is in the worker and deliberately so — running
+submitted code in the process that holds `DATABASE_URL` is what the whole sandbox design prevents.
+So verification is a job (migration 0005), and `reference_solutions.last_verified_at` is the gate:
+a column the initial schema already anticipated, commented "Set when all test cases pass".
+
+21 endpoint tests, 13 worker tests, 14 screen tests.
+
+#### Three things make the gate hold
+
+1. **Only the worker writes the stamp.** There is no "mark verified" endpoint, and a test asserts
+   that no request body can produce one.
+2. **Every save clears it.** An exercise verified on Monday and edited on Tuesday has not been
+   checked, and a stale stamp is exactly how a broken exercise reaches a learner through a gate
+   that looks like it ran. Mutation-tested: keeping the old stamp across an edit fails two tests;
+   removing the publish check fails three.
+3. **Anything short of a full pass clears it too** — a failure, a sandbox that could not start, an
+   empty result. A case that reports nothing is a failure, never a pass, which is the same rule
+   `results.ts` has carried since the first sandbox.
+
+A learner who reaches an exercise whose own answer fails has been handed a problem with no
+solution and no way to know it.
+
+#### Not `code_submissions`, and the reason is sharp
+
+That table is learner evidence: `submissions.ts` writes `module_completions` on a full pass. An
+admin's reference run through it would **forge a learner completion** — §6 rule 1 broken by
+convenience, and invisibly. `validate-exercise.ts` writes nothing about any learner, and a test
+asserts `module_completions`, `code_submissions` and `module_enrollments` are all still empty
+afterwards.
+
+#### On the naming, said rather than hidden
+
+`ai_jobs` and `ai_job_type` are really the worker's job queue, and this job involves no model.
+Adding a parallel table, claim function and dispatch loop for one job type would be a lot of
+duplication to keep a prefix honest, so the prefix is what gives. Migration 0005 says so.
+
+The handler returns no `output`, so no `ai_outputs` row is written — this is a check result for an
+admin, not AI output for a learner.
+
+#### On the screen
+
+- **The verification banner is the first thing in the tab**, and it stops saying "Verified" the
+  moment anything is edited. An author who edited after a green run needs to know the green is
+  gone *before* they go looking for Publish.
+- **"Run tests" is disabled while there are unsaved changes**, because verifying something nobody
+  stored is worse than not verifying at all.
+- **Hidden cases are shown unredacted, by name, including when they fail.** `redact()` exists
+  because a *learner* may not read one; an author wrote them and cannot fix a failing case they
+  are not shown.
+- Polling runs only while a job is outstanding. The worker writes from another process, so there
+  is nothing to push — and polling forever would keep an idle editor talking to the API all day.
+
+Migration 0005 is applied; `npm run db:verify` passes.
+
+### 2026-11-02 — The quiz editor, and why the exercise editor is not in this entry
+
+§6.3's Assessment tab. Quizzes can be written, reordered and published from `/admin/modules`
+instead of from a seed file. 16 endpoint tests, 12 screen tests.
+
+**Quizzes before exercises, and the split is not arbitrary.** Every one of the 19 modules has a
+quiz; 8 have an exercise. And §6.3 says publishing is blocked when the reference solution fails its
+tests — which the API cannot check, because **the sandbox lives in the worker**. An exercise editor
+without that check would let an admin publish a broken exercise, which is worse than having no
+editor. It needs a job type and worker work, so it is its own piece.
+
+Reusing `code_submissions` for a verification run was considered and rejected: `submissions.ts`
+writes `module_completions` on a pass, so an admin's reference run through that table would forge a
+learner completion. A §6 rule 1 violation by convenience.
+
+#### The correct answer is a radio, not a field
+
+`quiz_answer_keys` holds exactly one option per question. A control that could express "two
+correct" or "none" would let an author build a quiz **nobody can pass** — and the API refusing it
+after six options were typed is a worse screen than one that cannot ask the question.
+
+The subtle half is removal. Taking out the option that was correct must not leave the key pointing
+at whatever slides into its place: that is a quiz with a silently wrong answer and nothing
+downstream notices. Removing an earlier option shifts the index down with it. Both directions are
+mutation-tested — dropping the reindexing fails exactly those two tests.
+
+#### The rest
+
+- **Only a draft's quiz may be written.** A published one is what learners are being tested on, and
+  `assessment_attempts` references it `on delete restrict` — the schema would refuse anyway, and
+  the status check turns a foreign-key error into a clear 404. Mutation-tested: dropping
+  `requireAdmin` fails the route's own test *and* the security harness.
+- **The whole quiz is replaced**, like lessons, because `quiz_questions` is keyed by
+  `(assessment_id, sort_order)` and reordering one at a time collides with itself. The
+  `assessments` row survives the rewrite, so an exercise or rubric hanging off the same version
+  keeps its id.
+- **`correctIndex`, not an option id**, across the wire. The editor rewrites everything, so ids it
+  was handed would not survive the round trip — carrying them would invite sending one that no
+  longer exists.
+- **Publishing refuses an empty quiz**, not a missing one. Not every module is assessed, but a
+  module that offers a quiz and shows nothing is a bug in the platform rather than somebody's
+  unfinished draft.
+
+**`having` bit me a second time.** I documented pg-mem's lack of support an hour earlier and then
+wrote one anyway; three publish tests returned 500. Grouped in SQL, filtered in TypeScript, as the
+admin overview already does.
+
+### 2026-11-02 — The module editor: content stops living in a seed file
+
+The platform's premise is **admin-defined content the Roadmap AI picks from**. Until now that meant
+editing `supabase/seed/` and re-running a script. `/admin/modules` is the first screen that makes
+"an admin defined it" literally true.
+
+This is Phase A of the content surface: §6.3's Content and History tabs and §6.4's impact preview.
+§6.3's Assessment, Test cases and Rubric tabs, §6.2's career path editor and §6.5's brief editor
+follow — **on this spine**, which is why versioning was built first.
+
+#### §6 rule 6 is structural, not a convention
+
+> Progress points at the exact `module_version_id` taken. In-progress learners finish their
+> version; completed learners keep credit. Never repoint existing progress at a new version.
+
+**Nothing in `admin/modules.ts` writes to `module_enrollments` or `module_completions`** — the
+string `update module_enrollments` appears zero times. A learner halfway through version 2 finishes
+version 2 because their enrollment references that row and nothing moves it, not because a date is
+checked anywhere.
+
+Mutation-tested: adding the "helpful" repoint that the rule exists to prevent fails the test that
+states it. A publish that moved learners would otherwise be **invisible** — their lessons would
+simply change under them, mid-module.
+
+`module_versions_one_published` is a partial unique index, so demoting the old version and
+promoting the draft **must** be one transaction. Two published versions is a state the database
+refuses, which is the right place for that invariant: a bug fails loudly instead of leaving a
+module with two live versions and no way to tell which a learner gets.
+
+#### What the editor will and will not do
+
+- **A draft is copied from the published version**, not started empty. An author changing a
+  sentence should not retype a lesson — that is how a small edit becomes a rewrite that loses
+  something.
+- **One draft at a time**, and a second request returns the open one rather than refusing, so a
+  second tab lands on the same draft instead of an error.
+- **A published version is read-only here**, and four tests fail if the editor ever opens on one.
+- **Lessons are saved as a whole list.** `lessons` is keyed by `(version, sort_order)`, so saving
+  one at a time collides with itself mid-reorder — and an author reordering three lessons made one
+  edit, not three.
+- **Discard is the only delete**, and only ever of a draft: §6 rule 5 says nothing learners depend
+  on is hard-deleted, and a draft is by definition something no learner has seen. Logged anyway,
+  because §6.12 is where an author asks where their draft went.
+- **Publishing is blocked with no lessons.** §6.3 blocks it on a failing reference solution; this
+  is the same idea, and the only such check possible before the assessment editors exist.
+
+The block editor is an **exhaustive `switch`** over §13.3's `LessonBlock`, as `LessonBody` is, so a
+new block type is a compile error in the editor as well as the renderer — it cannot silently fail
+to offer one the learner's screen can draw.
+
+#### §6.4's dialog counts before it asks
+
+The three sentences under the numbers — "learners taking version 2 will finish it", "learners who
+passed keep their credit", "new learners get version 3" — are §6 rule 6 said to the person about to
+rely on it. So the counts are loaded first and the publish button waits for them.
+
+"Taking it now" excludes anyone who has already passed, which is its own test: counting them would
+tell an admin people are mid-module who are not, about the exact sentence the dialog promises.
+
+#### Found on the way
+
+- **`security.test.ts` had no `delete` in its helper**, so the first admin `DELETE` route crashed
+  the suite with `as(...)[method] is not a function` rather than failing an assertion. The same gap
+  `patch` and `put` each had. The harness now drives all eight new routes automatically.
+- **No `--surface-scrim` token existed**, and §8 allows literal colours only in `tokens.css`. Added
+  as ink at 55% rather than black: the page's darkest surface is `--ink-900`, and a true black
+  scrim reads as another product's overlay sitting on top of this one. One of the seven colours
+  open question 10 tracks.
+- **A lint error worth having**: syncing the draft into local state in an effect. Replaced with a
+  `key` on the component, which is both the idiomatic fix and a correctness one — syncing would
+  have overwritten what an author was typing on every refetch, and a save triggers a refetch of the
+  very thing being edited.
+
 ### 2026-11-02 — React and Vue exercises, and a contract a pair cannot drift from
 
 The four technology modules had no exercise. A learner on the Frontend track — which is where the

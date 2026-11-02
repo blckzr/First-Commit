@@ -1,0 +1,30 @@
+-- =============================================================================
+-- 0005 — Verifying an exercise before it is published
+--
+-- design.md §6.3: "Publishing is blocked if the reference solution fails any
+-- test." The API cannot check that itself — **the sandbox lives in the
+-- worker**, and deliberately so: running submitted code in the process that
+-- holds `DATABASE_URL` and `SESSION_SECRET` is the thing the whole sandbox
+-- design exists to prevent.
+--
+-- So verification is a job. The admin saves an exercise, asks for it to be
+-- checked, and the worker runs the reference solution through the real sandbox
+-- and sets `reference_solutions.last_verified_at` — a column the initial schema
+-- already anticipated, commented "Set when all test cases pass".
+--
+-- **Why not `code_submissions`.** That table is learner evidence:
+-- `apps/worker/src/submissions.ts` writes `module_completions` on a full pass.
+-- Running an admin's reference solution through it would forge a learner
+-- completion — §6 rule 1 broken by convenience, and invisibly.
+--
+-- **On the name.** `ai_jobs` and `ai_job_type` are really the worker's job
+-- queue; this one involves no model at all. Adding a parallel table, claim
+-- function and dispatch loop for a single job type would be a lot of
+-- duplication to keep a prefix honest, so the prefix is the thing that gives.
+-- Recorded here rather than pretended away.
+--
+-- `alter type ... add value` cannot run inside a transaction block on every
+-- supported Postgres, so it is alone in this file.
+-- =============================================================================
+
+alter type ai_job_type add value if not exists 'exercise_validation';

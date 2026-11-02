@@ -31,6 +31,7 @@ import {
 } from "./prompts/milestone-review.js";
 import { createRunner } from "./runner.js";
 import { queueFeedback, runSubmission, type Submission } from "./submissions.js";
+import { validateExercise } from "./validate-exercise.js";
 
 /**
  * `code_submissions.test_results` as stored. `jsonb`, so it is parsed rather
@@ -97,6 +98,18 @@ const handlers: Record<string, Handler> = {
   },
 
   roadmap_generation: (job) => runRoadmapGeneration(pool, job),
+
+  /**
+   * §6.3: "Publishing is blocked if the reference solution fails any test."
+   *
+   * **No model, and no `output`.** A handler that returns no `output` writes no
+   * `ai_outputs` row, which is right: this is a check result for an admin, not
+   * AI output for a learner. It lands on `ai_jobs.result` and the screen reads
+   * it there.
+   */
+  async exercise_validation(job) {
+    return { result: await validateExercise(pool, runner, job.payload) };
+  },
 
   resume_generation: (job) => runResumeGeneration(pool, job),
 

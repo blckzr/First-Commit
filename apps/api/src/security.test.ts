@@ -72,6 +72,8 @@ const as = (learner: Learner) => ({
     request(app).patch(path).set("Cookie", learner.cookie).set("Origin", config.appOrigin),
   put: (path: string) =>
     request(app).put(path).set("Cookie", learner.cookie).set("Origin", config.appOrigin),
+  delete: (path: string) =>
+    request(app).delete(path).set("Cookie", learner.cookie).set("Origin", config.appOrigin),
 });
 
 async function signUp(email: string): Promise<{ id: string; cookie: string }> {
@@ -409,6 +411,27 @@ describe("§9.2 — every learner endpoint resolves a session", () => {
       "/admin/certificates",
       "/admin/certificates/:id/revoke",
       "/admin/overview",
+      "/admin/modules",
+      "/admin/modules/:id",
+      "/admin/modules/:id/versions",
+      "/admin/modules/:id/versions/:versionId",
+      "/admin/modules/:id/versions/:versionId/lessons",
+      "/admin/modules/:id/versions/:versionId/impact",
+      "/admin/modules/:id/versions/:versionId/publish",
+      "/admin/modules/:id/versions/:versionId/quiz",
+      "/admin/modules/:id/versions/:versionId/exercise",
+      "/admin/modules/:id/versions/:versionId/exercise/verify",
+      "/admin/paths",
+      "/admin/paths/:id",
+      "/admin/paths/:id/modules/:moduleId/prerequisites",
+      "/admin/paths/:id/skills/:pathSkillId/modules/:moduleId",
+      "/admin/briefs",
+      "/admin/briefs/:id",
+      "/admin/briefs/:id/versions",
+      "/admin/briefs/:id/versions/:versionId",
+      "/admin/briefs/:id/versions/:versionId/milestones",
+      "/admin/briefs/:id/versions/:versionId/templates",
+      "/admin/briefs/:id/versions/:versionId/publish",
       /**
        * §5.15's verification page is reachable without logging in, by link or QR
        * code — that is the whole point of a "publicly verifiable" certificate.
@@ -701,7 +724,7 @@ describe("§9.2 — admin endpoints", () => {
     for (const { method, path } of routes) {
       const url = path.replace(/:[A-Za-z]+/g, "00000000-0000-0000-0000-000000000000");
       const res = await as(mine)
-        [method as "get" | "post" | "patch" | "put"](url)
+        [method as "get" | "post" | "patch" | "put" | "delete"](url)
         .send({});
 
       expect(res.status, `${method} ${path} answered ${res.status} for a learner`).toBe(404);
@@ -712,7 +735,7 @@ describe("§9.2 — admin endpoints", () => {
     for (const { method, path } of adminRoutes()) {
       const url = path.replace(/:[A-Za-z]+/g, "00000000-0000-0000-0000-000000000000");
       const res = await request(app)
-        [method as "get" | "post" | "patch" | "put"](url)
+        [method as "get" | "post" | "patch" | "put" | "delete"](url)
         .set("Origin", config.appOrigin)
         .send({});
 

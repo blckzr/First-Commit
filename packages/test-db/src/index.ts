@@ -161,6 +161,13 @@ function readMigration(): string {
  *   Cast it explicitly.
  * - **`alter type ... add value` is not applied**, which is why `extractStatements`
  *   folds those values into the `create type`.
+ * - **`= any($1::uuid[])` returns an empty result** rather than erroring — another
+ *   silent wrong answer. Expand the list into `in ($1, $2, …)` instead.
+ * - **`update <table> <alias> ... from ...` is not parsed** ("Unknown alias").
+ *   Check ownership with a select, then update without the alias.
+ * - **A correlated scalar subquery in the select list fails** ("column m.x does
+ *   not exist"), as in `select (select count(*) ... where s.id = m.skill_id)`.
+ *   Group separately and join the counts in TypeScript.
  * - **No `date_trunc`**, registered above.
  *
  * Anything on this list is covered against real PostgreSQL by `npm run db:verify`

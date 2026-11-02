@@ -162,7 +162,10 @@ changelog for 2026-09-22.
   milestones, and the month's certificates. Zero is shown as zero and says what it means; a failed load shows no
   numbers at all
 - [x] `/admin/flags` — **applied**. §6.8: the learner's reason beside the full output, source and status filters, and a logged ruling. The first admin screen on real data
-- [ ] `/admin/paths` · `/modules` · `/briefs` · `/reviews` · `/analytics` · `/users` · `/settings` · `/log` — **designed**, not built
+- [~] `/admin/modules` — **applied** (§6.3): the list, the editor, History, and §6.4's impact dialog
+- [~] `/admin/paths` · `/admin/briefs` — **applied** (§6.2, §6.5), without the drag-and-drop placement and the
+  check editor
+- [ ] `/admin/analytics` · `/users` · `/settings` · `/log` — **designed**, not built
 - [ ] `/admin/certificates` — **designed** in v2, not built. Needs admin lookup, revoke and reissue endpoints — each changes a learner's outcome, so each is logged (§6.1 step 5) and takes a reason
 
 ---
@@ -409,10 +412,38 @@ The main loop: sign up → roadmap → learn → pass.
 - [ ] Resume builder — evidence selection, personal details, tailoring, edit, PDF download, ATS parse check
 - [x] **Admin overview** — `GET /admin/overview` and the screen (§6.1). 11 endpoint tests, 15 screen tests;
   the per-learner pass rate is mutation-tested
-- [ ] Career path editor — skills, tracks, technology options, prerequisites, certificate requirements
-- [ ] Module editor — lessons, quizzes, exercises, test cases, rubrics; preview
+- [~] **Career path editor** (§6.2) — `/admin/paths`. Prerequisites with **cycle detection**, certificate
+  rules (logged), and the "Vue has no module for State" warning. 23 endpoint tests, 10 screen tests
+  - [ ] **Placement is not built.** Which skills sit on a path and which modules hang off them still comes
+    from `supabase/seed/`
+- [~] **Module editor** — §6.3's Content and History tabs and §6.4's impact preview are built
+  (`/admin/modules`). 22 endpoint tests, 17 screen tests; §6 rule 6 is mutation-tested from both sides
+  - **Versioning is structural**: nothing in `admin/modules.ts` writes to `module_enrollments` or
+    `module_completions`, and `module_versions_one_published` makes two live versions a state the database
+    refuses
+  - [x] **Assessment tab** — the quiz editor (`features/admin/QuizEditor.tsx`). Questions, options, reorder,
+    and the correct answer as a radio so one-and-only-one is true by construction. 16 endpoint tests,
+    12 screen tests; the correct-answer reindexing on option removal is mutation-tested
+  - [x] **Test cases and Rubric tabs** — the exercise editor, with §6.3's publish gate. Migration 0005 adds
+    an `exercise_validation` job; the worker runs the reference solution through the real sandbox and sets
+    `reference_solutions.last_verified_at`. 21 endpoint, 13 worker and 14 screen tests; both halves of the
+    gate are mutation-tested
+    - **Only the worker writes the stamp, and every save clears it.** No endpoint can declare an exercise
+      verified, and an exercise edited after a green run is unverified again
+    - **Not `code_submissions`:** `submissions.ts` writes `module_completions` on a pass, so a reference run
+      through it would forge a learner completion
+  - [x] ~~**Test cases and Rubric tabs — blocked on a verification path.**~~ §6.3 blocks publishing when the
+    reference solution fails its tests, and the sandbox is in the worker, not the API. Needs an
+    `ai_job_type` for it (a migration) plus a worker handler that sets `reference_solutions.last_verified_at`,
+    and any edit to the cases or the solution must clear it. **Not** `code_submissions`: `submissions.ts`
+    writes `module_completions` on a pass, so a reference run through it would forge a learner completion
+  - [ ] **Preview as learner** (§6.3) is not built
 - [ ] **Versioning** — minor edit vs major revision, impact preview, learner update notices
-- [ ] Capstone brief and milestone editor
+- [~] **Capstone brief and milestone editor** (§6.5) — `/admin/briefs`. Versioned like modules, milestones
+  and acceptance criteria, templates per technology, and §6.5's gate: **no publish for an option without a
+  starter template**. 14 endpoint tests, 14 screen tests; the gate is mutation-tested
+  - [ ] **The check editor is not built** — a milestone's automatic checks show as a count and still come
+    from the seed files
 - [~] **Project reviews** — `/admin/reviews` built (§6.6): flags, commit history, explanation answers and
   rulings. **Check overrides are not built** — §6.6 offers overriding an incorrect check with a reason, and
   `check_overrides` has no endpoint
